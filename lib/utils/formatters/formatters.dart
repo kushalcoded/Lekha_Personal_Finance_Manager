@@ -1,0 +1,63 @@
+import 'package:intl/intl.dart';
+
+/// Formatters for various data types
+class AppFormatters {
+  /// Format currency
+  static String formatCurrency(double amount, {String symbol = '₹'}) {
+    final normalized = amount.abs();
+    final fraction = normalized - normalized.truncateToDouble();
+    final decimals = fraction > 0.0001 ? 2 : 0;
+    final pattern = decimals == 0 ? '#,##,##0' : '#,##,##0.00';
+    final formatter = NumberFormat(pattern, 'en_IN');
+    final sign = amount < 0 ? '-' : '';
+    return '$sign$symbol${formatter.format(normalized)}';
+  }
+
+  /// Format date to readable format
+  static String formatDate(DateTime date, {String format = 'MMM dd, yyyy'}) {
+    try {
+      final formatter = DateFormat(format);
+      return formatter.format(date);
+    } catch (e) {
+      return date.toString();
+    }
+  }
+
+  /// Format date to time format
+  static String formatTime(DateTime time, {String format = 'HH:mm'}) {
+    try {
+      final formatter = DateFormat(format);
+      return formatter.format(time);
+    } catch (e) {
+      return time.toString();
+    }
+  }
+
+  /// Format date-time
+  static String formatDateTime(DateTime dateTime) {
+    return '${formatDate(dateTime)} at ${formatTime(dateTime)}';
+  }
+
+  /// Get relative time (e.g., "2 hours ago")
+  static String getRelativeTime(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inSeconds < 60) {
+      return 'just now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return formatDate(dateTime);
+    }
+  }
+
+  /// Format percentage
+  static String formatPercentage(double value, {int decimals = 1}) {
+    return '${(value * 100).toStringAsFixed(decimals)}%';
+  }
+}

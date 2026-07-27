@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cold-start background: the app's dark violet ground, so the launch hands
+     off seamlessly into the Flutter splash animation (no white flash). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#0E0D12" />
+        </shape>
+    </item>
+</layer-list>

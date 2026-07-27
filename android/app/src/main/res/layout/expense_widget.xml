@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_background"
+    android:padding="14dp">
+
+    <ImageView
+        android:layout_width="42dp"
+        android:layout_height="42dp"
+        android:layout_marginEnd="12dp"
+        android:src="@mipmap/ic_launcher"
+        android:contentDescription="Lekha" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginEnd="10dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Add expense"
+            android:textColor="#ECEAF3"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:text="Log a spend in seconds"
+            android:textColor="#968FA8"
+            android:textSize="12sp"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <ImageButton
+        android:id="@+id/widget_voice"
+        android:layout_width="46dp"
+        android:layout_height="46dp"
+        android:layout_marginEnd="8dp"
+        android:padding="11dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_mic"
+        android:background="@drawable/widget_btn_ghost"
+        android:contentDescription="Add by voice" />
+
+    <Button
+        android:id="@+id/widget_manual"
+        android:layout_width="wrap_content"
+        android:layout_height="46dp"
+        android:minWidth="0dp"
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:text="+ Add"
+        android:textColor="#FFFFFF"
+        android:textAllCaps="false"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:background="@drawable/widget_btn_accent" />
+</LinearLayout>
