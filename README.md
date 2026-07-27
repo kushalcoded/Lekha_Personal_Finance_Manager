@@ -55,7 +55,21 @@ Google Gemini API · speech_to_text · home_widget · Kotlin (SMS receiver)
   amount+time de-duplication.
 - **Typed Hive storage** with backwards-compatible migrations.
 
-## Getting started
+## Install
+
+Grab the latest APK from the
+[**Releases**](https://github.com/kushalcoded/Lekha_Personal_Finance_Manager/releases/latest)
+page and install it on any Android device:
+
+1. Download `Lekha-vX.Y.Z.apk`.
+2. Open it — Android will ask to allow installing from this source; approve it.
+3. Launch **Lekha**. No account or setup needed.
+
+> The release APK is signed with a debug key (fine for sideloading). Android
+> may show an "unknown app" prompt — that's expected for apps outside the Play
+> Store.
+
+## Getting started (build from source)
 
 ### Prerequisites
 - Flutter SDK (Dart 3.x)
