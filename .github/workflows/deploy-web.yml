@@ -43,7 +43,8 @@ jobs:
       - name: Build web
         run: |
           flutter pub get
-          flutter build web --release --base-href /Lekha_Personal_Finance_Manager/
+          # Served at the root of the custom domain (lekhamoney.app).
+          flutter build web --release --base-href /
 
       - uses: actions/upload-pages-artifact@v3
         with:

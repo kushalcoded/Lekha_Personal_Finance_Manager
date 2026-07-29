@@ -8,7 +8,7 @@ all wrapped in a calm, dark, single-purpose interface.
 
 > Local-first storage, one sign-in (Google or email), every device in sync.
 
-**▶ Try it now:** https://kushalcoded.github.io/Lekha_Personal_Finance_Manager/
+**▶ Try it now:** https://lekhamoney.app/
 
 <!-- Add screenshots here: docs/screenshots/*.png -->
 
@@ -66,7 +66,7 @@ Google Gemini API · speech_to_text · home_widget · Kotlin (SMS receiver)
 
 ### Web / iPhone (PWA)
 
-Open **https://kushalcoded.github.io/Lekha_Personal_Finance_Manager/** — on
+Open **https://lekhamoney.app/** — on
 iPhone, use Safari → Share → **Add to Home Screen** for a full-screen app.
 Sign in on iOS so your data is backed by cloud sync (Safari can evict local
 browser storage for long-unused sites).
