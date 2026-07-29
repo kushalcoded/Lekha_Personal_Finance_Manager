@@ -138,6 +138,25 @@ class SmsCaptureService {
     return added;
   }
 
+  /// When the most recent iPhone-forwarded SMS arrived (any status), or null
+  /// if none ever did / Supabase unavailable. Surfaced as a health hint —
+  /// iOS silently disables Shortcuts automations sometimes.
+  Future<DateTime?> lastCloudSmsAt() async {
+    try {
+      final client = SupabaseService.client;
+      if (client.auth.currentUser == null) return null;
+      final rows = await client
+          .from('ingested_sms')
+          .select('received_at')
+          .order('received_at', ascending: false)
+          .limit(1);
+      if (rows.isEmpty) return null;
+      return DateTime.tryParse(rows.first['received_at']?.toString() ?? '');
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// The per-user token the iPhone Shortcut authenticates with. Returns the
   /// existing one or creates it. Null when signed out / Supabase unavailable.
   Future<String?> ensureIngestToken() async {

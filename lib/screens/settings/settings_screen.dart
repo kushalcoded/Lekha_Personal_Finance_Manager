@@ -233,7 +233,7 @@ class SettingsScreen extends ConsumerWidget {
                         title: 'AI Assistant',
                         subtitle: aiConfigured
                             ? 'Ask about spending, budget, history'
-                            : 'Add GEMINI_API_KEY to .env to enable',
+                            : 'Sign in to enable AI features',
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => const AiChatScreen(),
@@ -533,7 +533,9 @@ Future<void> _editDisplayName(BuildContext context, WidgetRef ref) async {
 /// iPhone SMS capture: show the per-user ingest token + endpoint the user
 /// pastes into a Shortcuts automation (full steps in SETUP_IOS_SMS.md).
 Future<void> _showIphoneSmsDialog(BuildContext context, WidgetRef ref) async {
-  final token = await ref.read(smsCaptureServiceProvider).ensureIngestToken();
+  final sms = ref.read(smsCaptureServiceProvider);
+  final token = await sms.ensureIngestToken();
+  final lastAt = await sms.lastCloudSmsAt();
   if (!context.mounted) return;
   if (token == null) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -570,6 +572,29 @@ Future<void> _showIphoneSmsDialog(BuildContext context, WidgetRef ref) async {
               'body → the Message magic variable',
               style: TextStyle(fontSize: 12.5),
             ),
+            const SizedBox(height: 12),
+            Builder(
+              builder: (ctx2) {
+                final cs = Theme.of(ctx2).colorScheme;
+                final stale =
+                    lastAt != null &&
+                    DateTime.now().difference(lastAt).inDays >= 3;
+                final label = lastAt == null
+                    ? 'No SMS received from the iPhone yet.'
+                    : 'Last SMS received ${_relativeTime(lastAt)}.';
+                return Text(
+                  stale
+                      ? '$label If your iPhone has had bank SMS since, iOS may '
+                            'have disabled the automation — open Shortcuts and '
+                            'check it is still on.'
+                      : label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: stale ? cs.error : cs.onSurfaceVariant,
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -581,6 +606,14 @@ Future<void> _showIphoneSmsDialog(BuildContext context, WidgetRef ref) async {
       ],
     ),
   );
+}
+
+String _relativeTime(DateTime time) {
+  final diff = DateTime.now().difference(time);
+  if (diff.inMinutes < 1) return 'just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+  if (diff.inHours < 24) return '${diff.inHours} h ago';
+  return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
 }
 
 class _CopyField extends StatelessWidget {

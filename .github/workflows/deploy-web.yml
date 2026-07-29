@@ -2,9 +2,10 @@
 # main. Requires (one-time):
 #   1. Repo → Settings → Pages → Source: "GitHub Actions"
 #   2. Repo → Settings → Secrets and variables → Actions → add:
-#        SUPABASE_URL, SUPABASE_ANON_KEY, GEMINI_API_KEY  (GEMINI_MODEL optional)
-#      (.env is gitignored, so CI reconstructs it from these secrets. They end
-#       up inside the public JS bundle — same exposure as the released APK.)
+#        SUPABASE_URL, SUPABASE_ANON_KEY
+#      (.env is gitignored, so CI reconstructs it from these secrets. Both are
+#       public-safe values; the Gemini key stays server-side in the
+#       gemini-proxy Edge Function and never enters the bundle.)
 name: Deploy web to GitHub Pages
 
 on:
@@ -37,8 +38,6 @@ jobs:
           {
             echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}"
             echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}"
-            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}"
-            echo "GEMINI_MODEL=${{ secrets.GEMINI_MODEL }}"
           } > .env
 
       - name: Build web

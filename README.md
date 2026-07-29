@@ -1,12 +1,12 @@
 # Lekha — offline-first money & debt tracker
 
 **Lekha** (लेखा — "ledger") is a privacy-first personal finance app for
-**Android and the web** (installable on iPhone as a PWA). It works fully
-offline out of the box, auto-captures spends from your bank SMS, tracks who
-owes whom, splits bills, and (optionally) syncs across your devices — all
-wrapped in a calm, dark, single-purpose interface.
+**Android and the web** (installable on iPhone as a PWA). It stores everything
+on your device first, auto-captures spends from your bank SMS, tracks who owes
+whom, splits bills, and syncs across all your devices through your account —
+all wrapped in a calm, dark, single-purpose interface.
 
-> No account required. Your data lives on your device. Cloud sync is opt-in.
+> Local-first storage, one sign-in (Google or email), every device in sync.
 
 **▶ Try it now:** https://kushalcoded.github.io/Lekha_Personal_Finance_Manager/
 
@@ -16,14 +16,16 @@ wrapped in a calm, dark, single-purpose interface.
 
 ## Why
 
-Most expense apps either want a login before you can add a chai, or ship your
-transactions to a server by default. Lekha flips that: it's **local-first**,
-does the tedious data entry **for** you (bank/UPI SMS → parsed expense), and only
-talks to the cloud if you explicitly sign in to back up and sync.
+Most expense apps make data entry a chore and treat your transactions as their
+product. Lekha is **local-first** — the app reads and writes on-device storage
+first, so it's instant and works offline — and does the tedious data entry
+**for** you (bank/UPI SMS → parsed expense). Your account exists for exactly
+one reason: backing up and syncing **your** data across **your** devices.
 
 ## Features
 
-- **Offline-first** — full functionality with zero setup, no account, no network.
+- **Local-first** — instant on-device storage (works offline after sign-in);
+  your account backs everything up and mirrors it across devices.
 - **Salary-cycle budgeting** — separate salary and budget per cycle; a manual
   reset archives the finished cycle into a frozen history snapshot.
 - **SMS auto-detect** — an on-device receiver catches bank/UPI debit texts and an
@@ -40,9 +42,9 @@ talks to the cloud if you explicitly sign in to back up and sync.
 - **Voice & widget quick-add** — add an expense by speaking, or from a
   home-screen widget.
 - **Backup** — export/import the entire app state as a single JSON file.
-- **Optional cloud** — Supabase email + Google sign-in with whole-account
-  snapshot sync across devices. Sign-in is skippable; sign-out keeps your data
-  local.
+- **Cross-device sync** — Supabase email + Google sign-in; the whole account
+  syncs as one snapshot, pushed ~10s after every edit. Sign-out keeps your
+  data on the device.
 
 ## Tech stack
 
@@ -98,18 +100,17 @@ flutter pub get
 flutter run
 ```
 
-### Optional configuration (`.env`)
-The app runs fully offline with an empty `.env`. To enable the optional
-features, add:
+### Configuration (`.env`)
 
 | Key | Enables |
 |-----|---------|
-| `GEMINI_API_KEY` | SMS parsing, AI insights, AI debt reminders |
-| `GEMINI_MODEL` | (optional) model override |
-| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | cloud auth + cross-device sync |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | auth, cross-device sync, AI features |
 
-Cloud auth + sync setup (Google OAuth, the sync table, RLS) is documented in
-[`SETUP_AUTH.md`](SETUP_AUTH.md).
+AI (SMS parsing, insights, debt reminders) runs through a JWT-verified
+`gemini-proxy` Edge Function, so the Gemini key lives server-side and never
+ships in the app. Backend setup (Google OAuth, sync table, RLS, AI proxy) is
+documented in [`SETUP_AUTH.md`](SETUP_AUTH.md); iPhone SMS capture in
+[`SETUP_IOS_SMS.md`](SETUP_IOS_SMS.md).
 
 > `.env` is git-ignored — never commit real keys.
 

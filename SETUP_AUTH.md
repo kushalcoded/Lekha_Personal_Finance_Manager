@@ -100,6 +100,21 @@ ponytail ceiling: whole-snapshot last-write-wins. Great for one person across a
 couple of devices used one at a time; simultaneous offline edits on two devices
 mean the later sync wins and the other's unsynced edits are dropped.
 
+## Track 5 — AI proxy (run once; keeps the Gemini key off clients)
+
+All AI features call the `gemini-proxy` Edge Function instead of Google
+directly, so the Gemini key lives server-side and never ships in the web
+bundle or APK. Only signed-in users can call it (JWT-verified).
+
+1. Supabase → **Edge Functions → Create a function** → name `gemini-proxy` →
+   paste `supabase/functions/gemini-proxy/index.ts` → Deploy.
+2. **Leave "Verify JWT" ON** (the default) — that's the auth gate.
+3. **Edge Functions → Secrets** → add:
+   - `GEMINI_API_KEY` = your Google AI Studio key
+   - `GEMINI_MODEL` = optional (defaults to gemini-3.1-flash-lite)
+4. Remove `GEMINI_API_KEY` from the GitHub Actions secrets and from local
+   `.env` — the app no longer reads them.
+
 ## Phone OTP — removed
 
 Phone login was tried and removed; the app ships **email + Google only**. If you

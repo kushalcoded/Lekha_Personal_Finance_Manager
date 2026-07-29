@@ -44,7 +44,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
               padding: const EdgeInsets.all(16),
               child: _AiBanner(
                 text:
-                    'Gemini is not configured. Add GEMINI_API_KEY to .env to enable AI chat and summaries.',
+                    'AI is unavailable. Sign in and make sure the gemini-proxy function is deployed (see SETUP_AUTH.md).',
               ),
             ),
           if (chat.error != null)

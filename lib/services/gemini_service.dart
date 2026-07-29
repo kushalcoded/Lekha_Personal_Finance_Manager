@@ -4,13 +4,21 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/history/cycle_history_snapshot.dart';
+import 'supabase/supabase_service.dart';
 
 class GeminiService {
-  static const _defaultModel = 'gemini-3.1-flash-lite';
-
-  String? get apiKey => dotenv.env['GEMINI_API_KEY'];
-  String get model => dotenv.env['GEMINI_MODEL'] ?? _defaultModel;
-  bool get isConfigured => apiKey != null && apiKey!.trim().isNotEmpty;
+  /// AI calls go through the `gemini-proxy` Edge Function (JWT-verified), so
+  /// the Gemini key lives server-side and never ships in the app bundle.
+  /// Configured = Supabase reachable + a signed-in session to authenticate as.
+  bool get isConfigured {
+    final url = dotenv.env['SUPABASE_URL'];
+    if (url == null || url.trim().isEmpty) return false;
+    try {
+      return SupabaseService.client.auth.currentSession != null;
+    } catch (_) {
+      return false;
+    }
+  }
 
   Future<String> summarizeAnalytics({
     required String period,
@@ -268,56 +276,39 @@ class GeminiService {
     required String userPrompt,
     double temperature = 0.4,
   }) async {
-    if (!isConfigured) {
-      throw Exception('Gemini is not configured');
+    final baseUrl = dotenv.env['SUPABASE_URL'];
+    if (baseUrl == null || baseUrl.trim().isEmpty) {
+      throw Exception('AI is not configured');
+    }
+    String? token;
+    try {
+      token = SupabaseService.client.auth.currentSession?.accessToken;
+    } catch (_) {}
+    if (token == null) {
+      throw Exception('Sign in to use AI features');
     }
 
-    final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey',
-    );
-
     final response = await http.post(
-      uri,
-      headers: {'Content-Type': 'application/json'},
+      Uri.parse('$baseUrl/functions/v1/gemini-proxy'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+        'apikey': dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+      },
       body: jsonEncode({
-        'system_instruction': {
-          'parts': [
-            {'text': systemInstruction},
-          ],
-        },
-        'contents': [
-          {
-            'parts': [
-              {'text': userPrompt},
-            ],
-          },
-        ],
-        'generationConfig': {
-          'temperature': temperature,
-          'topK': 32,
-          'topP': 0.95,
-          'maxOutputTokens': 220,
-        },
+        'system': systemInstruction,
+        'prompt': userPrompt,
+        'temperature': temperature,
       }),
     );
 
     if (response.statusCode >= 400) {
-      throw Exception('Gemini request failed: ${response.statusCode}');
+      throw Exception('AI request failed: ${response.statusCode}');
     }
-
     final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    final candidates = decoded['candidates'] as List<dynamic>? ?? [];
-    if (candidates.isEmpty) {
-      throw Exception('Gemini returned no candidates');
-    }
-    final content = candidates.first['content'] as Map<String, dynamic>?;
-    final parts = content?['parts'] as List<dynamic>? ?? [];
-    if (parts.isEmpty) {
-      throw Exception('Gemini returned empty content');
-    }
-    final text = parts.first['text'] as String? ?? '';
+    final text = decoded['text'] as String? ?? '';
     if (text.trim().isEmpty) {
-      throw Exception('Gemini returned blank text');
+      throw Exception('AI returned blank text');
     }
     return text.trim();
   }
