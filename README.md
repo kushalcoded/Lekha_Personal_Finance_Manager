@@ -1,11 +1,14 @@
 # Lekha — offline-first money & debt tracker
 
-**Lekha** (लेखा — "ledger") is a privacy-first personal finance app for Android.
-It works fully offline out of the box, auto-captures spends from your bank SMS,
-tracks who owes whom, splits bills, and (optionally) syncs across your devices —
-all wrapped in a calm, dark, single-purpose interface.
+**Lekha** (लेखा — "ledger") is a privacy-first personal finance app for
+**Android and the web** (installable on iPhone as a PWA). It works fully
+offline out of the box, auto-captures spends from your bank SMS, tracks who
+owes whom, splits bills, and (optionally) syncs across your devices — all
+wrapped in a calm, dark, single-purpose interface.
 
-> No account required. Your data lives on your phone. Cloud sync is opt-in.
+> No account required. Your data lives on your device. Cloud sync is opt-in.
+
+**▶ Try it now:** https://kushalcoded.github.io/Lekha_Personal_Finance_Manager/
 
 <!-- Add screenshots here: docs/screenshots/*.png -->
 
@@ -25,7 +28,9 @@ talks to the cloud if you explicitly sign in to back up and sync.
   reset archives the finished cycle into a frozen history snapshot.
 - **SMS auto-detect** — an on-device receiver catches bank/UPI debit texts and an
   AI pass extracts the amount, so spends land as *pending* cards you confirm,
-  dismiss, or merge (several texts → one expense).
+  dismiss, or merge (several texts → one expense). On **iPhone**, a Shortcuts
+  automation forwards bank SMS into the same pipeline
+  (see [`SETUP_IOS_SMS.md`](SETUP_IOS_SMS.md)).
 - **Debts done right** — receivables & payables collapsed into a **per-person net
   balance**, with **partial settlements** and gentle, **AI-drafted reminders**
   (English / Hinglish / Hindi) shareable over WhatsApp or SMS.
@@ -56,6 +61,15 @@ Google Gemini API · speech_to_text · home_widget · Kotlin (SMS receiver)
 - **Typed Hive storage** with backwards-compatible migrations.
 
 ## Install
+
+### Web / iPhone (PWA)
+
+Open **https://kushalcoded.github.io/Lekha_Personal_Finance_Manager/** — on
+iPhone, use Safari → Share → **Add to Home Screen** for a full-screen app.
+Sign in on iOS so your data is backed by cloud sync (Safari can evict local
+browser storage for long-unused sites).
+
+### Android (APK)
 
 Grab the latest APK from the
 [**Releases**](https://github.com/kushalcoded/Lekha_Personal_Finance_Manager/releases/latest)
