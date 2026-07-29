@@ -32,6 +32,17 @@ class HiveService {
   static const _syncDeviceIdKey = 'syncDeviceId';
   static const _localUserId = 'local_android_user';
 
+  /// Fired after any user-data mutation (add/edit/delete, settings, budgets,
+  /// pending SMS). The app wires this to a debounced cloud push so changes
+  /// reach other devices without waiting for an app background.
+  static void Function()? onDataChanged;
+  bool _restoring = false;
+
+  void _notifyChanged() {
+    // A restore IS the newest data — pushing it straight back up is noise.
+    if (!_restoring) onDataChanged?.call();
+  }
+
   factory HiveService() {
     return _instance;
   }
@@ -243,11 +254,13 @@ class HiveService {
   ) async {
     if (!_initialized) throw Exception('HiveService not initialized');
     await _monthlyBudgetsBox.put(_budgetKey(userId, month), amount);
+    _notifyChanged();
   }
 
   Future<void> resetMonthlyBudget(String userId, DateTime month) async {
     if (!_initialized) throw Exception('HiveService not initialized');
     await _monthlyBudgetsBox.delete(_budgetKey(userId, month));
+    _notifyChanged();
   }
 
   // Recurring expense templates
@@ -466,6 +479,7 @@ class HiveService {
   Future<void> saveSettings(String userId, Map<String, dynamic> values) async {
     if (!_initialized) throw Exception('HiveService not initialized');
     await _settingsBox.put(userId, values);
+    _notifyChanged();
   }
 
   // Custom expense categories (stored inside the per-user settings map).
@@ -652,6 +666,7 @@ class HiveService {
   Future<void> savePendingTransaction(PendingTransaction txn) async {
     if (!_initialized) throw Exception('HiveService not initialized');
     await _pendingBox.put(txn.id, txn.toJson());
+    _notifyChanged();
   }
 
   /// Have we already run this SMS (by hash) through the parse pipeline?
@@ -743,6 +758,7 @@ class HiveService {
     }
 
     final currentSafetySnapshot = createLocalBackupSnapshot(userId);
+    _restoring = true;
     try {
       await _restoreFromBackupUnsafe(snapshot, userId: userId);
     } catch (e) {
@@ -751,6 +767,8 @@ class HiveService {
         await _restoreFromBackupUnsafe(currentSafetySnapshot, userId: userId);
       } catch (_) {}
       rethrow;
+    } finally {
+      _restoring = false;
     }
   }
 
@@ -967,6 +985,7 @@ class HiveService {
       deviceId: getDeviceId(),
     );
     await saveSyncMetadata(metadata);
+    _notifyChanged();
   }
 
   Receivable _hiveToReceivable(ReceivableHive hive) {

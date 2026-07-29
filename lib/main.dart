@@ -316,6 +316,7 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
   bool _smsPermissionAsked = false;
   bool _syncing = false;
   Timer? _smsPoll;
+  Timer? _pushDebounce;
   StreamSubscription<Uri?>? _widgetSub;
 
   @override
@@ -327,9 +328,23 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
       HomeWidget.initiallyLaunchedFromHomeWidget().then(_openFromWidget);
       _widgetSub = HomeWidget.widgetClicked.listen(_openFromWidget);
     }
+    // Near-real-time cloud copy: any data mutation schedules a debounced push
+    // (~10s after the last edit), so other devices see changes without
+    // waiting for this one to be backgrounded.
+    HiveService.onDataChanged = _schedulePush;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncSms();
       _startPolling();
+    });
+  }
+
+  void _schedulePush() {
+    _pushDebounce?.cancel();
+    _pushDebounce = Timer(const Duration(seconds: 10), () {
+      if (!mounted) return;
+      if (ref.read(isAuthenticatedProvider)) {
+        ref.read(syncProvider.notifier).syncNow(pushOnly: true);
+      }
     });
   }
 
@@ -394,6 +409,8 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopPolling();
+    _pushDebounce?.cancel();
+    HiveService.onDataChanged = null;
     _widgetSub?.cancel();
     super.dispose();
   }
