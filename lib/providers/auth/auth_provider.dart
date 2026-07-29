@@ -6,6 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import '../../services/auth/auth_service.dart';
 import '../../services/storage/hive_service.dart';
 import '../../services/sync/supabase_sync_service.dart';
+import '../../utils/url_cleanup/url_cleanup_stub.dart'
+    if (dart.library.js_interop) '../../utils/url_cleanup/url_cleanup_web.dart';
 
 const localUserId = 'local_android_user';
 const localUserEmail = 'Local Android User';
@@ -72,6 +74,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = const AuthState();
       return;
     }
+    // Web: the OAuth ?code= in the URL is consumed now — scrub it so a later
+    // reload doesn't re-try the dead code and lose the session.
+    stripAuthParamsFromUrl();
     // Only an explicit sign-in needs the one-time local-vs-cloud reconcile; a
     // restored session (app relaunch) just runs normal last-write-wins sync.
     final fresh = data.event == sb.AuthChangeEvent.signedIn;

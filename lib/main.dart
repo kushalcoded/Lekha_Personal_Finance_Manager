@@ -21,6 +21,8 @@ import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/storage/hive_service.dart';
 import 'services/supabase/supabase_service.dart';
+import 'utils/url_cleanup/url_cleanup_stub.dart'
+    if (dart.library.js_interop) 'utils/url_cleanup/url_cleanup_web.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,6 +40,9 @@ void main() async {
     debugPrint('⚠️ Supabase initialization failed: $e');
     debugPrint('App will run in offline-only mode');
   }
+  // Web: drop consumed OAuth params from the URL so a reload doesn't re-try a
+  // dead ?code= and wreck session restore ("logged out on refresh").
+  stripAuthParamsFromUrl();
 
   runApp(const ProviderScope(child: MyApp()));
 }
