@@ -66,7 +66,16 @@ class DashboardScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _Header(cycleDay: cycleDay),
+                      _Header(
+                        cycleDay: cycleDay,
+                        name: ref.watch(
+                          settingsProvider.select(
+                            (s) => s.displayName.isEmpty
+                                ? 'there'
+                                : s.displayName,
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 18),
                       _CycleHealthHero(
                         metrics: budgetMetrics,
@@ -122,8 +131,9 @@ class DashboardScreen extends ConsumerWidget {
 /// Greeting + cycle-day chip + AI-chat button + avatar (→ Settings).
 class _Header extends StatelessWidget {
   final int cycleDay;
+  final String name;
 
-  const _Header({required this.cycleDay});
+  const _Header({required this.cycleDay, required this.name});
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +158,9 @@ class _Header extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                'Kushal',
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   letterSpacing: -0.3,

@@ -8,7 +8,6 @@ import '../../providers/auth/auth_provider.dart';
 import '../../providers/sms/sms_providers.dart';
 import '../../providers/sync/sync_providers.dart';
 import '../ai_chat_screen.dart';
-import '../auth/login_screen.dart';
 import 'providers/productivity_providers.dart';
 import 'providers/settings_providers.dart';
 import '../../utils/formatters/formatters.dart';
@@ -94,46 +93,42 @@ class SettingsScreen extends ConsumerWidget {
                   _SettingsGroup(
                     label: 'Account',
                     rows: [
-                      if (ref.watch(isAuthenticatedProvider)) ...[
-                        _SettingRow(
-                          icon: Icons.person_rounded,
-                          title: 'Signed in',
-                          subtitle: ref.watch(currentUserEmailProvider),
-                          trailing: _PillButton(
-                            label: 'Sign out',
-                            onTap: () =>
-                                ref.read(authStateProvider.notifier).logout(),
-                          ),
+                      _SettingRow(
+                        icon: Icons.person_rounded,
+                        title: 'Signed in',
+                        subtitle: ref.watch(currentUserEmailProvider),
+                        trailing: _PillButton(
+                          label: 'Sign out',
+                          onTap: () =>
+                              ref.read(authStateProvider.notifier).logout(),
                         ),
-                        _SettingRow(
-                          icon: Icons.cloud_sync_rounded,
-                          title: 'Sync',
-                          subtitle: syncStatus,
-                          trailing: sync.isSyncing
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : _PillButton(
-                                  label: 'Sync now',
-                                  onTap: () =>
-                                      ref.read(syncProvider.notifier).syncNow(),
+                      ),
+                      _SettingRow(
+                        icon: Icons.badge_rounded,
+                        title: 'Display name',
+                        value: settings.displayName.isEmpty
+                            ? 'Not set'
+                            : settings.displayName,
+                        onTap: () => _editDisplayName(context, ref),
+                      ),
+                      _SettingRow(
+                        icon: Icons.cloud_sync_rounded,
+                        title: 'Sync',
+                        subtitle: syncStatus,
+                        trailing: sync.isSyncing
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                 ),
-                        ),
-                      ] else
-                        _SettingRow(
-                          icon: Icons.login_rounded,
-                          title: 'Sign in / Create account',
-                          subtitle: 'Back up & sync across devices',
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const LoginScreen(),
-                            ),
-                          ),
-                        ),
+                              )
+                            : _PillButton(
+                                label: 'Sync now',
+                                onTap: () =>
+                                    ref.read(syncProvider.notifier).syncNow(),
+                              ),
+                      ),
                     ],
                   ),
                   _SettingsGroup(
@@ -501,6 +496,38 @@ Future<void> _pickOption(
     },
   );
   if (selected != null) onSelected(selected);
+}
+
+/// Edit the dashboard-greeting display name.
+Future<void> _editDisplayName(BuildContext context, WidgetRef ref) async {
+  final ctrl = TextEditingController(
+    text: ref.read(settingsProvider).displayName,
+  );
+  final name = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Display name'),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(hintText: 'Your name'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+  if (name != null && name.isNotEmpty) {
+    await ref.read(settingsProvider.notifier).setDisplayName(name);
+  }
 }
 
 /// iPhone SMS capture: show the per-user ingest token + endpoint the user

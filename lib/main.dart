@@ -152,7 +152,7 @@ class MyApp extends ConsumerWidget {
     // Reload the right data whenever auth flips. A *fresh* sign-in runs the
     // local-vs-cloud reconciler (handles conflicts + account switches); a
     // restored session just runs normal last-write-wins sync. Sign-out reloads
-    // local data so offline use keeps showing everything.
+    // local data so nothing is lost while signed out.
     ref.listen(authStateProvider, (previous, next) {
       final was = previous?.isAuthenticated ?? false;
       if (next.isAuthenticated && !was) {
@@ -162,11 +162,13 @@ class MyApp extends ConsumerWidget {
           Future.microtask(() async {
             await reconcileSignIn(ref, userId);
             ref.read(authStateProvider.notifier).clearReconcileFlag();
+            await _maybeAskDisplayName(ref, userId);
           });
         } else {
-          Future.microtask(() {
+          Future.microtask(() async {
             _reloadStores(ref, userId);
             ref.read(syncProvider.notifier).autoSyncOnStartup();
+            await _maybeAskDisplayName(ref, userId);
           });
         }
       } else if (!next.isAuthenticated && was) {
@@ -201,18 +203,71 @@ class MyApp extends ConsumerWidget {
       return const OnboardingScreen();
     }
 
-    // Sign-in is optional. Show the prompt once after onboarding; skipping or
-    // signing in dismisses it and the app opens offline-first thereafter.
-    if (!authState.isAuthenticated && !ref.watch(authPromptDoneProvider)) {
-      return LoginScreen(
-        onFinished: () {
-          HiveService().setAuthPromptShown();
-          ref.read(authPromptDoneProvider.notifier).state = true;
-        },
-      );
+    // Sign-in is required. Hold on a loader until the restored-session check
+    // finishes so the login screen doesn't flash on every launch.
+    if (!authState.isAuthenticated) {
+      if (!authState.resolved) {
+        return const Scaffold(
+          backgroundColor: Colors.transparent,
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
+      return const LoginScreen();
     }
 
     return const _LocalDataBootstrap(child: AppShell());
+  }
+}
+
+/// One-time after sign-in: if no display name is stored yet, ask for one —
+/// prefilled from the Google profile (or the email prefix).
+Future<void> _maybeAskDisplayName(WidgetRef ref, String userId) async {
+  final hive = HiveService();
+  final existing = (hive.getSettings(userId)['displayName'] as String?) ?? '';
+  if (existing.trim().isNotEmpty) return;
+
+  String suggestion = '';
+  try {
+    final user = SupabaseService.client.auth.currentUser;
+    suggestion =
+        (user?.userMetadata?['full_name'] ??
+                user?.userMetadata?['name'] ??
+                user?.email?.split('@').first ??
+                '')
+            .toString();
+  } catch (_) {}
+
+  final context = navigatorKey.currentContext;
+  if (context == null) return;
+  final ctrl = TextEditingController(text: suggestion);
+  final name = await showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      title: const Text('What should we call you?'),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(hintText: 'Your name'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Later'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+  if (name != null && name.isNotEmpty) {
+    // Merge-write directly so a still-loading settings provider can't clobber
+    // other settings, then refresh the provider.
+    await hive.updateSetting(userId, 'displayName', name);
+    await ref.read(settingsProvider.notifier).loadSettings();
   }
 }
 

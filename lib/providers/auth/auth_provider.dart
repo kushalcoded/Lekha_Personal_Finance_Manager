@@ -24,6 +24,10 @@ class AuthState {
   /// the app to run the local-vs-cloud reconciliation once.
   final bool needsReconcile;
 
+  /// True once the startup session-restore check has answered (either way).
+  /// Until then the app shows a loader instead of flashing the login screen.
+  final bool resolved;
+
   const AuthState({
     this.isLoading = false,
     this.isAuthenticated = false,
@@ -31,6 +35,7 @@ class AuthState {
     this.userEmail,
     this.errorMessage,
     this.needsReconcile = false,
+    this.resolved = false,
   });
 
   AuthState copyWith({
@@ -40,6 +45,7 @@ class AuthState {
     String? userEmail,
     String? errorMessage,
     bool? needsReconcile,
+    bool? resolved,
   }) {
     return AuthState(
       isLoading: isLoading ?? this.isLoading,
@@ -48,6 +54,7 @@ class AuthState {
       userEmail: userEmail ?? this.userEmail,
       errorMessage: errorMessage,
       needsReconcile: needsReconcile ?? this.needsReconcile,
+      resolved: resolved ?? this.resolved,
     );
   }
 }
@@ -65,13 +72,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
     // Supabase's stream is the source of truth: it emits the restored session
     // on startup and every subsequent sign-in/out (incl. Google OAuth, whose
     // session only arrives after the redirect deep-link).
-    _sub = _authService.onAuthChange.listen(_onAuthChange);
+    try {
+      _sub = _authService.onAuthChange.listen(_onAuthChange);
+      // Belt & braces: if no initial event lands (shouldn't happen), don't
+      // leave the app stuck on the boot loader.
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted && !state.resolved) {
+          state = state.copyWith(resolved: true);
+        }
+      });
+    } catch (_) {
+      // Supabase unavailable (offline/unconfigured) — resolve as signed out
+      // so the login screen renders instead of an infinite loader.
+      state = const AuthState(resolved: true);
+    }
   }
 
   void _onAuthChange(sb.AuthState data) {
     final session = data.session;
     if (data.event == sb.AuthChangeEvent.signedOut || session == null) {
-      state = const AuthState();
+      state = const AuthState(resolved: true);
       return;
     }
     // Web: the OAuth ?code= in the URL is consumed now — scrub it so a later
@@ -85,6 +105,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       userId: session.user.id,
       userEmail: session.user.email,
       needsReconcile: fresh,
+      resolved: true,
     );
   }
 
@@ -154,7 +175,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await hive.setLocalDataOwner(userId);
       }
       await _authService.logout();
-      state = const AuthState(isLoading: false);
+      state = const AuthState(resolved: true);
     } catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
@@ -185,11 +206,6 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
   return ref.watch(authStateProvider).isAuthenticated;
 });
 
-/// Whether the one-time "sign in to sync?" prompt after onboarding is done
-/// (signed in or skipped). Seeded from the stored flag.
-final authPromptDoneProvider = StateProvider<bool>(
-  (ref) => HiveService().isAuthPromptShown(),
-);
 
 /// Derived provider to get current user ID
 final currentUserIdProvider = Provider<String?>((ref) {

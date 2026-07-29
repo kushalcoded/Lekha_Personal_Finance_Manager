@@ -9,6 +9,9 @@ import '../../../providers/auth/auth_provider.dart';
 class SettingsState {
   final bool isLoading;
   final String? error;
+
+  /// Name shown in the dashboard greeting; asked once after sign-in.
+  final String displayName;
   final String currency;
   final bool analyticsInsightsEnabled;
   final String defaultExportFormat;
@@ -28,6 +31,7 @@ class SettingsState {
   const SettingsState({
     this.isLoading = true,
     this.error,
+    this.displayName = '',
     this.currency = 'INR',
     this.analyticsInsightsEnabled = true,
     this.defaultExportFormat = 'csv',
@@ -57,6 +61,7 @@ class SettingsState {
   SettingsState copyWith({
     bool? isLoading,
     String? error,
+    String? displayName,
     String? currency,
     bool? analyticsInsightsEnabled,
     String? defaultExportFormat,
@@ -76,6 +81,7 @@ class SettingsState {
     return SettingsState(
       isLoading: isLoading ?? this.isLoading,
       error: error,
+      displayName: displayName ?? this.displayName,
       currency: currency ?? this.currency,
       analyticsInsightsEnabled:
           analyticsInsightsEnabled ?? this.analyticsInsightsEnabled,
@@ -127,6 +133,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       final rawSalary = (raw['currentCycleSalary'] as num?)?.toDouble() ?? 0.0;
       state = SettingsState(
         isLoading: false,
+        displayName: raw['displayName'] as String? ?? '',
         currency: raw['currency'] as String? ?? 'INR',
         analyticsInsightsEnabled:
             raw['analyticsInsightsEnabled'] as bool? ?? true,
@@ -159,6 +166,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> _persist(SettingsState next) async {
     state = next.copyWith(error: null);
     await _hiveService.saveSettings(_userId, {
+      'displayName': next.displayName,
       'currency': next.currency,
       'analyticsInsightsEnabled': next.analyticsInsightsEnabled,
       'defaultExportFormat': next.defaultExportFormat,
@@ -179,6 +187,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   Future<void> setCurrency(String value) async {
     await _persist(state.copyWith(currency: value));
+  }
+
+  Future<void> setDisplayName(String value) async {
+    await _persist(state.copyWith(displayName: value.trim()));
   }
 
   Future<void> setAnalyticsInsightsEnabled(bool value) async {

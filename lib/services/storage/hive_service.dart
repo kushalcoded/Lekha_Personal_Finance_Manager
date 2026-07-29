@@ -1081,13 +1081,22 @@ class HiveService {
       await _monthlyBudgetsBox.put(k.replaceFirst('$from-', '$to-'), amount);
       await _monthlyBudgetsBox.delete(k);
     }
+    // The settings map carries cycle budget/salary/history, display name,
+    // categories… — move it too, unless the target already has its own.
+    final fromSettings = _settingsBox.get(from);
+    if (fromSettings != null && _settingsBox.get(to) == null) {
+      await _settingsBox.put(to, fromSettings);
+      await _settingsBox.delete(from);
+    }
   }
 
-  bool isAuthPromptShown() =>
-      _initialized && (_onboardingBox.get('auth_prompt_shown') ?? false);
-
-  Future<void> setAuthPromptShown() async {
-    if (_initialized) await _onboardingBox.put('auth_prompt_shown', true);
+  /// Merge one settings key without clobbering the rest (safe to call while
+  /// the settings provider is still loading).
+  Future<void> updateSetting(String userId, String key, dynamic value) async {
+    if (!_initialized) return;
+    final map = Map<String, dynamic>.from(_settingsBox.get(userId) ?? {});
+    map[key] = value;
+    await _settingsBox.put(userId, map);
   }
 
   static const _localDataOwnerKey = 'local_data_owner';

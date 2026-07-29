@@ -5,15 +5,11 @@ import '../../providers/auth/auth_provider.dart';
 import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
 
-/// Optional sign-in / create-account screen. The app works fully offline, so
-/// this is skippable — signing in only turns on cloud backup & sync. Pushed
-/// as a route; pops itself once authenticated.
+/// Sign-in / create-account screen. Signing in is required — it powers cloud
+/// backup, cross-device sync, and iPhone SMS capture. Shown as the home gate
+/// until a session exists; the auth listener swaps in the app on success.
 class LoginScreen extends ConsumerStatefulWidget {
-  /// When set (home-gate mode) this is called on skip/success instead of
-  /// popping — used for the one-time prompt that has no route to pop.
-  final VoidCallback? onFinished;
-
-  const LoginScreen({super.key, this.onFinished});
+  const LoginScreen({super.key});
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
@@ -68,24 +64,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  void _finish(bool authed) {
-    if (!mounted) return;
-    if (widget.onFinished != null) {
-      widget.onFinished!();
-    } else {
-      Navigator.of(context).maybePop(authed);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final auth = ref.watch(authStateProvider);
 
-    // Close automatically once a session is live.
+    // If shown as a pushed route, close once a session is live (as the home
+    // gate there's nothing to pop; the auth listener swaps the screen).
     ref.listen(isAuthenticatedProvider, (prev, next) {
-      if (next) _finish(true);
+      if (next && mounted) Navigator.of(context).maybePop(true);
     });
 
     return Scaffold(
@@ -93,12 +81,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         automaticallyImplyLeading: false,
-        actions: [
-          TextButton(
-            onPressed: auth.isLoading ? null : () => _finish(false),
-            child: const Text('Skip'),
-          ),
-        ],
       ),
       body: SafeArea(
         child: ListView(
@@ -114,8 +96,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Sign in to back up and sync across devices. Your data stays on '
-              'this phone either way.',
+              'Sign in to use Lekha — your data is backed up and synced '
+              'across all your devices.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: cs.onSurfaceVariant,
               ),
