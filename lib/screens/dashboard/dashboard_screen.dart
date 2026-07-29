@@ -75,6 +75,10 @@ class DashboardScreen extends ConsumerWidget {
                                 : s.displayName,
                           ),
                         ),
+                        isSyncing: ref.watch(
+                          syncProvider.select((s) => s.isSyncing),
+                        ),
+                        onSync: () => ref.read(syncProvider.notifier).syncNow(),
                       ),
                       const SizedBox(height: 18),
                       _CycleHealthHero(
@@ -128,12 +132,19 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-/// Greeting + cycle-day chip + AI-chat button + avatar (→ Settings).
+/// Greeting + cycle-day chip + sync + AI-chat button + avatar (→ Settings).
 class _Header extends StatelessWidget {
   final int cycleDay;
   final String name;
+  final bool isSyncing;
+  final VoidCallback onSync;
 
-  const _Header({required this.cycleDay, required this.name});
+  const _Header({
+    required this.cycleDay,
+    required this.name,
+    required this.isSyncing,
+    required this.onSync,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -184,6 +195,22 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(width: 9),
+        isSyncing
+            ? Container(
+                width: 36,
+                height: 36,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: cs.surfaceContainerHighest.withValues(alpha: 0.6),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              )
+            : _circleBtn(context, icon: Icons.sync_rounded, onTap: onSync),
         const SizedBox(width: 9),
         _circleBtn(
           context,

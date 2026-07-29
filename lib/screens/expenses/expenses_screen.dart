@@ -56,10 +56,20 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               MaterialPageRoute<void>(builder: (_) => const RecurringScreen()),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.read(syncProvider.notifier).syncNow(),
-          ),
+          ref.watch(syncProvider.select((s) => s.isSyncing))
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Sync now',
+                  onPressed: () => ref.read(syncProvider.notifier).syncNow(),
+                ),
           const SizedBox(width: 6),
         ],
       ),
