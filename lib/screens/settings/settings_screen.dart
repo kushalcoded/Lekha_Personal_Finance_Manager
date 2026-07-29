@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/ai_providers.dart';
@@ -264,6 +266,13 @@ class SettingsScreen extends ConsumerWidget {
                           },
                         ),
                       ),
+                      if (ref.watch(isAuthenticatedProvider))
+                        _SettingRow(
+                          icon: Icons.phone_iphone_rounded,
+                          title: 'Connect iPhone SMS',
+                          subtitle: 'Forward bank SMS via a Shortcuts automation',
+                          onTap: () => _showIphoneSmsDialog(context, ref),
+                        ),
                       _SettingRow(
                         icon: Icons.bug_report_rounded,
                         title: 'Simulate SMS (test)',
@@ -492,6 +501,101 @@ Future<void> _pickOption(
     },
   );
   if (selected != null) onSelected(selected);
+}
+
+/// iPhone SMS capture: show the per-user ingest token + endpoint the user
+/// pastes into a Shortcuts automation (full steps in SETUP_IOS_SMS.md).
+Future<void> _showIphoneSmsDialog(BuildContext context, WidgetRef ref) async {
+  final token = await ref.read(smsCaptureServiceProvider).ensureIngestToken();
+  if (!context.mounted) return;
+  if (token == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Could not get a token — check you are signed in and online.'),
+      ),
+    );
+    return;
+  }
+  final endpoint =
+      '${dotenv.env['SUPABASE_URL'] ?? ''}/functions/v1/ingest-sms';
+
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Connect iPhone SMS'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'On the iPhone: Shortcuts → Automation → Message → '
+              '"Message Contains: debited" → Run Immediately → action '
+              '"Get Contents of URL" (POST, JSON) with:',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            _CopyField(label: 'URL', value: endpoint),
+            const SizedBox(height: 8),
+            _CopyField(label: 'token', value: token),
+            const SizedBox(height: 8),
+            const Text(
+              'body → the Message magic variable',
+              style: TextStyle(fontSize: 12.5),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Done'),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CopyField extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _CopyField({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+              ),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12.5),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.copy_rounded, size: 18),
+          onPressed: () {
+            Clipboard.setData(ClipboardData(text: value));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('$label copied')),
+            );
+          },
+        ),
+      ],
+    );
+  }
 }
 
 /// Debug: run a pasted SMS body through the detection pipeline.

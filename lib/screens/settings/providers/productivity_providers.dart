@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
@@ -228,13 +229,16 @@ class ExportNotifier extends StateNotifier<ExportState> {
   Future<void> shareLastExport() async {
     final file = state.lastFile;
     if (file == null) return;
+    // Web exports carry bytes instead of a temp path.
+    final xFile = file.tempPath.isEmpty && file.bytes != null
+        ? XFile.fromData(
+            file.bytes!,
+            mimeType: file.mimeType,
+            name: file.fileName,
+          )
+        : XFile(file.tempPath, mimeType: file.mimeType, name: file.fileName);
     await SharePlus.instance.share(
-      ShareParams(
-        files: [
-          XFile(file.tempPath, mimeType: file.mimeType, name: file.fileName),
-        ],
-        text: 'Lekha export: ${file.fileName}',
-      ),
+      ShareParams(files: [xFile], text: 'Lekha export: ${file.fileName}'),
     );
   }
 
@@ -421,18 +425,24 @@ class BackupNotifier extends StateNotifier<BackupState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final snapshot = _hiveService.createLocalBackupSnapshot(_userId);
-      final path = await _backupFileService.writeBackupFile(snapshot);
+      final XFile file;
+      if (kIsWeb) {
+        // No filesystem on web — share the bytes directly.
+        file = XFile.fromData(
+          _backupFileService.backupBytes(snapshot),
+          mimeType: 'application/json',
+          name: _backupFileService.backupFileName(),
+        );
+      } else {
+        final path = await _backupFileService.writeBackupFile(snapshot);
+        file = XFile(
+          path,
+          mimeType: 'application/json',
+          name: path.split('/').last,
+        );
+      }
       await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile(
-              path,
-              mimeType: 'application/json',
-              name: path.split('/').last,
-            ),
-          ],
-          text: 'Lekha backup',
-        ),
+        ShareParams(files: [file], text: 'Lekha backup'),
       );
       state = state.copyWith(isLoading: false);
     } catch (e) {

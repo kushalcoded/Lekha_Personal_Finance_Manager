@@ -1,11 +1,14 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../models/pending/pending_transaction.dart';
 import '../../services/gemini_service.dart';
 import '../../services/storage/hive_service.dart';
+import '../../services/supabase/supabase_service.dart';
 import '../ai_providers.dart';
 
 const _channel = MethodChannel('lekha/sms');
@@ -50,11 +53,19 @@ class SmsCaptureService {
     }
   }
 
-  /// Read the native queue → parse new ones → store. Returns how many new
-  /// pending transactions were added. Already-seen entries are skipped, and the
-  /// queue is read-only so an offline failure is retried next time.
+  /// Read the native queue (Android) and the cloud queue (iPhone-forwarded
+  /// SMS) → parse new ones → store. Returns how many new pending transactions
+  /// were added. Already-seen entries are skipped, and both queues keep
+  /// unparsed entries so an offline failure is retried next time.
   Future<int> sync() async {
     if (!_gemini.isConfigured) return 0; // AI-first: nothing to parse without it
+    var added = 0;
+    if (!kIsWeb) added += await _syncNativeQueue();
+    added += await _syncCloudQueue();
+    return added;
+  }
+
+  Future<int> _syncNativeQueue() async {
     String raw;
     try {
       raw = await _channel.invokeMethod<String>('readQueue') ?? '[]';
@@ -77,6 +88,82 @@ class SmsCaptureService {
       if (await _ingest(hash: hash, body: body, dateTime: dateTime)) added++;
     }
     return added;
+  }
+
+  /// Drain SMS forwarded by an iPhone via the Shortcuts → ingest-sms pipeline
+  /// (see SETUP_IOS_SMS.md). Same parse/dedup as the native queue. Rows are
+  /// only marked done once Gemini has answered for them, so an offline run
+  /// leaves them queued for retry.
+  Future<int> _syncCloudQueue() async {
+    List<dynamic> rows;
+    try {
+      final client = SupabaseService.client;
+      if (client.auth.currentUser == null) return 0;
+      rows = await client
+          .from('ingested_sms')
+          .select('id, body, received_at')
+          .eq('status', 'new')
+          .order('received_at')
+          .limit(25);
+    } catch (_) {
+      return 0; // Supabase unconfigured/offline — retry on the next sync.
+    }
+
+    var added = 0;
+    final done = <String>[];
+    final hive = HiveService();
+    for (final row in rows.whereType<Map>()) {
+      final id = row['id']?.toString() ?? '';
+      final body = row['body']?.toString() ?? '';
+      if (id.isEmpty || body.isEmpty) continue;
+      final hash = 'cloud_$id';
+      final dateTime =
+          DateTime.tryParse(row['received_at']?.toString() ?? '') ??
+          DateTime.now();
+      if (await _ingest(hash: hash, body: body, dateTime: dateTime)) added++;
+      // Seen = Gemini responded (kept or filtered) — safe to retire the row.
+      if (hive.isSmsSeen(hash)) done.add(id);
+    }
+
+    if (done.isNotEmpty) {
+      try {
+        await SupabaseService.client
+            .from('ingested_sms')
+            .update({'status': 'done'})
+            .inFilter('id', done);
+      } catch (_) {
+        // Re-marking fails harmlessly: seen-hash dedup skips them next drain.
+      }
+    }
+    return added;
+  }
+
+  /// The per-user token the iPhone Shortcut authenticates with. Returns the
+  /// existing one or creates it. Null when signed out / Supabase unavailable.
+  Future<String?> ensureIngestToken() async {
+    try {
+      final client = SupabaseService.client;
+      final userId = client.auth.currentUser?.id;
+      if (userId == null) return null;
+      final existing = await client
+          .from('ingest_tokens')
+          .select('token')
+          .eq('user_id', userId)
+          .limit(1);
+      if (existing.isNotEmpty) {
+        return existing.first['token'] as String?;
+      }
+      final token =
+          const Uuid().v4().replaceAll('-', '') +
+          const Uuid().v4().replaceAll('-', '');
+      await client.from('ingest_tokens').insert({
+        'token': token,
+        'user_id': userId,
+      });
+      return token;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Debug/testing: run a pasted SMS body through the full pipeline as if it

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:path_provider/path_provider.dart';
@@ -9,16 +10,23 @@ class BackupFileService {
 
   const BackupFileService();
 
-  /// Write a backup snapshot to a shareable `.json` file (in the exact
-  /// `{schemaVersion, payload}` shape [readBackupPayload] expects) and return
-  /// its path. The caller shares it so the user can keep it off-device.
-  Future<String> writeBackupFile(Map<String, dynamic> payload) async {
-    final dir = await getTemporaryDirectory();
-    final stamp = DateTime.now().millisecondsSinceEpoch;
-    final file = File('${dir.path}/lekha_backup_$stamp.json');
-    await file.writeAsString(
+  /// The backup file's bytes, in the exact `{schemaVersion, payload}` shape
+  /// [readBackupPayload] expects. Web shares these directly (no filesystem).
+  Uint8List backupBytes(Map<String, dynamic> payload) {
+    return utf8.encode(
       jsonEncode({'schemaVersion': schemaVersion, 'payload': payload}),
     );
+  }
+
+  String backupFileName() =>
+      'lekha_backup_${DateTime.now().millisecondsSinceEpoch}.json';
+
+  /// Write a backup snapshot to a shareable `.json` file and return its path.
+  /// The caller shares it so the user can keep it off-device. Not for web.
+  Future<String> writeBackupFile(Map<String, dynamic> payload) async {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/${backupFileName()}');
+    await file.writeAsBytes(backupBytes(payload));
     return file.path;
   }
 

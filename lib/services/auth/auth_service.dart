@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../supabase/supabase_service.dart';
 
@@ -24,8 +25,17 @@ class AuthService {
 
   /// Google sign-in via Supabase's OAuth browser flow. Returns once the
   /// browser is launched; the session arrives through [onAuthChange] when the
-  /// redirect deep-link returns to the app.
+  /// redirect returns to the app. On web the redirect target is the page
+  /// itself (same-tab), on Android the deep link above.
   Future<void> signInWithGoogle() async {
+    if (kIsWeb) {
+      // Redirect back to this page (origin + path, no query/fragment).
+      await _supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: Uri.base.origin + Uri.base.path,
+      );
+      return;
+    }
     await _supabase.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: _oauthRedirect,

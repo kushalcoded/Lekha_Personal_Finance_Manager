@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -261,8 +262,11 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    HomeWidget.initiallyLaunchedFromHomeWidget().then(_openFromWidget);
-    _widgetSub = HomeWidget.widgetClicked.listen(_openFromWidget);
+    // Home-screen widget is Android-only; its channel throws on web.
+    if (!kIsWeb) {
+      HomeWidget.initiallyLaunchedFromHomeWidget().then(_openFromWidget);
+      _widgetSub = HomeWidget.widgetClicked.listen(_openFromWidget);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncSms();
       _startPolling();
