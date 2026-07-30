@@ -13,14 +13,31 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 const KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 const MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.1-flash-lite";
 
+// Browsers preflight cross-origin requests that carry Authorization headers;
+// without these headers (and an OPTIONS handler) the web app's calls die with
+// "Failed to fetch" before ever reaching the function.
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: CORS });
+  }
   try {
     if (req.method !== "POST") {
-      return new Response(JSON.stringify({ error: "POST only" }), { status: 405 });
+      return new Response(JSON.stringify({ error: "POST only" }), {
+        status: 405,
+        headers: CORS,
+      });
     }
     if (!KEY) {
       return new Response(JSON.stringify({ error: "GEMINI_API_KEY not set" }), {
         status: 500,
+        headers: CORS,
       });
     }
     const payload = await req.json();
@@ -30,6 +47,7 @@ serve(async (req) => {
     if (!prompt.trim()) {
       return new Response(JSON.stringify({ error: "missing prompt" }), {
         status: 400,
+        headers: CORS,
       });
     }
 
@@ -55,14 +73,17 @@ serve(async (req) => {
     if (!res.ok || !String(text).trim()) {
       return new Response(
         JSON.stringify({ error: `gemini ${res.status}`, detail: data?.error?.message }),
-        { status: 502 },
+        { status: 502, headers: CORS },
       );
     }
     return new Response(JSON.stringify({ text: String(text).trim() }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...CORS, "Content-Type": "application/json" },
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), { status: 500 });
+    return new Response(JSON.stringify({ error: String(e) }), {
+      status: 500,
+      headers: CORS,
+    });
   }
 });
