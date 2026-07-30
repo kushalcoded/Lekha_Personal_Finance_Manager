@@ -1,7 +1,7 @@
 # Auth setup (Supabase + Google)
 
-Sign-in is **optional** — the app works fully offline. Signing in turns on
-cloud backup & cross-device sync, and carries existing offline data into the
+Sign-in is **required** (Google or email). It powers cloud backup &
+cross-device sync, and carries existing on-device data into the
 account on first login.
 
 ## App identifiers

@@ -1,12 +1,11 @@
-# Lekha — offline-first money & debt tracker
+# Lekha — money & debt tracker
 
-**Lekha** (लेखा — "ledger") is a privacy-first personal finance app for
-**Android and the web** (installable on iPhone as a PWA). It stores everything
-on your device first, auto-captures spends from your bank SMS, tracks who owes
-whom, splits bills, and syncs across all your devices through your account —
-all wrapped in a calm, dark, single-purpose interface.
+**Lekha** (लेखा — "ledger") is a personal finance app for **Android and the
+web** (installable on iPhone as a PWA). It auto-captures spends from your bank
+SMS, tracks who owes whom, splits bills, and keeps every device in sync
+through one account — all wrapped in a calm, dark, single-purpose interface.
 
-> Local-first storage, one sign-in (Google or email), every device in sync.
+> One sign-in (Google or email), every device in sync.
 
 **▶ Try it now:** https://lekhamoney.app/
 
@@ -17,15 +16,15 @@ all wrapped in a calm, dark, single-purpose interface.
 ## Why
 
 Most expense apps make data entry a chore and treat your transactions as their
-product. Lekha is **local-first** — the app reads and writes on-device storage
-first, so it's instant and works offline — and does the tedious data entry
-**for** you (bank/UPI SMS → parsed expense). Your account exists for exactly
-one reason: backing up and syncing **your** data across **your** devices.
+product. Lekha does the tedious data entry **for** you (bank/UPI SMS → parsed
+expense) and your account exists for exactly one reason: backing up and
+syncing **your** data across **your** devices.
 
 ## Features
 
-- **Local-first** — instant on-device storage (works offline after sign-in);
-  your account backs everything up and mirrors it across devices.
+- **Always in sync** — your account mirrors everything across devices; reads
+  and writes hit on-device storage, so the UI stays instant even on a flaky
+  connection.
 - **Salary-cycle budgeting** — separate salary and budget per cycle; a manual
   reset archives the finished cycle into a frozen history snapshot.
 - **SMS auto-detect** — an on-device receiver catches bank/UPI debit texts and an
@@ -53,8 +52,8 @@ Google Gemini API · speech_to_text · home_widget · Kotlin (SMS receiver)
 
 ## Architecture highlights
 
-- **Offline-first with optional sync** — everything is keyed to a local user id
-  and works without a backend; signing in migrates local data into the account.
+- **Cloud-synced with a local cache** — the app reads and writes on-device
+  Hive storage for an instant UI; the account snapshot keeps devices mirrored.
 - **Snapshot sync** — the whole account travels as one JSON snapshot per user
   (simple, lossless, last-write-wins) instead of brittle per-table sync.
 - **Native SMS bridge** — a Kotlin `BroadcastReceiver` queues incoming SMS;
@@ -79,7 +78,8 @@ page and install it on any Android device:
 
 1. Download `Lekha-vX.Y.Z.apk`.
 2. Open it — Android will ask to allow installing from this source; approve it.
-3. Launch **Lekha**. No account or setup needed.
+3. Launch **Lekha** and sign in with Google or email — your data follows you
+   to any device.
 
 > The release APK is signed with a debug key (fine for sideloading). Android
 > may show an "unknown app" prompt — that's expected for apps outside the Play
@@ -95,7 +95,7 @@ page and install it on any Android device:
 ```bash
 git clone https://github.com/kushalcoded/Lekha_Personal_Finance_Manager.git
 cd Lekha_Personal_Finance_Manager
-cp .env.example .env      # optional keys; app runs without them
+cp .env.example .env      # add your Supabase keys (required for sign-in)
 flutter pub get
 flutter run
 ```
@@ -128,7 +128,7 @@ android/app/src/main/kotlin/…  SMS receiver + home-widget provider
 
 ## Scope & limitations
 
-- **Android-only**, **dark-only** — by design.
+- **Dark-only** — by design.
 - Cloud sync is **whole-snapshot last-write-wins**: ideal for one person across
   a couple of devices used one at a time.
 
