@@ -238,7 +238,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(width: 440, child: list),
+        Expanded(child: list),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(4, 12, 16, 24),

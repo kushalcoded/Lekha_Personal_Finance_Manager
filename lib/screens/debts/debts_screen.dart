@@ -14,12 +14,20 @@ import 'person_ledger_screen.dart';
 import 'providers/people_balance_providers.dart';
 
 /// Debts — one netted balance per person. Tap someone to see the full ledger
-/// of what you owe each other.
-class DebtsScreen extends ConsumerWidget {
+/// of what you owe each other (inline pane on desktop, pushed on mobile).
+class DebtsScreen extends ConsumerStatefulWidget {
   const DebtsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DebtsScreen> createState() => _DebtsScreenState();
+}
+
+class _DebtsScreenState extends ConsumerState<DebtsScreen> {
+  /// Desktop master-detail: the person whose ledger fills the right pane.
+  String? _selectedPerson;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final calm = CalmColors.of(context);
@@ -27,12 +35,80 @@ class DebtsScreen extends ConsumerWidget {
     final people = ref.watch(peopleBalancesProvider);
     final owed = ref.watch(totalReceivablesProvider(userId));
     final owe = ref.watch(totalPayablesProvider(userId));
+    final isWide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
+
+    final list = ListView(
+      padding: EdgeInsets.fromLTRB(16, 12, 16, isWide ? 24 : 16 + kNavBottomInset),
+      children: [
+        Text(
+          'Debts',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: _TotalBanner(
+                label: 'Owed to you',
+                value: owed,
+                color: calm.positive,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _TotalBanner(
+                label: 'You owe',
+                value: owe,
+                color: cs.error,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        if (people.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 60),
+            child: Center(
+              child: Text(
+                'No open debts.\nSplit a bill or tap + to add one.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          )
+        else ...[
+          Text(
+            'People',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...people.map(
+            (p) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _PersonRow(
+                balance: p,
+                onTap: () => _openPerson(p.name),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: Padding(
-        // Lift the add button clear above the floating navigation bar.
-        padding: EdgeInsets.only(bottom: kNavBottomInset - 36),
+        // Lift the add button clear above the floating navigation bar (which
+        // doesn't exist on wide screens).
+        padding: EdgeInsets.only(bottom: isWide ? 0 : kNavBottomInset - 36),
         child: FloatingActionButton(
           onPressed: () => _showAddChooser(context),
           backgroundColor: cs.primary,
@@ -43,75 +119,45 @@ class DebtsScreen extends ConsumerWidget {
       ),
       body: SafeArea(
         bottom: false,
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + kNavBottomInset),
-          children: [
-            Text(
-              'Debts',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.3,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                Expanded(
-                  child: _TotalBanner(
-                    label: 'Owed to you',
-                    value: owed,
-                    color: calm.positive,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _TotalBanner(
-                    label: 'You owe',
-                    value: owe,
-                    color: cs.error,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            if (people.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 60),
-                child: Center(
-                  child: Text(
-                    'No open debts.\nSplit a bill or tap + to add one.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: cs.onSurfaceVariant,
-                      height: 1.5,
+        child: isWide
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: list),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 12, 16, 24),
+                      child: _selectedPerson == null
+                          ? GlassCard(
+                              radius: 18,
+                              padding: const EdgeInsets.all(24),
+                              child: Center(
+                                child: Text(
+                                  'Select a person to see your ledger',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : PersonLedgerScreen(person: _selectedPerson!),
                     ),
                   ),
-                ),
+                ],
               )
-            else ...[
-              Text(
-                'People',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              ...people.map(
-                (p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _PersonRow(
-                    balance: p,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => PersonLedgerScreen(person: p.name),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
+            : list,
+      ),
+    );
+  }
+
+  void _openPerson(String name) {
+    if (MediaQuery.sizeOf(context).width >= kWideBreakpoint) {
+      setState(() => _selectedPerson = name);
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PersonLedgerScreen(person: name),
       ),
     );
   }
