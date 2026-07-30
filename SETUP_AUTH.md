@@ -104,7 +104,9 @@ mean the later sync wins and the other's unsynced edits are dropped.
 
 All AI features call the `gemini-proxy` Edge Function instead of Google
 directly, so the Gemini key lives server-side and never ships in the web
-bundle or APK. Only signed-in users can call it (JWT-verified).
+bundle or APK. Only signed-in users can call it (JWT-verified). The proxy
+tries Gemini first, falls back to Groq (Llama 3.3 70B) when Gemini's quota
+runs out, and enforces a per-user daily call cap.
 
 1. Supabase → **Edge Functions → Create a function** → name `gemini-proxy` →
    paste `supabase/functions/gemini-proxy/index.ts` → Deploy.
@@ -112,7 +114,39 @@ bundle or APK. Only signed-in users can call it (JWT-verified).
 3. **Edge Functions → Secrets** → add:
    - `GEMINI_API_KEY` = your Google AI Studio key
    - `GEMINI_MODEL` = optional (defaults to gemini-3.1-flash-lite)
-4. Remove `GEMINI_API_KEY` from the GitHub Actions secrets and from local
+   - `GROQ_API_KEY` = optional fallback key (free at console.groq.com →
+     API Keys)
+   - `GROQ_MODEL` = optional (defaults to llama-3.3-70b-versatile)
+   - `AI_DAILY_LIMIT` = optional calls per user per day (defaults to 50)
+4. **SQL Editor** → run this once for the per-user daily cap (without it the
+   proxy still works, just uncapped):
+
+```sql
+create table if not exists public.ai_usage (
+  user_id uuid not null,
+  day     date not null default current_date,
+  count   int  not null default 0,
+  primary key (user_id, day)
+);
+
+-- Only the service role (the Edge Function) touches this table.
+alter table public.ai_usage enable row level security;
+
+create or replace function public.increment_ai_usage(uid uuid)
+returns int language sql as $$
+  insert into public.ai_usage (user_id, day, count)
+  values (uid, current_date, 1)
+  on conflict (user_id, day)
+  do update set count = ai_usage.count + 1
+  returning count;
+$$;
+
+revoke execute on function public.increment_ai_usage(uuid)
+  from public, anon, authenticated;
+grant execute on function public.increment_ai_usage(uuid) to service_role;
+```
+
+5. Remove `GEMINI_API_KEY` from the GitHub Actions secrets and from local
    `.env` — the app no longer reads them.
 
 ## Phone OTP — removed

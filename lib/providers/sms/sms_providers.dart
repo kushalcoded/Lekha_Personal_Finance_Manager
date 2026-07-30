@@ -58,7 +58,8 @@ class SmsCaptureService {
   /// were added. Already-seen entries are skipped, and both queues keep
   /// unparsed entries so an offline failure is retried next time.
   Future<int> sync() async {
-    if (!_gemini.isConfigured) return 0; // AI-first: nothing to parse without it
+    // AI-first: nothing to parse without it.
+    if (!_gemini.isConfigured) return 0;
     var added = 0;
     if (!kIsWeb) added += await _syncNativeQueue();
     added += await _syncCloudQueue();
@@ -134,6 +135,22 @@ class SmsCaptureService {
       } catch (_) {
         // Re-marking fails harmlessly: seen-hash dedup skips them next drain.
       }
+    }
+
+    // Retire processed rows older than 30 days so the table doesn't grow
+    // forever. The recent window stays so lastCloudSmsAt() keeps feeding the
+    // iPhone-guide health card.
+    try {
+      await SupabaseService.client
+          .from('ingested_sms')
+          .delete()
+          .eq('status', 'done')
+          .lt(
+            'received_at',
+            DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
+          );
+    } catch (_) {
+      // Cleanup is best-effort; rows just wait for the next drain.
     }
     return added;
   }

@@ -52,7 +52,9 @@ create policy "Users manage their own ingested sms"
 ```
 
 (The Edge Function inserts with the service-role key, which bypasses RLS; the
-app reads/updates only its own rows.)
+app reads/updates only its own rows. Processed rows older than 30 days are
+deleted automatically each time the app drains the queue — the recent window
+stays so the connection health card can show when the last SMS arrived.)
 
 ## 2. Deploy the Edge Function
 
