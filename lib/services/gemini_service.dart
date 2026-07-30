@@ -7,6 +7,12 @@ import '../models/history/cycle_history_snapshot.dart';
 import 'supabase/supabase_service.dart';
 
 class GeminiService {
+  /// The user's currency code (e.g. 'INR'). Injected into every prompt so
+  /// models don't guess bare numbers or default to dollars.
+  final String currency;
+
+  GeminiService({this.currency = 'INR'});
+
   /// AI calls go through the `gemini-proxy` Edge Function (JWT-verified), so
   /// the Gemini key lives server-side and never ships in the app bundle.
   /// Configured = Supabase reachable + a signed-in session to authenticate as.
@@ -296,7 +302,12 @@ class GeminiService {
         'apikey': dotenv.env['SUPABASE_ANON_KEY'] ?? '',
       },
       body: jsonEncode({
-        'system': systemInstruction,
+        // Every feature shares this: without it Gemini writes bare numbers
+        // and Llama guesses dollars.
+        'system':
+            '$systemInstruction\n'
+            'All monetary amounts are in $currency. Always write amounts '
+            'with the matching currency symbol.',
         'prompt': userPrompt,
         'temperature': temperature,
       }),

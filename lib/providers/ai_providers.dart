@@ -67,7 +67,11 @@ class AiChatState {
   }
 }
 
-final geminiServiceProvider = Provider((ref) => GeminiService());
+final geminiServiceProvider = Provider(
+  (ref) => GeminiService(
+    currency: ref.watch(settingsProvider.select((s) => s.currency)),
+  ),
+);
 
 final geminiConfiguredProvider = Provider<bool>((ref) {
   return ref.watch(geminiServiceProvider).isConfigured;
