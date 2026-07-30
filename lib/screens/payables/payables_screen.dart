@@ -56,7 +56,12 @@ class _PayablesScreenState extends ConsumerState<PayablesScreen> {
               child: SlidableAutoCloseBehavior(
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.fromLTRB(16, 14, 16, 16 + kNavBottomInset),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    14,
+                    16,
+                    16 + kNavBottomInset,
+                  ),
                   children: [
                     GlassCard(
                       radius: 16,
@@ -68,7 +73,9 @@ class _PayablesScreenState extends ConsumerState<PayablesScreen> {
                           const Color(0xFF1E1B28).withValues(alpha: 0.42),
                         ],
                       ),
-                      border: Border.all(color: cs.error.withValues(alpha: 0.25)),
+                      border: Border.all(
+                        color: cs.error.withValues(alpha: 0.25),
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -113,7 +120,9 @@ class _PayablesScreenState extends ConsumerState<PayablesScreen> {
                               : '?',
                           name: p.toPerson,
                           subtitle: _subtitle(p, status),
-                          amount: AppFormatters.formatCurrency(p.remainingAmount),
+                          amount: AppFormatters.formatCurrency(
+                            p.remainingAmount,
+                          ),
                           amountColor: cs.error,
                           statusLabel: _statusLabel(status),
                           statusKind: _statusKind(status),
@@ -123,7 +132,8 @@ class _PayablesScreenState extends ConsumerState<PayablesScreen> {
                           onPrimary: () =>
                               showPayableSettlementModal(context, payable: p),
                           onDelete: () => _confirmDelete(p),
-                          onTap: () => showEditPayableModal(context, payable: p),
+                          onTap: () =>
+                              showEditPayableModal(context, payable: p),
                         );
                       }),
                   ],

@@ -1,3 +1,4 @@
+import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -240,7 +241,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
 
   bool get _isAmountValid {
     final text = _amountController.text.trim();
-    final value = double.tryParse(text);
+    final value = parseAmountExpression(text);
     return value != null && value > 0;
   }
 
@@ -268,7 +269,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
           .suggestExpenseCategory(
             categories: categories,
             notes: notes,
-            amount: double.tryParse(_amountController.text.trim()),
+            amount: parseAmountExpression(_amountController.text.trim()),
           );
       final match = categories.firstWhere(
         (c) => c.toLowerCase() == suggestion.trim().toLowerCase(),
@@ -359,7 +360,6 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     return typed.isEmpty ? 'Split $amount' : '$typed · Split $amount';
   }
 
-
   void _handleSave() async {
     if (!_isFormValid) {
       setState(() => _showValidation = true);
@@ -367,7 +367,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     }
 
     final userId = ref.read(currentUserIdProvider) ?? localUserId;
-    final total = double.parse(_amountController.text.trim());
+    final total = (parseAmountExpression(_amountController.text.trim()) ?? 0);
 
     // When the bill is split, the expense is only what YOU consumed — the rest
     // is money you're owed (or owe), not spending.
@@ -375,7 +375,12 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     final amount = split?.myShare ?? total;
     final note = _expenseNote(total);
 
-    if (!await _confirmIfWarned(userId, amount, _selectedCategory!, _selectedDate)) {
+    if (!await _confirmIfWarned(
+      userId,
+      amount,
+      _selectedCategory!,
+      _selectedDate,
+    )) {
       return;
     }
     if (!mounted) return;
@@ -437,7 +442,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
   String? _inlineWarning() {
     if (!_isAmountValid || _selectedCategory == null) return null;
     final userId = ref.read(currentUserIdProvider) ?? localUserId;
-    final amount = double.parse(_amountController.text.trim());
+    final amount = (parseAmountExpression(_amountController.text.trim()) ?? 0);
     final cycleExpenses = ref
         .read(cycleExpensesProvider)
         .where((e) => e.userId == userId)
@@ -481,8 +486,18 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     if (diff == 0) return 'Today';
     if (diff == 1) return 'Yesterday';
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[d.month - 1]} ${d.day}';
   }
@@ -586,6 +601,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
               controller: _amountController,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
+                signed: true,
               ),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w700,
@@ -602,12 +618,25 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
               },
             ),
           ),
+          // Calculator entry ('450+89', '450, 89') shows its total live.
+          if (isMultiTermAmount(_amountController.text))
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Text(
+                '= ${AppFormatters.formatCurrency(_total)}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  double get _total => double.tryParse(_amountController.text.trim()) ?? 0;
+  double get _total =>
+      parseAmountExpression(_amountController.text.trim()) ?? 0;
 
   /// Shares for the current bill total — recomputed each build so editing the
   /// amount after configuring a split stays correct.
@@ -792,10 +821,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
               ],
             ),
             const SizedBox(height: 18),
-            if (aiConfigured) ...[
-              _nlQuickAdd(cs),
-              const SizedBox(height: 18),
-            ],
+            if (aiConfigured) ...[_nlQuickAdd(cs), const SizedBox(height: 18)],
             const FieldLabel('Amount'),
             const SizedBox(height: 8),
             _amountBox(theme, cs),

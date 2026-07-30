@@ -1,3 +1,4 @@
+import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -111,7 +112,8 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
       text: widget.expense.description ?? '',
     );
     _selectedCategory = widget.expense.category;
-    _selectedPaymentMethod = widget.expense.paymentMethod ??
+    _selectedPaymentMethod =
+        widget.expense.paymentMethod ??
         inferPaymentMethod(widget.expense.description);
     _selectedDate = widget.expense.date;
     // Reconstruct an existing split (only possible when you paid) so it can
@@ -133,7 +135,7 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
 
   bool get _isAmountValid {
     final text = _amountController.text.trim();
-    final value = double.tryParse(text);
+    final value = parseAmountExpression(text);
     return value != null && value > 0;
   }
 
@@ -147,7 +149,8 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
     }
   }
 
-  double get _total => double.tryParse(_amountController.text.trim()) ?? 0;
+  double get _total =>
+      parseAmountExpression(_amountController.text.trim()) ?? 0;
 
   SplitResult get _splitResult => computeSplit(
     total: _total,
@@ -158,12 +161,16 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
 
   Future<void> _openSplit() async {
     if (_total <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter the amount first')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter the amount first')));
       return;
     }
-    final result = await showSplitSheet(context, total: _total, initial: _split);
+    final result = await showSplitSheet(
+      context,
+      total: _total,
+      initial: _split,
+    );
     if (result != null && mounted) {
       setState(() {
         _split = result;

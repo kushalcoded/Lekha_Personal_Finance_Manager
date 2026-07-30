@@ -82,11 +82,7 @@ class UpcomingRecurringTile extends StatelessWidget {
                       template.frequency.label,
                       colorScheme.tertiary,
                     ),
-                    _chip(
-                      context,
-                      _statusLabel(),
-                      statusColor,
-                    ),
+                    _chip(context, _statusLabel(), statusColor),
                     _chip(context, template.paymentMethod, style.color),
                   ],
                 ),
@@ -126,9 +122,9 @@ class UpcomingRecurringTile extends StatelessWidget {
       child: Text(
         text,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
-            ),
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

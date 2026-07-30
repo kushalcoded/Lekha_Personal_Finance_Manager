@@ -38,7 +38,12 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     final isWide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
 
     final list = ListView(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, isWide ? 24 : 16 + kNavBottomInset),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        isWide ? 24 : 16 + kNavBottomInset,
+      ),
       children: [
         Text(
           'Debts',
@@ -93,10 +98,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           ...people.map(
             (p) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _PersonRow(
-                balance: p,
-                onTap: () => _openPerson(p.name),
-              ),
+              child: _PersonRow(balance: p, onTap: () => _openPerson(p.name)),
             ),
           ),
         ],
@@ -156,9 +158,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
       return;
     }
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PersonLedgerScreen(person: name),
-      ),
+      MaterialPageRoute<void>(builder: (_) => PersonLedgerScreen(person: name)),
     );
   }
 
@@ -318,9 +318,7 @@ class _PersonRow extends StatelessWidget {
                 Text(
                   subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: balance.hasOverdue
-                        ? cs.error
-                        : cs.onSurfaceVariant,
+                    color: balance.hasOverdue ? cs.error : cs.onSurfaceVariant,
                     fontSize: 11.5,
                   ),
                 ),
@@ -342,9 +340,7 @@ class _PersonRow extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                settled
-                    ? 'settled'
-                    : (net > 0 ? 'owes you' : 'you owe'),
+                settled ? 'settled' : (net > 0 ? 'owes you' : 'you owe'),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: cs.onSurfaceVariant,
                   fontSize: 10.5,

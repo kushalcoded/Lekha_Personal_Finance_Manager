@@ -1,3 +1,4 @@
+import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -89,7 +90,7 @@ class _PayableFormState extends ConsumerState<PayableForm> {
   bool get _isPersonValid => _personController.text.trim().isNotEmpty;
 
   bool get _isAmountValid {
-    final value = double.tryParse(_amountController.text.trim());
+    final value = parseAmountExpression(_amountController.text.trim());
     return value != null && value > 0;
   }
 
@@ -112,7 +113,7 @@ class _PayableFormState extends ConsumerState<PayableForm> {
     final now = DateTime.now();
     final existing = widget.payable;
     final userId = ref.read(currentUserIdProvider) ?? localUserId;
-    final amount = double.parse(_amountController.text.trim());
+    final amount = (parseAmountExpression(_amountController.text.trim()) ?? 0);
     final paidAmount = existing == null
         ? 0.0
         : (existing.amount - existing.remainingAmount).clamp(0.0, amount);

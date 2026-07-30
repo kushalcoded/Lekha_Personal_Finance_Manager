@@ -1,3 +1,4 @@
+import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -133,7 +134,7 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
   }
 
   bool get _isAmountValid {
-    final value = double.tryParse(_amountController.text.trim());
+    final value = parseAmountExpression(_amountController.text.trim());
     return value != null && value > 0;
   }
 
@@ -170,7 +171,7 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
     final template = RecurringExpenseTemplate(
       id: existing?.id ?? const Uuid().v4(),
       userId: existing?.userId ?? userId,
-      amount: double.parse(_amountController.text.trim()),
+      amount: (parseAmountExpression(_amountController.text.trim()) ?? 0),
       category: _selectedCategory!,
       paymentMethod: _selectedPaymentMethod!,
       notes: _notesController.text.trim().isEmpty
@@ -364,5 +365,4 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
       ),
     );
   }
-
 }

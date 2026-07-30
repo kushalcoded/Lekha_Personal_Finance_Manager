@@ -83,147 +83,148 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               isWide,
               expensesState.expenses,
               RefreshIndicator(
-              onRefresh: () => ref.read(syncProvider.notifier).syncNow(),
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _StatBox(
-                                  label: 'Spent this cycle',
-                                  value: AppFormatters.formatCurrency(
-                                    stats.total,
+                onRefresh: () => ref.read(syncProvider.notifier).syncNow(),
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _StatBox(
+                                    label: 'Spent this cycle',
+                                    value: AppFormatters.formatCurrency(
+                                      stats.total,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _StatBox(
-                                  label: 'Transactions',
-                                  value: '${stats.transactionCount}',
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _StatBox(
+                                    label: 'Transactions',
+                                    value: '${stats.transactionCount}',
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          ExpenseSearchBar(
-                            onSearch: (query) => ref
-                                .read(expensesListProvider.notifier)
-                                .search(query),
-                            onFilterTapped: () => showExpenseFiltersSheet(
-                              context,
-                              categories: categories,
+                              ],
                             ),
-                          ),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 200),
-                            child: filterState.hasActiveFilters
-                                ? Padding(
-                                    key: const ValueKey('active-filters'),
-                                    padding: const EdgeInsets.only(top: 12),
-                                    child: _ActiveFilters(
-                                      filterState: filterState,
-                                      notifier: ref.read(
-                                        expensesListProvider.notifier,
+                            const SizedBox(height: 14),
+                            ExpenseSearchBar(
+                              onSearch: (query) => ref
+                                  .read(expensesListProvider.notifier)
+                                  .search(query),
+                              onFilterTapped: () => showExpenseFiltersSheet(
+                                context,
+                                categories: categories,
+                              ),
+                            ),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 200),
+                              child: filterState.hasActiveFilters
+                                  ? Padding(
+                                      key: const ValueKey('active-filters'),
+                                      padding: const EdgeInsets.only(top: 12),
+                                      child: _ActiveFilters(
+                                        filterState: filterState,
+                                        notifier: ref.read(
+                                          expensesListProvider.notifier,
+                                        ),
+                                        onClearAll: () => ref
+                                            .read(expensesListProvider.notifier)
+                                            .clearAllFilters(),
                                       ),
-                                      onClearAll: () => ref
-                                          .read(expensesListProvider.notifier)
-                                          .clearAllFilters(),
-                                    ),
-                                  )
-                                : const SizedBox.shrink(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (pending.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: _DetectedSection(
-                        pending: pending,
-                        onAdd: _addFromPending,
-                        onDismiss: _dismissPending,
-                        selectedIds: _selectedPending,
-                        onToggleSelect: _toggleSelectPending,
-                        onCancelSelect: _clearPendingSelection,
-                        onAddSelected: () => _addSelectedAsOne(pending),
-                      ),
-                    ),
-                  if (groupedExpenses.isEmpty)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: EmptyExpensesState(
-                          title: filterState.hasActiveFilters
-                              ? 'No expenses match your filters'
-                              : 'No expenses yet',
-                          message: filterState.hasActiveFilters
-                              ? 'Try clearing or adjusting your filters.'
-                              : 'Tap + to add your first expense.',
-                          primaryLabel: filterState.hasActiveFilters
-                              ? 'Clear Filters'
-                              : 'Add Expense',
-                          onPrimaryPressed: filterState.hasActiveFilters
-                              ? () => ref
-                                    .read(expensesListProvider.notifier)
-                                    .clearAllFilters()
-                              : () => showAddExpenseModal(context),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                          ],
                         ),
                       ),
-                    )
-                  else
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final group = groupedExpenses[index];
-                        return Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            16,
-                            index == 0 ? 6 : 18,
-                            16,
-                            0,
+                    ),
+                    if (pending.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: _DetectedSection(
+                          pending: pending,
+                          onAdd: _addFromPending,
+                          onDismiss: _dismissPending,
+                          selectedIds: _selectedPending,
+                          onToggleSelect: _toggleSelectPending,
+                          onCancelSelect: _clearPendingSelection,
+                          onAddSelected: () => _addSelectedAsOne(pending),
+                        ),
+                      ),
+                    if (groupedExpenses.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: EmptyExpensesState(
+                            title: filterState.hasActiveFilters
+                                ? 'No expenses match your filters'
+                                : 'No expenses yet',
+                            message: filterState.hasActiveFilters
+                                ? 'Try clearing or adjusting your filters.'
+                                : 'Tap + to add your first expense.',
+                            primaryLabel: filterState.hasActiveFilters
+                                ? 'Clear Filters'
+                                : 'Add Expense',
+                            onPrimaryPressed: filterState.hasActiveFilters
+                                ? () => ref
+                                      .read(expensesListProvider.notifier)
+                                      .clearAllFilters()
+                                : () => showAddExpenseModal(context),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ExpenseSectionHeader(
-                                date: group.date,
-                                total: group.total,
-                                count: group.expenses.length,
-                              ),
-                              const SizedBox(height: 8),
-                              ...group.expenses.map(
-                                (expense) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: Dismissible(
-                                    key: ValueKey(expense.id),
-                                    direction: DismissDirection.endToStart,
-                                    confirmDismiss: (_) => _confirmDelete(expense),
-                                    background: const _DismissBackground(),
-                                    child: _ExpenseRow(
-                                      expense: expense,
-                                      onTap: () => _showDetails(expense),
+                        ),
+                      )
+                    else
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final group = groupedExpenses[index];
+                          return Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              16,
+                              index == 0 ? 6 : 18,
+                              16,
+                              0,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ExpenseSectionHeader(
+                                  date: group.date,
+                                  total: group.total,
+                                  count: group.expenses.length,
+                                ),
+                                const SizedBox(height: 8),
+                                ...group.expenses.map(
+                                  (expense) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: Dismissible(
+                                      key: ValueKey(expense.id),
+                                      direction: DismissDirection.endToStart,
+                                      confirmDismiss: (_) =>
+                                          _confirmDelete(expense),
+                                      background: const _DismissBackground(),
+                                      child: _ExpenseRow(
+                                        expense: expense,
+                                        onTap: () => _showDetails(expense),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }, childCount: groupedExpenses.length),
+                              ],
+                            ),
+                          );
+                        }, childCount: groupedExpenses.length),
+                      ),
+                    SliverToBoxAdapter(
+                      child: SizedBox(height: isWide ? 24 : kNavBottomInset),
                     ),
-                  SliverToBoxAdapter(
-                    child: SizedBox(height: isWide ? 24 : kNavBottomInset),
-                  ),
-                ],
-              ),
+                  ],
+                ),
               ),
             ),
     );
@@ -299,8 +300,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   /// latest. The Add Expense modal opens prefilled; on save, every merged
   /// pending is marked added and linked to that one expense.
   void _addSelectedAsOne(List<PendingTransaction> pending) {
-    final chosen =
-        pending.where((t) => _selectedPending.contains(t.id)).toList();
+    final chosen = pending
+        .where((t) => _selectedPending.contains(t.id))
+        .toList();
     if (chosen.isEmpty) return;
     final total = chosen.fold<double>(0, (sum, t) => sum + t.amount);
     final latest = chosen
@@ -648,89 +650,92 @@ class _DetectedCard extends StatelessWidget {
       onLongPress: onToggleSelect,
       onTap: selectMode ? onToggleSelect : null,
       child: GlassCard(
-      radius: 16,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-      gradient: LinearGradient(
-        begin: Alignment.topRight,
-        end: Alignment.bottomLeft,
-        colors: [
-          cs.primary.withValues(alpha: 0.16),
-          const Color(0xFF1E1B28).withValues(alpha: 0.42),
-        ],
-      ),
-      border: Border.all(
-        color: cs.primary.withValues(alpha: selected ? 0.85 : 0.28),
-        width: selected ? 1.6 : 1,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Icon(
-                  selectMode
-                      ? (selected
-                            ? Icons.check_circle_rounded
-                            : Icons.circle_outlined)
-                      : Icons.south_west_rounded,
-                  size: 17,
-                  color: cs.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '-${AppFormatters.formatCurrency(txn.amount)}',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    Text(
-                      '$when · from SMS',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontSize: 11.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            txn.rawBody,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: cs.onSurfaceVariant,
-              height: 1.35,
-            ),
-          ),
-          if (!selectMode)
+        radius: 16,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+        gradient: LinearGradient(
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+          colors: [
+            cs.primary.withValues(alpha: 0.16),
+            const Color(0xFF1E1B28).withValues(alpha: 0.42),
+          ],
+        ),
+        border: Border.all(
+          color: cs.primary.withValues(alpha: selected ? 0.85 : 0.28),
+          width: selected ? 1.6 : 1,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(onPressed: onDismiss, child: const Text('Dismiss')),
-                const SizedBox(width: 8),
-                FilledButton(onPressed: onAdd, child: const Text('Add')),
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: cs.primary.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(
+                    selectMode
+                        ? (selected
+                              ? Icons.check_circle_rounded
+                              : Icons.circle_outlined)
+                        : Icons.south_west_rounded,
+                    size: 17,
+                    color: cs.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '-${AppFormatters.formatCurrency(txn.amount)}',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      Text(
+                        '$when · from SMS',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
-            )
-          else
+            ),
             const SizedBox(height: 8),
-        ],
-      ),
+            Text(
+              txn.rawBody,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+                height: 1.35,
+              ),
+            ),
+            if (!selectMode)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: onDismiss,
+                    child: const Text('Dismiss'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(onPressed: onAdd, child: const Text('Add')),
+                ],
+              )
+            else
+              const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
@@ -761,7 +766,10 @@ class _ActiveFilters extends StatelessWidget {
 
     if (filterState.dateRange != null) {
       final range = filterState.dateRange!;
-      final startLabel = AppFormatters.formatDate(range.start, format: 'MMM dd');
+      final startLabel = AppFormatters.formatDate(
+        range.start,
+        format: 'MMM dd',
+      );
       final endLabel = AppFormatters.formatDate(range.end, format: 'MMM dd');
       chips.add(
         Chip(
@@ -773,9 +781,7 @@ class _ActiveFilters extends StatelessWidget {
 
     return Row(
       children: [
-        Expanded(
-          child: Wrap(spacing: 8, runSpacing: 8, children: chips),
-        ),
+        Expanded(child: Wrap(spacing: 8, runSpacing: 8, children: chips)),
         TextButton(onPressed: onClearAll, child: const Text('Clear')),
       ],
     );

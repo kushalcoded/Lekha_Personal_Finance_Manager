@@ -1,20 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+
+import '../../services/storage/hive_service.dart' show kLocalPrefsBox;
 import 'navigation_models.dart';
 
 /// Navigation state
 class NavigationState {
   final NavigationTab currentTab;
 
-  const NavigationState({
-    this.currentTab = NavigationTab.dashboard,
-  });
+  const NavigationState({this.currentTab = NavigationTab.dashboard});
 
-  NavigationState copyWith({
-    NavigationTab? currentTab,
-  }) {
-    return NavigationState(
-      currentTab: currentTab ?? this.currentTab,
-    );
+  NavigationState copyWith({NavigationTab? currentTab}) {
+    return NavigationState(currentTab: currentTab ?? this.currentTab);
   }
 }
 
@@ -26,11 +23,22 @@ final navigationProvider =
 
 /// Navigation notifier for handling navigation changes
 class NavigationNotifier extends StateNotifier<NavigationState> {
-  NavigationNotifier() : super(const NavigationState());
+  NavigationNotifier() : super(NavigationState(currentTab: _restoreTab()));
+
+  /// The tab from the last session, so a reload/restart resumes where the
+  /// user left off. Box-open guard keeps widget tests (no Hive) working.
+  static NavigationTab _restoreTab() {
+    if (!Hive.isBoxOpen(kLocalPrefsBox)) return NavigationTab.dashboard;
+    final id = Hive.box(kLocalPrefsBox).get('lastTab')?.toString() ?? '';
+    return NavigationTabExtension.fromId(id);
+  }
 
   /// Navigate to a specific tab
   void navigateTo(NavigationTab tab) {
     state = state.copyWith(currentTab: tab);
+    if (Hive.isBoxOpen(kLocalPrefsBox)) {
+      Hive.box(kLocalPrefsBox).put('lastTab', tab.name);
+    }
   }
 
   /// Navigate using route string

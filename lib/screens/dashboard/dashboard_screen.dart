@@ -10,7 +10,8 @@ import '../../providers/auth/auth_provider.dart';
 import '../../providers/budget/budget_providers.dart';
 import '../../providers/cycle/cycle_providers.dart';
 import '../../providers/debt/debt_providers.dart';
-import '../../providers/storage/storage_providers.dart' show totalPayablesProvider;
+import '../../providers/storage/storage_providers.dart'
+    show totalPayablesProvider;
 import '../../providers/sync/sync_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
@@ -260,9 +261,9 @@ class _Header extends StatelessWidget {
           context,
           icon: Icons.auto_awesome_rounded,
           tinted: true,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const AiChatScreen()),
-          ),
+          onTap: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const AiChatScreen())),
         ),
         const SizedBox(width: 9),
         _circleBtn(
@@ -548,9 +549,9 @@ class _BudgetRing extends StatelessWidget {
           ),
           Text(
             '${(percent * 100).round()}%',
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
           ),
         ],
       ),

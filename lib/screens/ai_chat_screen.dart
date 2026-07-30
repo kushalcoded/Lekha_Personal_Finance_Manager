@@ -74,7 +74,9 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                               ? Theme.of(
                                   context,
                                 ).colorScheme.primary.withValues(alpha: 0.16)
-                              : Theme.of(context).colorScheme.surfaceContainerHighest
+                              : Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest
                                     .withValues(alpha: 0.55),
                           borderRadius: BorderRadius.only(
                             topLeft: const Radius.circular(16),

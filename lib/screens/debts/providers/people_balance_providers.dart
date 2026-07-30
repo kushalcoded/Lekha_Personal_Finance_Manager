@@ -134,8 +134,6 @@ final personBalanceProvider = Provider.family<PersonBalance?, String>((
   name,
 ) {
   final people = ref.watch(peopleBalancesProvider);
-  final match = people.where(
-    (p) => p.name.toLowerCase() == name.toLowerCase(),
-  );
+  final match = people.where((p) => p.name.toLowerCase() == name.toLowerCase());
   return match.isEmpty ? null : match.first;
 });

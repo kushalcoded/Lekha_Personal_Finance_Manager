@@ -13,6 +13,10 @@ import '../../models/receivable/receivable_hive_model.dart';
 import '../../models/receivable/receivable_model.dart';
 import '../../models/sync/sync_models.dart';
 
+/// Device-local UI state (AI chat history, last open tab). Never synced,
+/// never backed up — each device keeps its own.
+const kLocalPrefsBox = 'local_prefs';
+
 class HiveService {
   static final HiveService _instance = HiveService._internal();
 
@@ -86,6 +90,9 @@ class HiveService {
     _instance._onboardingBox = await Hive.openBox<bool>('onboarding');
     _instance._pendingBox = await Hive.openBox<Map>('pending_transactions');
     _instance._smsSeenBox = await Hive.openBox<bool>('sms_seen');
+    // Device-local UI state (chat history, last tab) — deliberately excluded
+    // from cloud snapshots and backups.
+    await Hive.openBox(kLocalPrefsBox);
     _instance._initialized = true;
   }
 
@@ -921,7 +928,8 @@ class HiveService {
       isPaid: map['isPaid'] as bool? ?? false,
       sourceExpenseId: map['sourceExpenseId'] as String?,
       remainingAmount: (map['remainingAmount'] as num?)?.toDouble(),
-      settlements: (map['settlements'] as List?)
+      settlements:
+          (map['settlements'] as List?)
               ?.whereType<Map>()
               .map(ReceivableSettlement.fromJson)
               .toList() ??
@@ -1056,7 +1064,9 @@ class HiveService {
       'isPaid': receivable.isPaid,
       'sourceExpenseId': receivable.sourceExpenseId,
       'remainingAmount': receivable.remainingAmount,
-      'settlements': receivable.settlements.map((sett) => sett.toJson()).toList(),
+      'settlements': receivable.settlements
+          .map((sett) => sett.toJson())
+          .toList(),
       'createdAt': receivable.createdAt.toIso8601String(),
       'updatedAt': receivable.updatedAt?.toIso8601String(),
     };
@@ -1071,10 +1081,7 @@ class HiveService {
     if (raw == null || raw.isEmpty) return const [];
     final decoded = jsonDecode(raw);
     if (decoded is! List) return const [];
-    return decoded
-        .whereType<Map>()
-        .map(ReceivableSettlement.fromJson)
-        .toList();
+    return decoded.whereType<Map>().map(ReceivableSettlement.fromJson).toList();
   }
 
   /// Move all locally-created data (offline records under [from], typically

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/expense/expense_model.dart';
@@ -16,6 +17,7 @@ import '../screens/expenses/providers/expenses_providers.dart';
 import '../screens/history_providers.dart';
 import '../screens/settings/providers/settings_providers.dart';
 import '../services/gemini_service.dart';
+import '../services/storage/hive_service.dart' show kLocalPrefsBox;
 
 class AiChatMessage {
   final String role;
@@ -137,7 +139,38 @@ final historyAiSummaryProvider =
 class AiChatNotifier extends StateNotifier<AiChatState> {
   final Ref _ref;
 
-  AiChatNotifier(this._ref) : super(const AiChatState());
+  AiChatNotifier(this._ref)
+    : super(AiChatState(messages: _loadPersistedMessages()));
+
+  /// History survives reloads on this device (device-local by design — the
+  /// box is excluded from cloud sync). Box-open guard keeps tests working.
+  static List<AiChatMessage> _loadPersistedMessages() {
+    if (!Hive.isBoxOpen(kLocalPrefsBox)) return const [];
+    final raw = Hive.box(kLocalPrefsBox).get('chatMessages');
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map(
+          (m) => AiChatMessage(
+            role: m['role']?.toString() ?? 'assistant',
+            text: m['text']?.toString() ?? '',
+          ),
+        )
+        .toList();
+  }
+
+  /// Every state change persists the transcript (capped at the last 50).
+  @override
+  set state(AiChatState value) {
+    super.state = value;
+    if (!Hive.isBoxOpen(kLocalPrefsBox)) return;
+    final msgs = value.messages.length > 50
+        ? value.messages.sublist(value.messages.length - 50)
+        : value.messages;
+    Hive.box(kLocalPrefsBox).put('chatMessages', [
+      for (final m in msgs) {'role': m.role, 'text': m.text},
+    ]);
+  }
 
   Future<void> send(String message) async {
     final trimmed = message.trim();
@@ -226,7 +259,10 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
   void _finishWithAssistant(List<AiChatMessage> baseMessages, String text) {
     state = state.copyWith(
       isLoading: false,
-      messages: [...baseMessages, AiChatMessage(role: 'assistant', text: text)],
+      messages: [
+        ...baseMessages,
+        AiChatMessage(role: 'assistant', text: text),
+      ],
     );
   }
 

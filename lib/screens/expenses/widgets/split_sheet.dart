@@ -1,3 +1,4 @@
+import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -90,7 +91,7 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
 
   Map<String, double> get _exactAmounts => {
     for (final e in _exactControllers.entries)
-      e.key: double.tryParse(e.value.text.trim()) ?? 0,
+      e.key: parseAmountExpression(e.value.text.trim()) ?? 0,
   };
 
   @override
@@ -99,9 +100,7 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
     final cs = theme.colorScheme;
     final known = ref
         .watch(knownPeopleProvider)
-        .where(
-          (n) => !_people.any((p) => p.toLowerCase() == n.toLowerCase()),
-        )
+        .where((n) => !_people.any((p) => p.toLowerCase() == n.toLowerCase()))
         .take(6)
         .toList();
 
@@ -111,9 +110,7 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
       mode: _mode,
       exactAmounts: _exactAmounts,
     );
-    final error = _people.isEmpty
-        ? null
-        : validateSplit(widget.total, result);
+    final error = _people.isEmpty ? null : validateSplit(widget.total, result);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
@@ -160,7 +157,10 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
               spacing: 8,
               runSpacing: 8,
               children: _people
-                  .map((p) => _PersonChip(name: p, onRemove: () => _removePerson(p)))
+                  .map(
+                    (p) =>
+                        _PersonChip(name: p, onRemove: () => _removePerson(p)),
+                  )
                   .toList(),
             ),
             const SizedBox(height: 10),

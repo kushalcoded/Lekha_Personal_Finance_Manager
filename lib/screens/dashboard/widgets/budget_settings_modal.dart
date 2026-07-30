@@ -1,3 +1,4 @@
+import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -112,7 +113,7 @@ class _CycleAmountSettingsFormState
   }
 
   bool get _isValid {
-    final value = double.tryParse(_budgetController.text.trim());
+    final value = parseAmountExpression(_budgetController.text.trim());
     return value != null && value > 0;
   }
 
@@ -122,7 +123,7 @@ class _CycleAmountSettingsFormState
       return;
     }
 
-    final amount = double.parse(_budgetController.text.trim());
+    final amount = (parseAmountExpression(_budgetController.text.trim()) ?? 0);
     final settingsNotifier = ref.read(settingsProvider.notifier);
     if (widget.amountType == _CycleAmountType.budget) {
       await settingsNotifier.setCycleBudget(amount);

@@ -394,10 +394,7 @@ class BackupNotifier extends StateNotifier<BackupState> {
           .getLocalBackups()
           .map(_metadataFromMap)
           .toList();
-      state = state.copyWith(
-        isLoading: false,
-        backups: backups,
-      );
+      state = state.copyWith(isLoading: false, backups: backups);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }

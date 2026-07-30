@@ -1,3 +1,4 @@
+import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -255,8 +256,8 @@ class _ExpenseFiltersSheetState extends ConsumerState<ExpenseFiltersSheet> {
   }
 
   void _handleApply() {
-    final minAmount = double.tryParse(_minController.text.trim());
-    final maxAmount = double.tryParse(_maxController.text.trim());
+    final minAmount = parseAmountExpression(_minController.text.trim());
+    final maxAmount = parseAmountExpression(_maxController.text.trim());
     final notifier = ref.read(expensesListProvider.notifier);
 
     notifier.setCategories(_selectedCategories.toList());

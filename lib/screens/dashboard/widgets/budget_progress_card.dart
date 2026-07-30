@@ -195,7 +195,6 @@ class BudgetProgressCard extends StatelessWidget {
   }
 }
 
-
 class _BudgetAlert extends StatelessWidget {
   final String message;
   final Color color;

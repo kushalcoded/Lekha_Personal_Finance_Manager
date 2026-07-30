@@ -1,3 +1,4 @@
+import '../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -133,7 +134,12 @@ class PersonLedgerScreen extends ConsumerWidget {
           SlidableAutoCloseBehavior(
             child: Column(
               children: balance.items
-                  .map((item) => _LedgerRow(item: item, onSettle: () => _settle(context, ref, item)))
+                  .map(
+                    (item) => _LedgerRow(
+                      item: item,
+                      onSettle: () => _settle(context, ref, item),
+                    ),
+                  )
                   .toList(),
             ),
           ),
@@ -213,7 +219,10 @@ class PersonLedgerScreen extends ConsumerWidget {
   ) async {
     // Both sides now support partial settlement via their own modal.
     if (item.isReceivable) {
-      await showReceivableSettlementModal(context, receivable: item.receivable!);
+      await showReceivableSettlementModal(
+        context,
+        receivable: item.receivable!,
+      );
     } else {
       await showPayableSettlementModal(context, payable: item.payable!);
     }
@@ -227,16 +236,18 @@ class PersonLedgerScreen extends ConsumerWidget {
     PersonBalance balance,
   ) async {
     final theyOweYou = balance.net >= 0;
-    final amountCtrl = TextEditingController();
+    // Prefilled with the full outstanding amount — most payments settle in
+    // full; edit it for a partial one.
+    final amountCtrl = TextEditingController(
+      text: balance.net.abs().toStringAsFixed(2),
+    );
     final noteCtrl = TextEditingController();
 
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          theyOweYou
-              ? '${balance.name} paid you'
-              : 'You paid ${balance.name}',
+          theyOweYou ? '${balance.name} paid you' : 'You paid ${balance.name}',
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -273,7 +284,7 @@ class PersonLedgerScreen extends ConsumerWidget {
     );
     if (ok != true) return;
 
-    final amount = double.tryParse(amountCtrl.text.trim()) ?? 0;
+    final amount = parseAmountExpression(amountCtrl.text.trim()) ?? 0;
     if (amount <= 0) return;
     final note = noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim();
 
@@ -372,8 +383,9 @@ class _ReminderPreviewDialogState extends State<_ReminderPreviewDialog> {
                   controller: _controller,
                   maxLines: null,
                   minLines: 4,
-                  decoration:
-                      const InputDecoration(border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                  ),
                 ),
         ],
       ),

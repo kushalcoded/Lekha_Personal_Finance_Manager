@@ -149,32 +149,31 @@ class _ExportModalContentState extends ConsumerState<ExportModalContent> {
               exportState.isRunning ? 'Exporting...' : 'Generate Export',
             ),
           ),
-        const SizedBox(height: 10),
-        Text(
-          exportState.status,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-        ),
+          const SizedBox(height: 10),
+          Text(
+            exportState.status,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 12),
           if (exportState.isRunning)
             LinearProgressIndicator(value: exportState.progress),
-        if (!exportState.isRunning && exportState.lastFile != null) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              FilledButton.tonalIcon(
-                onPressed: () => ref
-                    .read(exportProvider.notifier)
-                    .shareLastExport(),
-                icon: const Icon(Icons.share_rounded),
-                label: const Text('Share'),
-              ),
-            ],
-          ),
-        ],
+          if (!exportState.isRunning && exportState.lastFile != null) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: () =>
+                      ref.read(exportProvider.notifier).shareLastExport(),
+                  icon: const Icon(Icons.share_rounded),
+                  label: const Text('Share'),
+                ),
+              ],
+            ),
+          ],
           if (exportState.error != null) ...[
             const SizedBox(height: 8),
             Text(
@@ -219,53 +218,52 @@ class _ExportModalContentState extends ConsumerState<ExportModalContent> {
               ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            ...exportState.history.take(4).map(
-              (item) => Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.25,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: colorScheme.outline.withValues(alpha: 0.12),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.fileName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${item.createdAt.toLocal()} · ${item.format.toUpperCase()}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                    ),
-                    if ((item.savedPath ?? '').isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        item.savedPath!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
+            ...exportState.history
+                .take(4)
+                .map(
+                  (item) => Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.25,
                       ),
-                    ],
-                  ],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: colorScheme.outline.withValues(alpha: 0.12),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.fileName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${item.createdAt.toLocal()} · ${item.format.toUpperCase()}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: colorScheme.onSurfaceVariant),
+                        ),
+                        if ((item.savedPath ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            item.savedPath!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
           ],
         ],
       ),

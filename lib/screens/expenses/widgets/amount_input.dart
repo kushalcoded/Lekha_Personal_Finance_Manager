@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../utils/amount_expression.dart';
+import '../../../utils/formatters/formatters.dart';
+
 class AmountInput extends StatelessWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
@@ -15,10 +18,17 @@ class AmountInput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    // Calculator entry ('450+89', '450, 89') shows its running total live.
+    final computed = isMultiTermAmount(controller.text)
+        ? parseAmountExpression(controller.text)
+        : null;
 
     return TextFormField(
       controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      keyboardType: const TextInputType.numberWithOptions(
+        decimal: true,
+        signed: true,
+      ),
       decoration: InputDecoration(
         labelText: 'Amount',
         hintText: '0.00',
@@ -26,6 +36,9 @@ class AmountInput extends StatelessWidget {
         filled: true,
         fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        helperText: computed == null
+            ? null
+            : '= ${AppFormatters.formatCurrency(computed)}',
         errorText: showError ? 'Enter a valid amount' : null,
       ),
       onChanged: onChanged,

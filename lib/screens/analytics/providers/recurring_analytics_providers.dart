@@ -117,7 +117,7 @@ final burnRateForecastProvider = Provider.family<BurnRateForecast, String>((
 });
 
 final recurringFixedObligationInsightsProvider =
-  Provider.family<List<SmartFinancialInsight>, String>((ref, userId) {
+    Provider.family<List<SmartFinancialInsight>, String>((ref, userId) {
       final recurringSummary = ref.watch(
         recurringObligationSummaryProvider(userId),
       );

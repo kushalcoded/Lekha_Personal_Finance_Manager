@@ -119,11 +119,7 @@ class RecurringTemplateCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _chip(
-                context,
-                template.frequency.label,
-                colorScheme.primary,
-              ),
+              _chip(context, template.frequency.label, colorScheme.primary),
               _chip(
                 context,
                 isOverdue
@@ -199,7 +195,6 @@ class RecurringTemplateCard extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class RecurringTemplateFilterBar extends StatelessWidget {

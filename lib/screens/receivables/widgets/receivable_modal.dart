@@ -1,3 +1,4 @@
+import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -89,7 +90,7 @@ class _ReceivableFormState extends ConsumerState<ReceivableForm> {
   bool get _isPersonValid => _personController.text.trim().isNotEmpty;
 
   bool get _isAmountValid {
-    final value = double.tryParse(_amountController.text.trim());
+    final value = parseAmountExpression(_amountController.text.trim());
     return value != null && value > 0;
   }
 
@@ -114,7 +115,7 @@ class _ReceivableFormState extends ConsumerState<ReceivableForm> {
       id: receivable?.id ?? const Uuid().v4(),
       userId: receivable?.userId ?? userId,
       fromPerson: _personController.text.trim(),
-      amount: double.parse(_amountController.text.trim()),
+      amount: (parseAmountExpression(_amountController.text.trim()) ?? 0),
       description: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),

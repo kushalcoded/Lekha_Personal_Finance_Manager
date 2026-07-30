@@ -153,10 +153,7 @@ class _StatusChip extends StatelessWidget {
         const Color(0xFFE27C71),
         const Color(0xFFE27C71),
       ),
-      DebtStatusKind.paid => (
-        const Color(0xFF5FBE93),
-        const Color(0xFF5FBE93),
-      ),
+      DebtStatusKind.paid => (const Color(0xFF5FBE93), const Color(0xFF5FBE93)),
       DebtStatusKind.partial => (
         const Color(0xFFD7A24C),
         const Color(0xFFD7A24C),

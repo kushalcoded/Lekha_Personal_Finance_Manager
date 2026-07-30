@@ -58,7 +58,12 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
               child: SlidableAutoCloseBehavior(
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.fromLTRB(16, 14, 16, 16 + kNavBottomInset),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    14,
+                    16,
+                    16 + kNavBottomInset,
+                  ),
                   children: [
                     GlassCard(
                       radius: 16,
@@ -195,7 +200,9 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
     );
     if (confirmed != true) return;
 
-    await ref.read(receivablesProvider.notifier).deleteReceivable(receivable.id);
+    await ref
+        .read(receivablesProvider.notifier)
+        .deleteReceivable(receivable.id);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

@@ -1,3 +1,4 @@
+import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -62,7 +63,7 @@ class _ReceivableSettlementFormState
   }
 
   bool get _isAmountValid {
-    final value = double.tryParse(_amountController.text.trim());
+    final value = parseAmountExpression(_amountController.text.trim());
     return value != null && value > 0 && value <= widget.receivable.remaining;
   }
 
@@ -75,7 +76,7 @@ class _ReceivableSettlementFormState
       setState(() => _showValidation = true);
       return;
     }
-    final amount = double.parse(_amountController.text.trim());
+    final amount = (parseAmountExpression(_amountController.text.trim()) ?? 0);
     final note = _notesController.text.trim().isEmpty
         ? null
         : _notesController.text.trim();

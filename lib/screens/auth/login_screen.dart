@@ -44,7 +44,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (ok && _createMode && !ref.read(isAuthenticatedProvider)) {
       // Sign-up succeeded but email confirmation is on — nothing to pop yet.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Check your email to confirm, then log in.')),
+        const SnackBar(
+          content: Text('Check your email to confirm, then log in.'),
+        ),
       );
     }
   }
@@ -52,16 +54,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _forgotPassword() async {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter your email first.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Enter your email first.')));
       return;
     }
     final ok = await ref.read(authStateProvider.notifier).resetPassword(email);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? 'Password reset email sent.' : 'Could not send reset email.'),
+        content: Text(
+          ok ? 'Password reset email sent.' : 'Could not send reset email.',
+        ),
       ),
     );
   }
@@ -118,7 +122,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     keyboardType: TextInputType.emailAddress,
                     autocorrect: false,
                     onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(hintText: 'you@example.com'),
+                    decoration: const InputDecoration(
+                      hintText: 'you@example.com',
+                    ),
                   ),
                   const SizedBox(height: 14),
                   const FieldLabel('Password'),
@@ -146,7 +152,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 4),
                     Text(
                       auth.errorMessage!,
-                      style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.error,
+                      ),
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -186,7 +194,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             OutlinedButton.icon(
               onPressed: auth.isLoading
                   ? null
-                  : () => ref.read(authStateProvider.notifier).loginWithGoogle(),
+                  : () =>
+                        ref.read(authStateProvider.notifier).loginWithGoogle(),
               icon: const Icon(Icons.g_mobiledata_rounded, size: 26),
               label: const Text('Continue with Google'),
               style: OutlinedButton.styleFrom(

@@ -77,10 +77,9 @@ class RecurringObligationsPanel extends StatelessWidget {
               value: forecast.budget > 0
                   ? AppFormatters.formatCurrency(forecast.remainingBudget)
                   : 'Set budget',
-              valueColor:
-                  forecast.budget > 0 && forecast.remainingBudget < 0
-                      ? colorScheme.error
-                      : null,
+              valueColor: forecast.budget > 0 && forecast.remainingBudget < 0
+                  ? colorScheme.error
+                  : null,
             ),
           ],
         ),

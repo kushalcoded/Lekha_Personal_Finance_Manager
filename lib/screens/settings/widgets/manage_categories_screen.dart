@@ -261,16 +261,14 @@ class _CategoryEditorDialogState extends ConsumerState<_CategoryEditorDialog> {
   late String _colorHex;
   bool _suggesting = false;
 
-  bool get _isProtected =>
-      widget.existing?.name == kProtectedCategoryName;
+  bool get _isProtected => widget.existing?.name == kProtectedCategoryName;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.existing?.name ?? '');
     _iconKey = widget.existing?.iconKey ?? 'category';
-    _colorHex = widget.existing?.colorHex ??
-        CategoryStyles.fallbackHexFor('');
+    _colorHex = widget.existing?.colorHex ?? CategoryStyles.fallbackHexFor('');
   }
 
   @override
@@ -316,9 +314,9 @@ class _CategoryEditorDialogState extends ConsumerState<_CategoryEditorDialog> {
   void _save() {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
-    Navigator.of(context).pop(
-      ExpenseCategory(name: name, iconKey: _iconKey, colorHex: _colorHex),
-    );
+    Navigator.of(
+      context,
+    ).pop(ExpenseCategory(name: name, iconKey: _iconKey, colorHex: _colorHex));
   }
 
   @override
