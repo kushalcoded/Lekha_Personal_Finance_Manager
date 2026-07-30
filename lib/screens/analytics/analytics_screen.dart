@@ -8,13 +8,10 @@ import '../../providers/auth/auth_provider.dart';
 import '../../widgets/common/ai_text.dart';
 import '../../widgets/common/glass.dart';
 import '../../utils/formatters/formatters.dart';
-import '../../widgets/common/financial_insight_widgets.dart';
 import '../../navigation/floating_glass_nav.dart';
 import '../history_screen.dart';
-import '../settings/providers/settings_providers.dart';
 import 'providers/analytics_providers.dart';
 import 'providers/debt_analytics_providers.dart';
-import 'providers/recurring_analytics_providers.dart';
 import 'widgets/analytics_charts.dart';
 import 'widgets/analytics_empty_state.dart';
 import 'widgets/analytics_section.dart';
@@ -23,7 +20,6 @@ import 'widgets/category_legend.dart';
 import 'widgets/chart_card.dart';
 import 'widgets/debt_overview_panel.dart';
 import 'widgets/net_balance_trend_chart.dart';
-import 'widgets/recurring_obligations_panel.dart';
 
 /// Analytics screen - view spending analytics
 class AnalyticsScreen extends ConsumerWidget {
@@ -44,23 +40,12 @@ class AnalyticsScreen extends ConsumerWidget {
     final budgetInsight = ref.watch(analyticsBudgetInsightProvider(userId));
     final budgetMetrics = ref.watch(budgetMetricsProvider(userId));
     final budgetIntelligence = ref.watch(budgetIntelligenceProvider(userId));
-    final recurringSummary = ref.watch(
-      recurringObligationSummaryProvider(userId),
-    );
-    final recurringCategoryStats = ref.watch(
-      recurringCategoryStatsProvider(userId),
-    );
-    final burnRateForecast = ref.watch(burnRateForecastProvider(userId));
-    final recurringInsights = ref.watch(
-      recurringFixedObligationInsightsProvider(userId),
-    );
     final debtSummary = ref.watch(debtSummaryProvider(userId));
     final overdueDebtStats = ref.watch(debtOverdueStatsProvider(userId));
     final topDebtors = ref.watch(topDebtorsBalanceProvider(userId));
     final topCreditors = ref.watch(topCreditorsBalanceProvider(userId));
     final debtTrend = ref.watch(debtTrendProvider(userId));
     final settlementTotals = ref.watch(monthlySettlementTotalsProvider(userId));
-    final settings = ref.watch(settingsProvider);
     final period = ref.watch(analyticsPeriodProvider);
     final aiSummary = ref.watch(analyticsAiSummaryProvider(userId));
 
@@ -129,13 +114,15 @@ class AnalyticsScreen extends ConsumerWidget {
               // Desktop: related sections sit side by side (time view left,
               // distribution right) so charts keep a sane reading width.
               Widget twoUp(Widget a, Widget b) => isWide
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: a),
-                        const SizedBox(width: 14),
-                        Expanded(child: b),
-                      ],
+                  ? IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: a),
+                          const SizedBox(width: 14),
+                          Expanded(child: b),
+                        ],
+                      ),
                     )
                   : Column(
                       children: [a, const SizedBox(height: 14), b],
@@ -285,27 +272,6 @@ class AnalyticsScreen extends ConsumerWidget {
                     ),
                   ),
                   AnalyticsSection(
-                    title: 'Recurring Obligations',
-                    subtitle: 'Fixed costs and burn-rate forecast',
-                    child: ChartCard(
-                      title: 'Recurring Forecast',
-                      subtitle: 'Monthly fixed and upcoming dues',
-                      isEmpty: recurringSummary.templateCount == 0,
-                      emptyState: const AnalyticsEmptyState(
-                        title: 'No recurring templates',
-                        message: 'Add templates to track fixed obligations.',
-                        icon: Icons.repeat_rounded,
-                      ),
-                      child: RecurringObligationsPanel(
-                        summary: recurringSummary,
-                        forecast: burnRateForecast,
-                        topCategories: recurringCategoryStats,
-                      ),
-                    ),
-                  ),
-                  ),
-                  const SizedBox(height: 14),
-                  AnalyticsSection(
                     title: 'Budget Insights',
                     subtitle: 'Baseline vs month-to-date pace',
                     child: ChartCard(
@@ -323,40 +289,7 @@ class AnalyticsScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  if (settings.analyticsInsightsEnabled) ...[
-                    if (recurringInsights.isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      AnalyticsSection(
-                        title: 'Fixed Obligation Insights',
-                        subtitle: 'Signals from recurring expense templates',
-                        child: Column(
-                          children: recurringInsights
-                              .map(
-                                (insight) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
-                                  child: InsightCard(insight: insight),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    AnalyticsSection(
-                      title: 'Smart Financial Insights',
-                      subtitle: 'Computed from your current spending behavior',
-                      child: Column(
-                        children: budgetIntelligence.insights
-                            .map(
-                              (insight) => Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: InsightCard(insight: insight),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
               );
             },

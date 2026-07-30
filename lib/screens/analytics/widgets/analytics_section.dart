@@ -31,27 +31,34 @@ class AnalyticsSection extends StatelessWidget {
           ];
     final trailingWidgets = trailing == null ? null : [trailing!];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+    // When given a bounded height (desktop two-up rows equalized via
+    // IntrinsicHeight), let the card stretch so paired sections line up.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounded = constraints.hasBoundedHeight;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ),
+                ...?trailingWidgets,
+              ],
             ),
-            ...?trailingWidgets,
+            ...?subtitleWidgets,
+            const SizedBox(height: 12),
+            if (bounded) Expanded(child: child) else child,
           ],
-        ),
-        ...?subtitleWidgets,
-        const SizedBox(height: 12),
-        child,
-      ],
+        );
+      },
     );
   }
 }
