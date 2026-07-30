@@ -74,16 +74,19 @@ class SettingsScreen extends ConsumerWidget {
 
     final remindersOn = settings.remindersEnabled;
 
-    // Desktop: settings groups pair up two per row inside a capped column.
+    // Desktop: settings groups pair up two per row inside a capped column,
+    // equalized via IntrinsicHeight (safe: no LayoutBuilder in the rows).
     final isWide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
     Widget twoUp(Widget a, Widget b) => isWide
-        ? Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: a),
-              const SizedBox(width: 14),
-              Expanded(child: b),
-            ],
+        ? IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: a),
+                const SizedBox(width: 14),
+                Expanded(child: b),
+              ],
+            ),
           )
         : Column(children: [a, b]);
 
@@ -110,325 +113,328 @@ class SettingsScreen extends ConsumerWidget {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1160),
                   child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-                children: [
-                  twoUp(
-                  _SettingsGroup(
-                    label: 'Account',
-                    rows: [
-                      _SettingRow(
-                        icon: Icons.person_rounded,
-                        title: 'Signed in',
-                        subtitle: ref.watch(currentUserEmailProvider),
-                        trailing: _PillButton(
-                          label: 'Sign out',
-                          onTap: () =>
-                              ref.read(authStateProvider.notifier).logout(),
-                        ),
-                      ),
-                      _SettingRow(
-                        icon: Icons.badge_rounded,
-                        title: 'Display name',
-                        value: settings.displayName.isEmpty
-                            ? 'Not set'
-                            : settings.displayName,
-                        onTap: () => _editDisplayName(context, ref),
-                      ),
-                      _SettingRow(
-                        icon: Icons.cloud_sync_rounded,
-                        title: 'Sync',
-                        subtitle: syncStatus,
-                        trailing: sync.isSyncing
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : _PillButton(
-                                label: 'Sync now',
-                                onTap: () =>
-                                    ref.read(syncProvider.notifier).syncNow(),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                    children: [
+                      twoUp(
+                        _SettingsGroup(
+                          stretch: isWide,
+                          label: 'Account',
+                          rows: [
+                            _SettingRow(
+                              icon: Icons.person_rounded,
+                              title: 'Signed in',
+                              subtitle: ref.watch(currentUserEmailProvider),
+                              trailing: _PillButton(
+                                label: 'Sign out',
+                                onTap: () => ref
+                                    .read(authStateProvider.notifier)
+                                    .logout(),
                               ),
-                      ),
-                    ],
-                  ),
-                  _SettingsGroup(
-                    label: 'Preferences',
-                    rows: [
-                      _SettingRow(
-                        icon: Icons.payments_outlined,
-                        title: 'Currency',
-                        value: settings.currency,
-                        onTap: () => _pickOption(
-                          context,
-                          title: 'Default currency',
-                          options: currencies,
-                          current: settings.currency,
-                          onSelected: settingsNotifier.setCurrency,
-                        ),
-                      ),
-                      _SettingRow(
-                        icon: Icons.file_download_outlined,
-                        title: 'Default export',
-                        value: settings.defaultExportFormat.toUpperCase(),
-                        onTap: () => _pickOption(
-                          context,
-                          title: 'Default export format',
-                          options: exportFormats,
-                          current: settings.defaultExportFormat,
-                          labelOf: (v) => v.toUpperCase(),
-                          onSelected: settingsNotifier.setDefaultExportFormat,
-                        ),
-                      ),
-                      _SettingRow(
-                        icon: Icons.insights_rounded,
-                        title: 'Analytics insights',
-                        subtitle: 'Smart insight cards in analytics',
-                        trailing: Switch(
-                          value: settings.analyticsInsightsEnabled,
-                          onChanged: settingsNotifier.setAnalyticsInsightsEnabled,
-                        ),
-                      ),
-                      _SettingRow(
-                        icon: Icons.bolt_rounded,
-                        title: 'Recurring quick-generate',
-                        subtitle: 'One-tap generation from due templates',
-                        trailing: Switch(
-                          value: settings.recurringQuickGenerateEnabled,
-                          onChanged:
-                              settingsNotifier.setRecurringQuickGenerateEnabled,
-                        ),
-                      ),
-                    ],
-                  ),
-                  ),
-                  twoUp(
-                  _SettingsGroup(
-                    label: 'Salary cycle',
-                    rows: [
-                      _SettingRow(
-                        icon: Icons.flag_rounded,
-                        title: 'Cycle budget',
-                        value: settings.currentCycleBudget > 0
-                            ? AppFormatters.formatCurrency(
-                                settings.currentCycleBudget,
-                              )
-                            : 'Not set',
-                        onTap: () => showBudgetSettingsModal(context),
-                      ),
-                      _SettingRow(
-                        icon: Icons.account_balance_wallet_rounded,
-                        title: 'Cycle salary',
-                        value: settings.currentCycleSalary > 0
-                            ? AppFormatters.formatCurrency(
-                                settings.currentCycleSalary,
-                              )
-                            : 'Not set',
-                        onTap: () => showSalarySettingsModal(context),
-                      ),
-                      _SettingRow(
-                        icon: Icons.restart_alt_rounded,
-                        title: 'Current cycle',
-                        subtitle:
-                            'Started ${_formatCycleDate(settings.currentCycleStartDate)}',
-                        trailing: _PillButton(
-                          label: 'Reset',
-                          onTap: () => _confirmReset(context, ref),
-                        ),
-                      ),
-                    ],
-                  ),
-                  _SettingsGroup(
-                    label: 'Manage',
-                    rows: [
-                      _SettingRow(
-                        icon: Icons.category_rounded,
-                        title: 'Categories',
-                        subtitle: 'Add, rename, restyle, or delete',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const ManageCategoriesScreen(),
-                          ),
-                        ),
-                      ),
-                      _SettingRow(
-                        icon: Icons.auto_awesome_rounded,
-                        title: 'AI Assistant',
-                        subtitle: aiConfigured
-                            ? 'Ask about spending, budget, history'
-                            : 'Sign in to enable AI features',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const AiChatScreen(),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  ),
-                  twoUp(
-                  _SettingsGroup(
-                    label: 'Transactions',
-                    rows: [
-                      _SettingRow(
-                        icon: Icons.sms_rounded,
-                        title: 'Auto-detect from SMS',
-                        subtitle: 'Capture bank debits into a review list',
-                        trailing: Switch(
-                          value: settings.smsAutoDetectEnabled,
-                          onChanged: (v) async {
-                            await settingsNotifier.setSmsAutoDetectEnabled(v);
-                            if (v) {
-                              await ref
-                                  .read(smsCaptureServiceProvider)
-                                  .requestPermission();
-                            }
-                          },
-                        ),
-                      ),
-                      if (ref.watch(isAuthenticatedProvider))
-                        _SettingRow(
-                          icon: Icons.phone_iphone_rounded,
-                          title: 'Connect iPhone SMS',
-                          subtitle: 'Step-by-step Shortcuts setup guide',
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const IphoneSmsGuideScreen(),
                             ),
-                          ),
-                        ),
-                      if (kIsWeb)
-                        _SettingRow(
-                          icon: Icons.android_rounded,
-                          title: 'Get the Android app',
-                          subtitle: 'Native app with automatic SMS detection',
-                          onTap: () => launchUrl(
-                            Uri.parse(_androidAppUrl),
-                            mode: LaunchMode.externalApplication,
-                          ),
-                        ),
-                      _SettingRow(
-                        icon: Icons.bug_report_rounded,
-                        title: 'Simulate SMS (test)',
-                        subtitle: 'Paste a bank SMS to test detection',
-                        onTap: () => _showSimulateSmsDialog(context, ref),
-                      ),
-                    ],
-                  ),
-                  _SettingsGroup(
-                    label: 'Reminders',
-                    rows: [
-                      _SettingRow(
-                        icon: Icons.notifications_active_rounded,
-                        title: 'Enable reminders',
-                        trailing: Switch(
-                          value: remindersOn,
-                          onChanged: settingsNotifier.setRemindersEnabled,
-                        ),
-                      ),
-                      _SettingRow(
-                        icon: Icons.warning_amber_rounded,
-                        title: 'Budget warnings',
-                        trailing: Switch(
-                          value: settings.budgetWarningReminderEnabled,
-                          onChanged: remindersOn
-                              ? settingsNotifier.setBudgetWarningReminderEnabled
-                              : null,
-                        ),
-                      ),
-                      _SettingRow(
-                        icon: Icons.schedule_rounded,
-                        title: 'Overdue receivables',
-                        trailing: Switch(
-                          value: settings.overdueReceivableReminderEnabled,
-                          onChanged: remindersOn
-                              ? settingsNotifier
-                                    .setOverdueReceivableReminderEnabled
-                              : null,
-                        ),
-                      ),
-                      _SettingRow(
-                        icon: Icons.repeat_rounded,
-                        title: 'Recurring due',
-                        trailing: Switch(
-                          value: settings.recurringDueReminderEnabled,
-                          onChanged: remindersOn
-                              ? settingsNotifier.setRecurringDueReminderEnabled
-                              : null,
-                        ),
-                      ),
-                      _SettingRow(
-                        icon: Icons.calendar_month_rounded,
-                        title: 'Monthly budget',
-                        trailing: Switch(
-                          value: settings.monthlyBudgetReminderEnabled,
-                          onChanged: remindersOn
-                              ? settingsNotifier.setMonthlyBudgetReminderEnabled
-                              : null,
-                        ),
-                      ),
-                    ],
-                  ),
-                  ),
-                  twoUp(
-                  _SettingsGroup(
-                    label: 'Data & backup',
-                    rows: [
-                      _SettingRow(
-                        icon: Icons.file_upload_outlined,
-                        title: 'Export center',
-                        subtitle: export.lastFile != null
-                            ? 'Last: ${export.lastFile!.fileName}'
-                            : null,
-                        onTap: () => showExportModal(context),
-                      ),
-                      _SettingRow(
-                        icon: Icons.backup_rounded,
-                        title: backups.isLoading
-                            ? 'Creating backup…'
-                            : 'Create local backup',
-                        onTap: backups.isLoading
-                            ? null
-                            : () => backupNotifier.createBackup(),
-                      ),
-                      _SettingRow(
-                        icon: Icons.ios_share_rounded,
-                        title: 'Export / share backup',
-                        subtitle: 'Save a restorable file off your phone',
-                        onTap: backups.isLoading
-                            ? null
-                            : () => backupNotifier.exportBackupFile(),
-                      ),
-                      _SettingRow(
-                        icon: Icons.file_open_rounded,
-                        title: 'Import backup file',
-                        onTap: backups.isLoading
-                            ? null
-                            : () => backupNotifier.importBackupFromFile(),
-                      ),
-                      for (final item in backups.backups.take(4))
-                        _SettingRow(
-                          icon: Icons.history_rounded,
-                          title: 'Backup · ${AppFormatters.getRelativeTime(item.createdAt)}',
-                          subtitle:
-                              '${item.expenseCount} exp · ${item.receivableCount} recv · ${item.payableCount} pay',
-                          trailing: _PillButton(
-                            label: 'Restore',
-                            onTap: () => _confirmRestore(
-                              context,
-                              backupNotifier,
-                              item,
+                            _SettingRow(
+                              icon: Icons.badge_rounded,
+                              title: 'Display name',
+                              value: settings.displayName.isEmpty
+                                  ? 'Not set'
+                                  : settings.displayName,
+                              onTap: () => _editDisplayName(context, ref),
                             ),
-                          ),
+                            _SettingRow(
+                              icon: Icons.cloud_sync_rounded,
+                              title: 'Sync',
+                              subtitle: syncStatus,
+                              trailing: sync.isSyncing
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : _PillButton(
+                                      label: 'Sync now',
+                                      onTap: () => ref
+                                          .read(syncProvider.notifier)
+                                          .syncNow(),
+                                    ),
+                            ),
+                          ],
                         ),
+                        _SettingsGroup(
+                          stretch: isWide,
+                          label: 'Salary cycle',
+                          rows: [
+                            _SettingRow(
+                              icon: Icons.flag_rounded,
+                              title: 'Cycle budget',
+                              value: settings.currentCycleBudget > 0
+                                  ? AppFormatters.formatCurrency(
+                                      settings.currentCycleBudget,
+                                    )
+                                  : 'Not set',
+                              onTap: () => showBudgetSettingsModal(context),
+                            ),
+                            _SettingRow(
+                              icon: Icons.account_balance_wallet_rounded,
+                              title: 'Cycle salary',
+                              value: settings.currentCycleSalary > 0
+                                  ? AppFormatters.formatCurrency(
+                                      settings.currentCycleSalary,
+                                    )
+                                  : 'Not set',
+                              onTap: () => showSalarySettingsModal(context),
+                            ),
+                            _SettingRow(
+                              icon: Icons.restart_alt_rounded,
+                              title: 'Current cycle',
+                              subtitle:
+                                  'Started ${_formatCycleDate(settings.currentCycleStartDate)}',
+                              trailing: _PillButton(
+                                label: 'Reset',
+                                onTap: () => _confirmReset(context, ref),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      twoUp(
+                        _SettingsGroup(
+                          stretch: isWide,
+                          label: 'Preferences',
+                          rows: [
+                            _SettingRow(
+                              icon: Icons.payments_outlined,
+                              title: 'Currency',
+                              value: settings.currency,
+                              onTap: () => _pickOption(
+                                context,
+                                title: 'Default currency',
+                                options: currencies,
+                                current: settings.currency,
+                                onSelected: settingsNotifier.setCurrency,
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.file_download_outlined,
+                              title: 'Default export',
+                              value: settings.defaultExportFormat.toUpperCase(),
+                              onTap: () => _pickOption(
+                                context,
+                                title: 'Default export format',
+                                options: exportFormats,
+                                current: settings.defaultExportFormat,
+                                labelOf: (v) => v.toUpperCase(),
+                                onSelected:
+                                    settingsNotifier.setDefaultExportFormat,
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.bolt_rounded,
+                              title: 'Recurring quick-generate',
+                              subtitle: 'One-tap generation from due templates',
+                              trailing: Switch(
+                                value: settings.recurringQuickGenerateEnabled,
+                                onChanged: settingsNotifier
+                                    .setRecurringQuickGenerateEnabled,
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.category_rounded,
+                              title: 'Categories',
+                              subtitle: 'Add, rename, restyle, or delete',
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      const ManageCategoriesScreen(),
+                                ),
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.auto_awesome_rounded,
+                              title: 'AI Assistant',
+                              subtitle: aiConfigured
+                                  ? 'Ask about spending, budget, history'
+                                  : 'Sign in to enable AI features',
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const AiChatScreen(),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        _SettingsGroup(
+                          stretch: isWide,
+                          label: 'Reminders',
+                          rows: [
+                            _SettingRow(
+                              icon: Icons.notifications_active_rounded,
+                              title: 'Enable reminders',
+                              trailing: Switch(
+                                value: remindersOn,
+                                onChanged: settingsNotifier.setRemindersEnabled,
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.warning_amber_rounded,
+                              title: 'Budget warnings',
+                              trailing: Switch(
+                                value: settings.budgetWarningReminderEnabled,
+                                onChanged: remindersOn
+                                    ? settingsNotifier
+                                          .setBudgetWarningReminderEnabled
+                                    : null,
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.schedule_rounded,
+                              title: 'Overdue receivables',
+                              trailing: Switch(
+                                value:
+                                    settings.overdueReceivableReminderEnabled,
+                                onChanged: remindersOn
+                                    ? settingsNotifier
+                                          .setOverdueReceivableReminderEnabled
+                                    : null,
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.repeat_rounded,
+                              title: 'Recurring due',
+                              trailing: Switch(
+                                value: settings.recurringDueReminderEnabled,
+                                onChanged: remindersOn
+                                    ? settingsNotifier
+                                          .setRecurringDueReminderEnabled
+                                    : null,
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.calendar_month_rounded,
+                              title: 'Monthly budget',
+                              trailing: Switch(
+                                value: settings.monthlyBudgetReminderEnabled,
+                                onChanged: remindersOn
+                                    ? settingsNotifier
+                                          .setMonthlyBudgetReminderEnabled
+                                    : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      twoUp(
+                        _SettingsGroup(
+                          stretch: isWide,
+                          label: 'Transactions',
+                          rows: [
+                            _SettingRow(
+                              icon: Icons.sms_rounded,
+                              title: 'Auto-detect from SMS',
+                              subtitle:
+                                  'Capture bank debits into a review list',
+                              trailing: Switch(
+                                value: settings.smsAutoDetectEnabled,
+                                onChanged: (v) async {
+                                  await settingsNotifier
+                                      .setSmsAutoDetectEnabled(v);
+                                  if (v) {
+                                    await ref
+                                        .read(smsCaptureServiceProvider)
+                                        .requestPermission();
+                                  }
+                                },
+                              ),
+                            ),
+                            if (ref.watch(isAuthenticatedProvider))
+                              _SettingRow(
+                                icon: Icons.phone_iphone_rounded,
+                                title: 'Connect iPhone SMS',
+                                subtitle: 'Step-by-step Shortcuts setup guide',
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) =>
+                                        const IphoneSmsGuideScreen(),
+                                  ),
+                                ),
+                              ),
+                            if (kIsWeb)
+                              _SettingRow(
+                                icon: Icons.android_rounded,
+                                title: 'Get the Android app',
+                                subtitle:
+                                    'Native app with automatic SMS detection',
+                                onTap: () => launchUrl(
+                                  Uri.parse(_androidAppUrl),
+                                  mode: LaunchMode.externalApplication,
+                                ),
+                              ),
+                            _SettingRow(
+                              icon: Icons.bug_report_rounded,
+                              title: 'Simulate SMS (test)',
+                              subtitle: 'Paste a bank SMS to test detection',
+                              onTap: () => _showSimulateSmsDialog(context, ref),
+                            ),
+                          ],
+                        ),
+                        _SettingsGroup(
+                          stretch: isWide,
+                          label: 'Data & backup',
+                          rows: [
+                            _SettingRow(
+                              icon: Icons.file_upload_outlined,
+                              title: 'Export center',
+                              subtitle: export.lastFile != null
+                                  ? 'Last: ${export.lastFile!.fileName}'
+                                  : null,
+                              onTap: () => showExportModal(context),
+                            ),
+                            _SettingRow(
+                              icon: Icons.backup_rounded,
+                              title: 'Local backups',
+                              subtitle: backups.backups.isEmpty
+                                  ? 'No restore points yet'
+                                  : '${backups.backups.length} restore '
+                                        '${backups.backups.length == 1 ? 'point' : 'points'} · tap to restore',
+                              trailing: backups.isLoading
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : _PillButton(
+                                      label: 'Create',
+                                      onTap: () =>
+                                          backupNotifier.createBackup(),
+                                    ),
+                              onTap: () => _showBackupsSheet(
+                                context,
+                                backupNotifier,
+                                backups.backups,
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.ios_share_rounded,
+                              title: 'Export / share backup',
+                              subtitle: 'Save a restorable file off your phone',
+                              onTap: backups.isLoading
+                                  ? null
+                                  : () => backupNotifier.exportBackupFile(),
+                            ),
+                            _SettingRow(
+                              icon: Icons.file_open_rounded,
+                              title: 'Import backup file',
+                              onTap: backups.isLoading
+                                  ? null
+                                  : () => backupNotifier.importBackupFromFile(),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                  const _CloudSyncGroup(),
-                  ),
-                ],
-              ),
                 ),
               ),
             ),
@@ -494,6 +500,72 @@ class SettingsScreen extends ConsumerWidget {
     );
     if (confirmed != true) return;
     await backupNotifier.restoreLocalBackup(item.backupId);
+  }
+
+  /// List local restore points; each restores via the existing confirm flow.
+  void _showBackupsSheet(
+    BuildContext context,
+    BackupNotifier backupNotifier,
+    List<BackupMetadata> items,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF17151C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+              child: Text(
+                'Local backups',
+                style: Theme.of(
+                  ctx,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            if (items.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                child: Text(
+                  'No backups yet. Tap Create to make a restore point.',
+                  style: Theme.of(ctx).textTheme.bodySmall,
+                ),
+              )
+            else
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final item in items)
+                      ListTile(
+                        leading: const Icon(Icons.history_rounded),
+                        title: Text(
+                          'Backup · ${AppFormatters.getRelativeTime(item.createdAt)}',
+                        ),
+                        subtitle: Text(
+                          '${item.expenseCount} exp · ${item.receivableCount} recv · ${item.payableCount} pay',
+                        ),
+                        trailing: _PillButton(
+                          label: 'Restore',
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            _confirmRestore(context, backupNotifier, item);
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -628,7 +700,17 @@ class _SettingsGroup extends StatelessWidget {
   final String label;
   final List<Widget> rows;
 
-  const _SettingsGroup({required this.label, required this.rows});
+  /// True inside the desktop IntrinsicHeight pairs: the card fills the row
+  /// height so paired groups share a bottom edge. Must stay a plain flag —
+  /// a LayoutBuilder here would report zero intrinsic height in release
+  /// builds and collapse the row.
+  final bool stretch;
+
+  const _SettingsGroup({
+    required this.label,
+    required this.rows,
+    this.stretch = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -642,6 +724,12 @@ class _SettingsGroup extends StatelessWidget {
       }
       divided.add(rows[i]);
     }
+
+    final card = GlassCard(
+      radius: 16,
+      padding: EdgeInsets.zero,
+      child: Column(children: divided),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 18),
@@ -660,11 +748,7 @@ class _SettingsGroup extends StatelessWidget {
               ),
             ),
           ),
-          GlassCard(
-            radius: 16,
-            padding: EdgeInsets.zero,
-            child: Column(children: divided),
-          ),
+          if (stretch) Expanded(child: card) else card,
         ],
       ),
     );
@@ -778,88 +862,6 @@ class _PillButton extends StatelessWidget {
         ),
       ),
       child: Text(label, style: const TextStyle(fontSize: 12)),
-    );
-  }
-}
-
-/// Cloud sync + connection test, in the same grouped-card style.
-class _CloudSyncGroup extends ConsumerWidget {
-  const _CloudSyncGroup();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final debugState = ref.watch(supabaseDebugProvider);
-    final debugNotifier = ref.read(supabaseDebugProvider.notifier);
-    final syncState = ref.watch(syncProvider);
-    final syncNotifier = ref.read(syncProvider.notifier);
-
-    final lastSync = syncState.lastSyncedAt == null
-        ? 'Never synced'
-        : 'Last sync ${AppFormatters.getRelativeTime(syncState.lastSyncedAt!)}';
-
-    return _SettingsGroup(
-      label: 'Cloud sync',
-      rows: [
-        _SettingRow(
-          icon: Icons.sync_rounded,
-          title: 'Sync now',
-          subtitle: syncState.error ?? '$lastSync · ${syncState.pendingCount} pending',
-          trailing: syncState.isSyncing
-              ? const _RowSpinner()
-              : _PillButton(
-                  label: 'Sync',
-                  onTap: () async {
-                    final result = await syncNotifier.syncNow();
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          result.error ??
-                              '${result.status}: ${result.uploadCount} up, ${result.downloadCount} down',
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ),
-        _SettingRow(
-          icon: Icons.cloud_outlined,
-          title: 'Test connection',
-          subtitle: 'Check cloud sync connectivity',
-          trailing: debugState.isLoading
-              ? const _RowSpinner()
-              : _PillButton(
-                  label: 'Test',
-                  onTap: () async {
-                    try {
-                      final message = await debugNotifier.testConnection();
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(message)),
-                      );
-                    } catch (error) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(error.toString())),
-                      );
-                    }
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RowSpinner extends StatelessWidget {
-  const _RowSpinner();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 18,
-      height: 18,
-      child: CircularProgressIndicator(strokeWidth: 2),
     );
   }
 }
