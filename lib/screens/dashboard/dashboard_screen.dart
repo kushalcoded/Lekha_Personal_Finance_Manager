@@ -69,6 +69,8 @@ class DashboardScreen extends ConsumerWidget {
       monthlySpend: monthlySpend,
       aiSummary: aiSummary,
       onTap: () => showBudgetSettingsModal(context),
+      // Desktop: the AI summary moves to its own sidebar card.
+      showAi: !isWide,
     );
     final statTiles = Row(
       children: [
@@ -147,6 +149,8 @@ class DashboardScreen extends ConsumerWidget {
                                     const SizedBox(height: 12),
                                     categories,
                                   ],
+                                  const SizedBox(height: 12),
+                                  _AiInsightCard(aiSummary: aiSummary),
                                 ],
                               ),
                             ),
@@ -324,11 +328,15 @@ class _CycleHealthHero extends StatelessWidget {
   final AsyncValue<String?> aiSummary;
   final VoidCallback onTap;
 
+  /// Desktop shows the AI summary as its own sidebar card instead.
+  final bool showAi;
+
   const _CycleHealthHero({
     required this.metrics,
     required this.monthlySpend,
     required this.aiSummary,
     required this.onTap,
+    this.showAi = true,
   });
 
   @override
@@ -405,55 +413,97 @@ class _CycleHealthHero extends StatelessWidget {
               if (hasBudget) _BudgetRing(percent: percent, over: over),
             ],
           ),
-          if (aiText != null || aiLoading) ...[
+          if (showAi && (aiText != null || aiLoading)) ...[
             const SizedBox(height: 14),
             Divider(height: 1, color: cs.outlineVariant),
             const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: cs.primary.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: Icon(
-                    Icons.auto_awesome_rounded,
-                    size: 14,
-                    color: cs.primary,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: aiText == null
-                      ? Row(
-                          children: [
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Analyzing your finances…',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ],
-                        )
-                      : AiText(
-                          aiText,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            height: 1.4,
-                          ),
-                        ),
-                ),
-              ],
-            ),
+            _AiSummaryRow(aiText: aiText),
           ],
         ],
       ),
+    );
+  }
+}
+
+/// The ✦ icon + AI text (or its loading shimmer) — shared between the hero
+/// (mobile) and the sidebar card (desktop).
+class _AiSummaryRow extends StatelessWidget {
+  final String? aiText;
+
+  const _AiSummaryRow({required this.aiText});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: cs.primary.withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Icon(Icons.auto_awesome_rounded, size: 14, color: cs.primary),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: aiText == null
+              ? Row(
+                  children: [
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Analyzing your finances…',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                )
+              : AiText(
+                  aiText!,
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Desktop sidebar card housing the AI summary (mobile keeps it in the hero).
+class _AiInsightCard extends StatelessWidget {
+  final AsyncValue<String?> aiSummary;
+
+  const _AiInsightCard({required this.aiSummary});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final aiText = aiSummary.maybeWhen(
+      data: (t) => (t == null || t.trim().isEmpty) ? null : t.trim(),
+      orElse: () => null,
+    );
+    if (aiText == null && !aiSummary.isLoading) {
+      return const SizedBox.shrink();
+    }
+    return GlassCard(
+      radius: 18,
+      padding: const EdgeInsets.all(16),
+      gradient: LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [
+          cs.primary.withValues(alpha: 0.14),
+          cs.primary.withValues(alpha: 0.03),
+        ],
+      ),
+      border: Border.all(color: cs.primary.withValues(alpha: 0.20)),
+      child: _AiSummaryRow(aiText: aiText),
     );
   }
 }
