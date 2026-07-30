@@ -38,9 +38,16 @@ class HiveService {
   static void Function()? onDataChanged;
   bool _restoring = false;
 
+  /// When the last local mutation happened. Sync compares this against its
+  /// last-synced marker so a pull can never overwrite edits that haven't been
+  /// pushed yet (e.g. an expense added seconds ago, still in the debounce).
+  DateTime? lastLocalMutationAt;
+
   void _notifyChanged() {
     // A restore IS the newest data — pushing it straight back up is noise.
-    if (!_restoring) onDataChanged?.call();
+    if (_restoring) return;
+    lastLocalMutationAt = DateTime.now();
+    onDataChanged?.call();
   }
 
   factory HiveService() {

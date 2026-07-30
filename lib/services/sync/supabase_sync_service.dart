@@ -50,12 +50,21 @@ class SupabaseSyncService {
           remote != null &&
           (lastSynced == null || remote.updatedAt.isAfter(lastSynced));
       final localEmpty = _localIsEmpty(userId);
+      // Unsynced local edits (e.g. an expense added seconds ago, still inside
+      // the push debounce) must never be overwritten by a pull — push wins.
+      final mutatedAt = _hiveService.lastLocalMutationAt;
+      final localDirty =
+          mutatedAt != null &&
+          (lastSynced == null || mutatedAt.isAfter(lastSynced));
 
       var uploads = 0;
       var downloads = 0;
       DateTime marker;
 
-      if (!pushOnly && remote != null && (remoteNewer || localEmpty)) {
+      if (!pushOnly &&
+          remote != null &&
+          (remoteNewer || localEmpty) &&
+          (!localDirty || localEmpty)) {
         // PULL: adopt the cloud snapshot wholesale.
         await _hiveService.restoreFromBackup(remote.snapshot);
         downloads = 1;
