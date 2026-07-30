@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/navigation/navigation_models.dart';
@@ -8,11 +9,19 @@ import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/expenses/expenses_screen.dart';
 import '../screens/analytics/analytics_screen.dart';
 import '../screens/debts/debts_screen.dart';
+import '../screens/expenses/widgets/add_expense_modal.dart';
 import 'floating_glass_nav.dart';
 
 /// App shell: the current tab under a floating glass navigation bar.
 class AppShell extends ConsumerWidget {
   const AppShell({super.key});
+
+  /// True while a text field owns focus — keyboard shortcuts must not fire
+  /// when the user is typing an amount or note.
+  static bool _typing() {
+    final focus = FocusManager.instance.primaryFocus;
+    return focus?.context?.findAncestorStateOfType<EditableTextState>() != null;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,21 +34,44 @@ class AppShell extends ConsumerWidget {
     final isWide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
 
     if (isWide) {
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-        body: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const FloatingGlassRail(),
-            Expanded(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1160),
-                  child: _buildScreenContent(navigationState.currentTab),
+      void goTo(NavigationTab tab) {
+        if (_typing()) return;
+        ref.read(navigationProvider.notifier).navigateTo(tab);
+      }
+
+      return CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.keyN): () {
+            if (!_typing()) showAddExpenseModal(context);
+          },
+          const SingleActivator(LogicalKeyboardKey.digit1): () =>
+              goTo(NavigationTab.dashboard),
+          const SingleActivator(LogicalKeyboardKey.digit2): () =>
+              goTo(NavigationTab.expenses),
+          const SingleActivator(LogicalKeyboardKey.digit3): () =>
+              goTo(NavigationTab.insights),
+          const SingleActivator(LogicalKeyboardKey.digit4): () =>
+              goTo(NavigationTab.debts),
+        },
+        child: Focus(
+          autofocus: true,
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const FloatingGlassRail(),
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1160),
+                      child: _buildScreenContent(navigationState.currentTab),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       );
     }

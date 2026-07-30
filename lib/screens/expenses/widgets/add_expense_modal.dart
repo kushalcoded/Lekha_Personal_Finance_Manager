@@ -24,6 +24,7 @@ Future<void> showAddExpenseModal(
   bool autoStartVoice = false,
   double? initialAmount,
   DateTime? initialDate,
+  String? sourceLabel,
   void Function(Expense expense)? onSaved,
 }) {
   final isDesktop = MediaQuery.of(context).size.width >= 900;
@@ -49,6 +50,7 @@ Future<void> showAddExpenseModal(
               autoStartVoice: autoStartVoice,
               initialAmount: initialAmount,
               initialDate: initialDate,
+              sourceLabel: sourceLabel,
               onSaved: onSaved,
             ),
           ),
@@ -76,6 +78,7 @@ Future<void> showAddExpenseModal(
             autoStartVoice: autoStartVoice,
             initialAmount: initialAmount,
             initialDate: initialDate,
+            sourceLabel: sourceLabel,
             onSaved: onSaved,
           ),
         ),
@@ -89,6 +92,10 @@ class AddExpenseForm extends ConsumerStatefulWidget {
   final bool autoStartVoice;
   final double? initialAmount;
   final DateTime? initialDate;
+
+  /// Provenance line shown above the form (e.g. "Detected from SMS · Mon
+  /// 28 Jul") so a prefilled sheet says why it is prefilled.
+  final String? sourceLabel;
   final void Function(Expense expense)? onSaved;
 
   const AddExpenseForm({
@@ -97,6 +104,7 @@ class AddExpenseForm extends ConsumerStatefulWidget {
     this.autoStartVoice = false,
     this.initialAmount,
     this.initialDate,
+    this.sourceLabel,
     this.onSaved,
   });
 
@@ -825,6 +833,29 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
               ],
             ),
             const SizedBox(height: 18),
+            if (widget.sourceLabel != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1A21),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.07),
+                  ),
+                ),
+                child: Text(
+                  widget.sourceLabel!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
             if (aiConfigured) ...[_nlQuickAdd(cs), const SizedBox(height: 18)],
             const FieldLabel('Amount'),
             const SizedBox(height: 8),

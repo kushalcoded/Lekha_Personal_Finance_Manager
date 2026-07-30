@@ -92,29 +92,97 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
           children: [
-            const SizedBox(height: 12),
-            Text(
-              _createMode ? 'Create your account' : 'Welcome back',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
+            const SizedBox(height: 20),
+            Center(
+              child: Container(
+                width: 52,
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: cs.primary,
+                ),
+                child: Text(
+                  '₹',
+                  style: TextStyle(
+                    color: cs.onPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 24,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Sign in to use Lekha — your data is backed up and synced '
-              'across all your devices.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: cs.onSurfaceVariant,
+            const SizedBox(height: 12),
+            Center(
+              child: Text(
+                'Lekha',
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Center(
+              child: Text(
+                'Your money, one calm ledger.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ),
             const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: auth.isLoading
+                  ? null
+                  : () =>
+                        ref.read(authStateProvider.notifier).loginWithGoogle(),
+              icon: const Text(
+                'G',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+              ),
+              label: const Text(
+                'Continue with Google',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEDEDEF),
+                foregroundColor: const Color(0xFF0A0A0D),
+                minimumSize: const Size.fromHeight(50),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Expanded(child: Divider()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    'or',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const Expanded(child: Divider()),
+              ],
+            ),
+            const SizedBox(height: 16),
             GlassCard(
               radius: 12,
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    _createMode
+                        ? 'Create an account with email'
+                        : 'Sign in with email',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   const FieldLabel('Email'),
                   const SizedBox(height: 6),
                   TextField(
@@ -174,35 +242,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Expanded(child: Divider()),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    'or',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
+            const SizedBox(height: 14),
+            Center(
+              child: Text(
+                'One sign-in · every device in sync',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: cs.onSurfaceVariant,
                 ),
-                const Expanded(child: Divider()),
-              ],
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: auth.isLoading
-                  ? null
-                  : () =>
-                        ref.read(authStateProvider.notifier).loginWithGoogle(),
-              icon: const Icon(Icons.g_mobiledata_rounded, size: 26),
-              label: const Text('Continue with Google'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(50),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 8),
             Center(
               child: TextButton(
                 onPressed: auth.isLoading

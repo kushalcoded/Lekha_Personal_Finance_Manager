@@ -502,6 +502,21 @@ class _LedgerRow extends StatelessWidget {
                         : null,
                   ),
                 ),
+                // Desktop has no swipe — surface the settle action directly.
+                if (!item.settled &&
+                    MediaQuery.sizeOf(context).width >= 900) ...[
+                  const SizedBox(width: 6),
+                  IconButton(
+                    onPressed: onSettle,
+                    tooltip: item.isReceivable ? 'Mark received' : 'Settle',
+                    icon: Icon(
+                      Icons.check_circle_outline_rounded,
+                      size: 19,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
               ],
             ),
           ),

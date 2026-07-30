@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/navigation/navigation_models.dart';
 import '../../core/navigation/navigation_provider.dart';
+import '../providers/sync/sync_providers.dart';
 import '../screens/expenses/widgets/add_expense_modal.dart';
+import '../screens/settings/providers/settings_providers.dart';
 import '../screens/settings/settings_screen.dart';
+import '../utils/formatters/formatters.dart';
 
 /// Bottom padding a tab screen's scrollable should add so its last content
 /// clears the floating navigation bar (bar + margin + safe area headroom).
@@ -81,9 +84,9 @@ class FloatingGlassNav extends ConsumerWidget {
   }
 }
 
-/// Desktop counterpart of [FloatingGlassNav]: a left rail — logo, the four
-/// tabs, the Add button, and Settings — so nav and primary actions stay
-/// within reach of the cursor on wide screens.
+/// Desktop counterpart of [FloatingGlassNav]. 900–1280px: a compact icon
+/// rail. ≥1280px: a labeled sidebar with a New-expense button and sync +
+/// account status pinned to the bottom.
 class FloatingGlassRail extends ConsumerWidget {
   const FloatingGlassRail({super.key});
 
@@ -91,6 +94,10 @@ class FloatingGlassRail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentTab = ref.watch(navigationProvider).currentTab;
     final colorScheme = Theme.of(context).colorScheme;
+
+    if (MediaQuery.sizeOf(context).width >= 1280) {
+      return _LabeledSidebar(currentTab: currentTab);
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
@@ -154,6 +161,219 @@ class FloatingGlassRail extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ≥1280px sidebar: labeled tabs, a real New-expense button (with its "N"
+/// keyboard hint), and sync + account status where the eye rests.
+class _LabeledSidebar extends ConsumerWidget {
+  final NavigationTab currentTab;
+
+  const _LabeledSidebar({required this.currentTab});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final sync = ref.watch(syncProvider);
+    final name = ref.watch(settingsProvider.select((s) => s.displayName));
+
+    final syncLabel = sync.isSyncing
+        ? 'Syncing…'
+        : sync.lastSyncedAt == null
+        ? 'Not synced yet'
+        : 'Synced ${AppFormatters.getRelativeTime(sync.lastSyncedAt!)}';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+      child: Container(
+        width: 200,
+        decoration: BoxDecoration(
+          color: const Color(0xFF131318),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        ),
+        padding: const EdgeInsets.fromLTRB(10, 16, 10, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(9),
+                      color: cs.primary,
+                    ),
+                    child: Text(
+                      '₹',
+                      style: TextStyle(
+                        color: cs.onPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Text(
+                    'Lekha',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontFamily: 'Space Grotesk',
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            for (final item in navigationItems)
+              _SidebarItem(
+                item: item,
+                isActive: currentTab.id == item.id,
+                onTap: () => ref
+                    .read(navigationProvider.notifier)
+                    .navigateTo(NavigationTabExtension.fromId(item.id)),
+              ),
+            const SizedBox(height: 10),
+            FilledButton(
+              onPressed: () => showAddExpenseModal(context),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('+ New expense'),
+                  const SizedBox(width: 8),
+                  Opacity(
+                    opacity: 0.55,
+                    child: Text(
+                      'N',
+                      style: TextStyle(
+                        fontFamily: 'JetBrains Mono',
+                        fontSize: 11,
+                        color: cs.onPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.circle, size: 7, color: const Color(0xFF46C98B)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      syncLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 11,
+                      backgroundColor: const Color(0xFF1A1A21),
+                      child: Text(
+                        name.isEmpty ? '₹' : name[0].toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        name.isEmpty ? 'Account' : name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                    Icon(
+                      Icons.settings_outlined,
+                      size: 16,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarItem extends StatelessWidget {
+  final NavigationItem item;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _SidebarItem({
+    required this.item,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = isActive ? cs.onSurface : cs.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+          decoration: BoxDecoration(
+            color: isActive
+                ? cs.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(item.icon, size: 17, color: color),
+              const SizedBox(width: 10),
+              Text(
+                item.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: color,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -278,6 +278,8 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       context,
       initialAmount: txn.amount,
       initialDate: txn.dateTime,
+      sourceLabel:
+          'Detected from SMS · ${DateFormat('EEE d MMM').format(txn.dateTime)}',
       onSaved: (expense) => ref
           .read(pendingTransactionsProvider.notifier)
           .markAdded(txn.id, expense.id),
@@ -313,6 +315,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       context,
       initialAmount: total,
       initialDate: latest,
+      sourceLabel:
+          'Merged from ${chosen.length} SMS · '
+          'latest ${DateFormat('EEE d MMM').format(latest)}',
       onSaved: (expense) {
         final notifier = ref.read(pendingTransactionsProvider.notifier);
         for (final id in ids) {

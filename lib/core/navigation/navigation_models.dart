@@ -33,15 +33,17 @@ extension NavigationTabExtension on NavigationTab {
   }
 
   IconData get icon {
+    // Thin-line (outlined) set per the Midnight Terminal spec — nav is one
+    // icon family; category icons keep Material Rounded.
     switch (this) {
       case NavigationTab.dashboard:
-        return Icons.home_rounded;
+        return Icons.home_outlined;
       case NavigationTab.expenses:
-        return Icons.receipt_long_rounded;
+        return Icons.receipt_long_outlined;
       case NavigationTab.insights:
-        return Icons.insights_rounded;
+        return Icons.insights_outlined;
       case NavigationTab.debts:
-        return Icons.account_balance_wallet_rounded;
+        return Icons.account_balance_wallet_outlined;
     }
   }
 

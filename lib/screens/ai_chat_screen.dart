@@ -21,6 +21,14 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
     super.dispose();
   }
 
+  Future<void> _send(bool configured, bool loading) async {
+    if (loading || !configured) return;
+    final text = _controller.text;
+    if (text.trim().isEmpty) return;
+    _controller.clear();
+    await ref.read(aiChatProvider.notifier).send(text);
+  }
+
   @override
   Widget build(BuildContext context) {
     final chat = ref.watch(aiChatProvider);
@@ -28,7 +36,33 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Assistant'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Assistant'),
+            const SizedBox(width: 10),
+            Container(
+              width: 24,
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Text(
+                'AI',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: () => ref.read(aiChatProvider.notifier).clear(),
@@ -73,23 +107,20 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                           color: isUser
                               ? Theme.of(
                                   context,
-                                ).colorScheme.primary.withValues(alpha: 0.16)
-                              : Theme.of(context)
-                                    .colorScheme
-                                    .surfaceContainerHighest
-                                    .withValues(alpha: 0.55),
+                                ).colorScheme.primary.withValues(alpha: 0.14)
+                              : const Color(0xFF131318),
                           borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(16),
-                            topRight: const Radius.circular(16),
-                            bottomLeft: Radius.circular(isUser ? 16 : 4),
-                            bottomRight: Radius.circular(isUser ? 4 : 16),
+                            topLeft: const Radius.circular(12),
+                            topRight: const Radius.circular(12),
+                            bottomLeft: Radius.circular(isUser ? 12 : 3),
+                            bottomRight: Radius.circular(isUser ? 3 : 12),
                           ),
                           border: Border.all(
                             color: isUser
                                 ? Theme.of(
                                     context,
-                                  ).colorScheme.primary.withValues(alpha: 0.28)
-                                : Colors.white.withValues(alpha: 0.08),
+                                  ).colorScheme.primary.withValues(alpha: 0.30)
+                                : Colors.white.withValues(alpha: 0.07),
                           ),
                         ),
                         child: AiText(message.text),
@@ -152,21 +183,40 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                       controller: _controller,
                       minLines: 1,
                       maxLines: 4,
-                      decoration: const InputDecoration(
-                        hintText: 'Ask about your spending, budget, or history',
+                      onSubmitted: (_) => _send(configured, chat.isLoading),
+                      decoration: InputDecoration(
+                        hintText: 'Ask anything…',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(999),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(999),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.08),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(999),
+                          borderSide: BorderSide(
+                            color: Theme.of(context).colorScheme.primary,
+                            width: 2,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    onPressed: chat.isLoading || !configured
-                        ? null
-                        : () async {
-                            final text = _controller.text;
-                            _controller.clear();
-                            await ref.read(aiChatProvider.notifier).send(text);
-                          },
-                    child: const Text('Send'),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: IconButton.filled(
+                      onPressed: chat.isLoading || !configured
+                          ? null
+                          : () => _send(configured, chat.isLoading),
+                      icon: const Icon(Icons.arrow_upward_rounded, size: 20),
+                      tooltip: 'Send',
+                    ),
                   ),
                 ],
               ),
