@@ -258,19 +258,9 @@ class _SectionEmptyState extends StatelessWidget {
 }
 
 BoxDecoration _cardDecoration(BuildContext context) {
-  final primary = Theme.of(context).colorScheme.primary;
   return BoxDecoration(
-    borderRadius: BorderRadius.circular(18),
-    gradient: LinearGradient(
-      begin: Alignment.topRight,
-      end: Alignment.bottomLeft,
-      colors: [
-        primary.withValues(alpha: 0.16),
-        const Color(0xFF131318).withValues(alpha: 0.42),
-        const Color(0xFF131318).withValues(alpha: 0.42),
-      ],
-      stops: const [0.0, 0.4, 1.0],
-    ),
-    border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+    borderRadius: BorderRadius.circular(12),
+    color: const Color(0xFF131318),
+    border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
   );
 }

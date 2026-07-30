@@ -33,10 +33,7 @@ class BackupFileService {
   Future<String?> pickBackupFile() async {
     final file = await openFile(
       acceptedTypeGroups: [
-        const XTypeGroup(
-          label: 'Backup',
-          extensions: ['json'],
-        ),
+        const XTypeGroup(label: 'Backup', extensions: ['json']),
       ],
     );
     return file?.path;
@@ -60,4 +57,3 @@ class BackupFileService {
     return Map<String, dynamic>.from(payload);
   }
 }
-

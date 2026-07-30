@@ -20,4 +20,3 @@ class CsvEncoder {
     return '"$escaped"';
   }
 }
-

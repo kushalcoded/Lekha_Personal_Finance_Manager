@@ -212,7 +212,10 @@ class ReceivablesNotifier extends StateNotifier<ReceivablesState> {
     final existing = _findReceivable(id);
     if (existing == null || amount <= 0) return;
     final settled = amount > existing.remaining ? existing.remaining : amount;
-    final remaining = (existing.remaining - settled).clamp(0.0, double.infinity);
+    final remaining = (existing.remaining - settled).clamp(
+      0.0,
+      double.infinity,
+    );
     final now = DateTime.now();
     final settlement = ReceivableSettlement(
       id: 'settle_${now.microsecondsSinceEpoch}',

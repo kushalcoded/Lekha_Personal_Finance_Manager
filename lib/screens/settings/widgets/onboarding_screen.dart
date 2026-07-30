@@ -64,7 +64,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         GlassCard(
-                          radius: 24,
+                          radius: 12,
                           padding: const EdgeInsets.all(23),
                           child: Icon(
                             page.icon,

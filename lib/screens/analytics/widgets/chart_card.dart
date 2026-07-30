@@ -23,7 +23,7 @@ class ChartCard extends StatelessWidget {
     // The section wrapper (AnalyticsSection) already provides the heading, so
     // the card itself is just the frosted chart surface — no repeated title.
     return GlassCard(
-      radius: 18,
+      radius: 12,
       padding: const EdgeInsets.all(16),
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),

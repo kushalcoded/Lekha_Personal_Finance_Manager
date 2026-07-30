@@ -188,7 +188,7 @@ class _CategoryRow extends StatelessWidget {
         ),
         child: GlassCard(
           onTap: onEdit,
-          radius: 14,
+          radius: 12,
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [

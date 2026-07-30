@@ -33,4 +33,3 @@ class ExportSavedFile {
 
   bool get hasUserChosenLocation => savedPath != null && savedPath!.isNotEmpty;
 }
-

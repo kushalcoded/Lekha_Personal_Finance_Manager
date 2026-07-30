@@ -66,17 +66,10 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
                   ),
                   children: [
                     GlassCard(
-                      radius: 16,
-                      gradient: LinearGradient(
-                        begin: Alignment.topRight,
-                        end: Alignment.bottomLeft,
-                        colors: [
-                          calm.positive.withValues(alpha: 0.16),
-                          const Color(0xFF131318).withValues(alpha: 0.42),
-                        ],
-                      ),
+                      radius: 12,
+                      color: calm.positive.withValues(alpha: 0.08),
                       border: Border.all(
-                        color: calm.positive.withValues(alpha: 0.25),
+                        color: calm.positive.withValues(alpha: 0.30),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

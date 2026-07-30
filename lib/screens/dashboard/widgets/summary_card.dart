@@ -82,19 +82,12 @@ class _SummaryCardState extends State<SummaryCard> {
               vertical: verticalPadding,
             ),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                colors: [
-                  widget.accentColor.withValues(alpha: 0.12),
-                  colorScheme.surfaceContainerHighest.withValues(alpha: 0.18),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              borderRadius: BorderRadius.circular(12),
+              color: const Color(0xFF131318),
               border: Border.all(
                 color: _isHovered
                     ? widget.accentColor.withValues(alpha: 0.3)
-                    : colorScheme.outline.withValues(alpha: 0.18),
+                    : Colors.white.withValues(alpha: 0.07),
               ),
               boxShadow: [
                 BoxShadow(

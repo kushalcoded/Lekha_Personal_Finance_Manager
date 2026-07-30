@@ -414,16 +414,7 @@ class _AiInsightCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: GlassCard(
-        radius: 16,
-        gradient: LinearGradient(
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-          colors: [
-            cs.primary.withValues(alpha: 0.18),
-            const Color(0xFF131318).withValues(alpha: 0.42),
-          ],
-        ),
-        border: Border.all(color: cs.primary.withValues(alpha: 0.22)),
+        radius: 12,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

@@ -10,7 +10,9 @@ import 'export_models.dart';
 class ExportFileService {
   const ExportFileService();
 
-  Future<ExportSavedFile> persistGeneratedFile(ExportGeneratedFile generated) async {
+  Future<ExportSavedFile> persistGeneratedFile(
+    ExportGeneratedFile generated,
+  ) async {
     if (kIsWeb) {
       // No filesystem on web: hand the bytes to the browser as a download and
       // keep them on the result so Share can use XFile.fromData.
@@ -67,4 +69,3 @@ class ExportFileService {
     return file.path;
   }
 }
-

@@ -206,7 +206,6 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
   return ref.watch(authStateProvider).isAuthenticated;
 });
 
-
 /// Derived provider to get current user ID
 final currentUserIdProvider = Provider<String?>((ref) {
   final authState = ref.watch(authStateProvider);

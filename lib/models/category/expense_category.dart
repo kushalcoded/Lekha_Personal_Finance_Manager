@@ -66,11 +66,7 @@ const defaultExpenseCategories = <ExpenseCategory>[
     colorHex: '#9C7E6E',
   ),
   ExpenseCategory(name: 'Gifts', iconKey: 'card_giftcard', colorHex: '#8A7C9A'),
-  ExpenseCategory(
-    name: 'Entertainment',
-    iconKey: 'movie',
-    colorHex: '#7A9C8B',
-  ),
+  ExpenseCategory(name: 'Entertainment', iconKey: 'movie', colorHex: '#7A9C8B'),
   ExpenseCategory(
     name: 'Investment',
     iconKey: 'trending_up',

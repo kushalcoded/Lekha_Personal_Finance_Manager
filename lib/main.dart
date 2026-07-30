@@ -92,7 +92,10 @@ Future<void> reconcileSignIn(WidgetRef ref, String userId) async {
       await sync.forcePush();
       _reloadStores(ref, userId);
     } else {
-      await hive.reassignUserData(localUserId, userId); // so pull's clear covers it
+      await hive.reassignUserData(
+        localUserId,
+        userId,
+      ); // so pull's clear covers it
       await sync.forcePull();
     }
   } else if (localData) {

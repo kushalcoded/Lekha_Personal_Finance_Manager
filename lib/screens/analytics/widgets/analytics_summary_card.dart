@@ -24,10 +24,9 @@ class AnalyticsSummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final resolvedAccent = accentColor ?? colorScheme.primary;
 
     return GlassCard(
-      radius: 16,
+      radius: 12,
       padding: const EdgeInsets.all(12),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -37,10 +36,13 @@ class AnalyticsSummaryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  label,
-                  style: theme.textTheme.labelMedium?.copyWith(
+                  label.toUpperCase(),
+                  style: TextStyle(
+                    fontFamily: 'JetBrains Mono',
+                    fontSize: 10,
+                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.w500,
                     color: colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -70,8 +72,9 @@ class AnalyticsSummaryCard extends StatelessWidget {
           Text(
             value,
             style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colorScheme.onSurface,
+              fontFamily: 'Space Grotesk',
+              fontWeight: FontWeight.w600,
+              color: accentColor ?? colorScheme.onSurface,
             ),
           ),
           if (subLabel != null) ...[
@@ -79,8 +82,8 @@ class AnalyticsSummaryCard extends StatelessWidget {
             Text(
               subLabel!,
               style: theme.textTheme.labelSmall?.copyWith(
-                color: resolvedAccent,
-                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],

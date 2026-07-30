@@ -245,7 +245,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
             padding: const EdgeInsets.fromLTRB(4, 12, 16, 24),
             child: selected == null
                 ? GlassCard(
-                    radius: 18,
+                    radius: 12,
                     padding: const EdgeInsets.all(24),
                     child: Center(
                       child: Text(
@@ -257,7 +257,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                     ),
                   )
                 : GlassCard(
-                    radius: 18,
+                    radius: 12,
                     padding: EdgeInsets.zero,
                     child: ExpenseDetailsContent(
                       inline: true,
@@ -396,7 +396,7 @@ class _StatBox extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     return GlassCard(
-      radius: 14,
+      radius: 12,
       padding: const EdgeInsets.all(13),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -405,8 +405,9 @@ class _StatBox extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: theme.textTheme.labelSmall?.copyWith(
+              fontFamily: 'JetBrains Mono',
               color: cs.onSurfaceVariant,
-              letterSpacing: 0.4,
+              letterSpacing: 0.8,
               fontSize: 10,
             ),
           ),
@@ -445,7 +446,7 @@ class _ExpenseRow extends StatelessWidget {
 
     return GlassCard(
       onTap: onTap,
-      radius: 14,
+      radius: 12,
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [
@@ -650,19 +651,12 @@ class _DetectedCard extends StatelessWidget {
       onLongPress: onToggleSelect,
       onTap: selectMode ? onToggleSelect : null,
       child: GlassCard(
-        radius: 16,
+        radius: 12,
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-        gradient: LinearGradient(
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-          colors: [
-            cs.primary.withValues(alpha: 0.16),
-            const Color(0xFF131318).withValues(alpha: 0.42),
-          ],
-        ),
+        color: selected ? cs.primary.withValues(alpha: 0.10) : null,
         border: Border.all(
-          color: cs.primary.withValues(alpha: selected ? 0.85 : 0.28),
-          width: selected ? 1.6 : 1,
+          color: cs.primary.withValues(alpha: selected ? 0.60 : 0.30),
+          width: selected ? 1.4 : 1,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

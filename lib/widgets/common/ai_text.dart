@@ -37,20 +37,26 @@ class AiText extends StatelessWidget {
     final spans = <InlineSpan>[];
     var i = 0;
     for (final m in _md.allMatches(text)) {
-      if (m.start > i) spans.add(TextSpan(text: _plain(text.substring(i, m.start))));
+      if (m.start > i) {
+        spans.add(TextSpan(text: _plain(text.substring(i, m.start))));
+      }
       final bold = m.group(1) ?? m.group(2);
       final italic = m.group(3) ?? m.group(4);
       final code = m.group(5);
       if (bold != null) {
-        spans.add(TextSpan(
-          text: bold,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ));
+        spans.add(
+          TextSpan(
+            text: bold,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        );
       } else if (italic != null) {
-        spans.add(TextSpan(
-          text: italic,
-          style: const TextStyle(fontStyle: FontStyle.italic),
-        ));
+        spans.add(
+          TextSpan(
+            text: italic,
+            style: const TextStyle(fontStyle: FontStyle.italic),
+          ),
+        );
       } else {
         spans.add(TextSpan(text: code));
       }

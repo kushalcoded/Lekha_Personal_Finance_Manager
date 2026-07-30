@@ -52,17 +52,10 @@ class PersonLedgerScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           GlassCard(
-            radius: 18,
+            radius: 12,
             padding: const EdgeInsets.all(16),
-            gradient: LinearGradient(
-              begin: Alignment.topRight,
-              end: Alignment.bottomLeft,
-              colors: [
-                netColor.withValues(alpha: 0.18),
-                const Color(0xFF131318).withValues(alpha: 0.42),
-              ],
-            ),
-            border: Border.all(color: netColor.withValues(alpha: 0.24)),
+            color: netColor.withValues(alpha: 0.08),
+            border: Border.all(color: netColor.withValues(alpha: 0.30)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -445,7 +438,7 @@ class _LedgerRow extends StatelessWidget {
           ],
         ),
         child: GlassCard(
-          radius: 14,
+          radius: 12,
           padding: const EdgeInsets.all(12),
           child: Opacity(
             opacity: item.settled ? 0.5 : 1,

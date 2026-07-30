@@ -57,7 +57,7 @@ class _IphoneSmsGuideScreenState extends ConsumerState<IphoneSmsGuideScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
                 GlassCard(
-                  radius: 16,
+                  radius: 12,
                   padding: const EdgeInsets.all(14),
                   child: Text(
                     'iPhones don\'t let apps read SMS. The workaround: a tiny '
@@ -71,7 +71,7 @@ class _IphoneSmsGuideScreenState extends ConsumerState<IphoneSmsGuideScreen> {
                 const SizedBox(height: 18),
                 if (_token == null)
                   GlassCard(
-                    radius: 16,
+                    radius: 12,
                     padding: const EdgeInsets.all(14),
                     child: Text(
                       'Couldn\'t load your setup values — check that you are '
@@ -147,7 +147,7 @@ class _IphoneSmsGuideScreenState extends ConsumerState<IphoneSmsGuideScreen> {
                   ),
                   const SizedBox(height: 10),
                   GlassCard(
-                    radius: 16,
+                    radius: 12,
                     padding: const EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,7 +216,7 @@ class _HealthCard extends StatelessWidget {
     }
 
     return GlassCard(
-      radius: 16,
+      radius: 12,
       padding: const EdgeInsets.all(14),
       border: Border.all(color: color.withValues(alpha: 0.35)),
       child: Row(
@@ -261,7 +261,7 @@ class _Step extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: GlassCard(
-        radius: 16,
+        radius: 12,
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

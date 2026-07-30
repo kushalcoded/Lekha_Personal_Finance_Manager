@@ -358,17 +358,8 @@ class _CycleHealthHero extends StatelessWidget {
 
     return GlassCard(
       onTap: onTap,
-      radius: 22,
+      radius: 12,
       padding: const EdgeInsets.all(18),
-      gradient: LinearGradient(
-        begin: Alignment.topRight,
-        end: Alignment.bottomLeft,
-        colors: [
-          cs.primary.withValues(alpha: 0.20),
-          cs.primary.withValues(alpha: 0.04),
-        ],
-      ),
-      border: Border.all(color: cs.primary.withValues(alpha: 0.22)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -493,7 +484,6 @@ class _AiInsightCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final aiText = aiSummary.maybeWhen(
       data: (t) => (t == null || t.trim().isEmpty) ? null : t.trim(),
       orElse: () => null,
@@ -502,17 +492,8 @@ class _AiInsightCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return GlassCard(
-      radius: 18,
+      radius: 12,
       padding: const EdgeInsets.all(16),
-      gradient: LinearGradient(
-        begin: Alignment.topRight,
-        end: Alignment.bottomLeft,
-        colors: [
-          cs.primary.withValues(alpha: 0.14),
-          cs.primary.withValues(alpha: 0.03),
-        ],
-      ),
-      border: Border.all(color: cs.primary.withValues(alpha: 0.20)),
       child: _AiSummaryRow(aiText: aiText),
     );
   }
@@ -589,7 +570,7 @@ class _StatTile extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     return GlassCard(
-      radius: 16,
+      radius: 12,
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -614,9 +595,10 @@ class _StatTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelSmall?.copyWith(
+                    fontFamily: 'JetBrains Mono',
                     color: cs.onSurfaceVariant,
-                    letterSpacing: 0.4,
-                    fontSize: 10.5,
+                    letterSpacing: 0.8,
+                    fontSize: 10,
                   ),
                 ),
               ),
@@ -658,7 +640,7 @@ class _CategoryBreakdown extends StatelessWidget {
     final cs = theme.colorScheme;
     final max = categories.first.value;
     return GlassCard(
-      radius: 18,
+      radius: 12,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -766,7 +748,7 @@ class _RecentCard extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     return GlassCard(
-      radius: 18,
+      radius: 12,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

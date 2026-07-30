@@ -532,7 +532,7 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       backgroundColor: const Color(0xFF131318),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -601,7 +601,7 @@ Future<void> _pickOption(
     context: context,
     backgroundColor: const Color(0xFF131318),
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (ctx) {
       final cs = Theme.of(ctx).colorScheme;
@@ -746,7 +746,7 @@ class _SettingsGroup extends StatelessWidget {
     }
 
     final card = GlassCard(
-      radius: 16,
+      radius: 12,
       padding: EdgeInsets.zero,
       child: Column(children: divided),
     );

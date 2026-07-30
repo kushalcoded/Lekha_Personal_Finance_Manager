@@ -70,7 +70,7 @@ class DebtListRow extends StatelessWidget {
         ),
         child: GlassCard(
           onTap: onTap,
-          radius: 14,
+          radius: 12,
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [

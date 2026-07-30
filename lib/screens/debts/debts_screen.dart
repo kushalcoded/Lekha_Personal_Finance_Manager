@@ -131,7 +131,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                       padding: const EdgeInsets.fromLTRB(4, 12, 16, 24),
                       child: _selectedPerson == null
                           ? GlassCard(
-                              radius: 18,
+                              radius: 12,
                               padding: const EdgeInsets.all(24),
                               child: Center(
                                 child: Text(
@@ -167,7 +167,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
       context: context,
       backgroundColor: const Color(0xFF131318),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -213,17 +213,10 @@ class _TotalBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return GlassCard(
-      radius: 16,
+      radius: 12,
       padding: const EdgeInsets.all(14),
-      gradient: LinearGradient(
-        begin: Alignment.topRight,
-        end: Alignment.bottomLeft,
-        colors: [
-          color.withValues(alpha: 0.18),
-          const Color(0xFF131318).withValues(alpha: 0.42),
-        ],
-      ),
-      border: Border.all(color: color.withValues(alpha: 0.22)),
+      color: color.withValues(alpha: 0.08),
+      border: Border.all(color: color.withValues(alpha: 0.30)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -231,8 +224,9 @@ class _TotalBanner extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: theme.textTheme.labelSmall?.copyWith(
+              fontFamily: 'JetBrains Mono',
               color: Theme.of(context).colorScheme.onSurfaceVariant,
-              letterSpacing: 0.4,
+              letterSpacing: 0.8,
               fontSize: 10,
             ),
           ),
@@ -280,7 +274,7 @@ class _PersonRow extends StatelessWidget {
 
     return GlassCard(
       onTap: onTap,
-      radius: 14,
+      radius: 12,
       padding: const EdgeInsets.all(12),
       child: Row(
         children: [

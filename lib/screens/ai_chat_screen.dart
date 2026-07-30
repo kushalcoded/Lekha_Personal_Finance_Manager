@@ -111,7 +111,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: GlassCard(
-                radius: 14,
+                radius: 12,
                 padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
                 border: Border.all(
                   color: Theme.of(

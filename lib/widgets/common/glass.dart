@@ -10,6 +10,10 @@ class GlassCard extends StatelessWidget {
   final double radius;
   final Border? border;
   final Gradient? gradient;
+
+  /// Overrides the default solid fill — used for semantic tint washes
+  /// (e.g. positive/negative banners at ~7% alpha over the ground).
+  final Color? color;
   final List<BoxShadow>? shadow;
   final VoidCallback? onTap;
 
@@ -20,6 +24,7 @@ class GlassCard extends StatelessWidget {
     this.radius = 12,
     this.border,
     this.gradient,
+    this.color,
     this.shadow,
     this.onTap,
   });
@@ -31,7 +36,7 @@ class GlassCard extends StatelessWidget {
     Widget content = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: gradient == null ? const Color(0xFF131318) : null,
+        color: gradient == null ? (color ?? const Color(0xFF131318)) : null,
         gradient: gradient,
         borderRadius: br,
         border:
