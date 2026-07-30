@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../navigation/floating_glass_nav.dart' show kWideBreakpoint;
 import '../../providers/ai_providers.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/sms/sms_providers.dart';
@@ -73,6 +74,19 @@ class SettingsScreen extends ConsumerWidget {
 
     final remindersOn = settings.remindersEnabled;
 
+    // Desktop: settings groups pair up two per row inside a capped column.
+    final isWide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
+    Widget twoUp(Widget a, Widget b) => isWide
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: a),
+              const SizedBox(width: 14),
+              Expanded(child: b),
+            ],
+          )
+        : Column(children: [a, b]);
+
     final sync = ref.watch(syncProvider);
     final syncStatus = sync.isSyncing
         ? 'Syncing…'
@@ -92,9 +106,13 @@ class SettingsScreen extends ConsumerWidget {
                 await settingsNotifier.loadSettings();
                 await backupNotifier.loadBackups();
               },
-              child: ListView(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1160),
+                  child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
                 children: [
+                  twoUp(
                   _SettingsGroup(
                     label: 'Account',
                     rows: [
@@ -185,6 +203,8 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  ),
+                  twoUp(
                   _SettingsGroup(
                     label: 'Salary cycle',
                     rows: [
@@ -247,6 +267,8 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  ),
+                  twoUp(
                   _SettingsGroup(
                     label: 'Transactions',
                     rows: [
@@ -349,6 +371,8 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  ),
+                  twoUp(
                   _SettingsGroup(
                     label: 'Data & backup',
                     rows: [
@@ -402,7 +426,10 @@ class SettingsScreen extends ConsumerWidget {
                     ],
                   ),
                   const _CloudSyncGroup(),
+                  ),
                 ],
+              ),
+                ),
               ),
             ),
     );

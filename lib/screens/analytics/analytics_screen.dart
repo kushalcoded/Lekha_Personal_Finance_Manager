@@ -126,6 +126,21 @@ class AnalyticsScreen extends ConsumerWidget {
                   : 2;
               final summaryAspect = constraints.maxWidth >= 720 ? 2.6 : 1.5;
 
+              // Desktop: related sections sit side by side (time view left,
+              // distribution right) so charts keep a sane reading width.
+              Widget twoUp(Widget a, Widget b) => isWide
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: a),
+                        const SizedBox(width: 14),
+                        Expanded(child: b),
+                      ],
+                    )
+                  : Column(
+                      children: [a, const SizedBox(height: 14), b],
+                    );
+
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -155,6 +170,7 @@ class AnalyticsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 14),
                   ],
+                  twoUp(
                   AnalyticsSection(
                     title: 'Monthly Spending Overview',
                     subtitle: 'Last 6 months of outflow',
@@ -164,7 +180,6 @@ class AnalyticsScreen extends ConsumerWidget {
                       child: MonthlySpendingBarChart(data: monthlyTotals),
                     ),
                   ),
-                  const SizedBox(height: 14),
                   AnalyticsSection(
                     title: 'Category Breakdown',
                     subtitle: 'Share of spend by category',
@@ -202,7 +217,9 @@ class AnalyticsScreen extends ConsumerWidget {
                             ),
                     ),
                   ),
+                  ),
                   const SizedBox(height: 14),
+                  twoUp(
                   AnalyticsSection(
                     title: 'Spending Trends',
                     subtitle: 'Recent movement across the period',
@@ -220,7 +237,6 @@ class AnalyticsScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 14),
                   AnalyticsSection(
                     title: 'Payment Method Analysis',
                     subtitle: 'Where expenses are paid from',
@@ -230,7 +246,9 @@ class AnalyticsScreen extends ConsumerWidget {
                       child: PaymentMethodBreakdown(stats: paymentStats),
                     ),
                   ),
+                  ),
                   const SizedBox(height: 14),
+                  twoUp(
                   AnalyticsSection(
                     title: 'Debt Overview',
                     subtitle: 'Receivables, payables, and net balance',
@@ -245,7 +263,6 @@ class AnalyticsScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 14),
                   AnalyticsSection(
                     title: 'Net Balance Trend',
                     subtitle: 'Monthly receivable vs payable delta',
@@ -255,7 +272,9 @@ class AnalyticsScreen extends ConsumerWidget {
                       child: NetBalanceTrendChart(points: debtTrend),
                     ),
                   ),
+                  ),
                   const SizedBox(height: 14),
+                  twoUp(
                   AnalyticsSection(
                     title: 'Settlement Trends',
                     subtitle: 'Monthly settlement totals',
@@ -265,7 +284,6 @@ class AnalyticsScreen extends ConsumerWidget {
                       child: MonthlySpendingBarChart(data: settlementTotals),
                     ),
                   ),
-                  const SizedBox(height: 14),
                   AnalyticsSection(
                     title: 'Recurring Obligations',
                     subtitle: 'Fixed costs and burn-rate forecast',
@@ -284,6 +302,7 @@ class AnalyticsScreen extends ConsumerWidget {
                         topCategories: recurringCategoryStats,
                       ),
                     ),
+                  ),
                   ),
                   const SizedBox(height: 14),
                   AnalyticsSection(
