@@ -259,7 +259,7 @@ class _Header extends StatelessWidget {
         const SizedBox(width: 9),
         _circleBtn(
           context,
-          icon: Icons.auto_awesome_rounded,
+          icon: Icons.forum_rounded,
           tinted: true,
           onTap: () => Navigator.of(
             context,
@@ -443,11 +443,20 @@ class _AiSummaryRow extends StatelessWidget {
         Container(
           width: 24,
           height: 24,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: cs.primary.withValues(alpha: 0.16),
             borderRadius: BorderRadius.circular(7),
           ),
-          child: Icon(Icons.auto_awesome_rounded, size: 14, color: cs.primary),
+          child: Text(
+            'AI',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+              color: cs.primary,
+            ),
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(

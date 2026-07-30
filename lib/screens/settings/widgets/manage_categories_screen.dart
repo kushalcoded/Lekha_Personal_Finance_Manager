@@ -369,7 +369,7 @@ class _CategoryEditorDialogState extends ConsumerState<_CategoryEditorDialog> {
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.auto_awesome_rounded),
+                      : const Icon(Icons.palette_outlined),
                   label: const Text('Suggest icon & color with AI'),
                 ),
               ),

@@ -253,7 +253,7 @@ class SettingsScreen extends ConsumerWidget {
                               ),
                             ),
                             _SettingRow(
-                              icon: Icons.auto_awesome_rounded,
+                              icon: Icons.forum_rounded,
                               title: 'AI Assistant',
                               subtitle: aiConfigured
                                   ? 'Ask about spending, budget, history'

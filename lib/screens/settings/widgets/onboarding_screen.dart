@@ -31,7 +31,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       title: 'Automate Daily Money Tracking',
       subtitle:
           'Create recurring templates and reminders to make tracking effortless.',
-      icon: Icons.auto_awesome_rounded,
+      icon: Icons.event_repeat_rounded,
     ),
   ];
 

@@ -545,7 +545,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                 )
               : _nlIcon(
                   cs,
-                  icon: Icons.auto_awesome_rounded,
+                  icon: Icons.arrow_forward_rounded,
                   active: false,
                   onTap: _parseNl,
                 ),
@@ -759,7 +759,11 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                   height: 13,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Icon(Icons.auto_awesome_rounded, size: 14, color: cs.primary),
+              : Icon(
+                  Icons.lightbulb_outline_rounded,
+                  size: 14,
+                  color: cs.primary,
+                ),
           const SizedBox(width: 5),
           Text(
             'Suggest from notes',

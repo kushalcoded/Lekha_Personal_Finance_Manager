@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// The app's global backdrop: a near-black ground with soft violet glows in the
-/// corners. Sits behind every (transparent) Scaffold so glass surfaces have
-/// something to blur and the UI never reads as flat.
+/// The app's global backdrop: a near-black ground with two very faint violet
+/// glows for depth. Sits behind every (transparent) Scaffold — kept subtle so
+/// the solid cards carry the hierarchy.
 class AmbientBackground extends StatelessWidget {
   final Widget child;
 
@@ -17,12 +17,12 @@ class AmbientBackground extends StatelessWidget {
           Positioned(
             top: -140,
             right: -90,
-            child: _glow(const Color(0xFF8B7CF6), 340, 0.22),
+            child: _glow(const Color(0xFF8B7CF6), 340, 0.10),
           ),
           Positioned(
             bottom: -160,
             left: -110,
-            child: _glow(const Color(0xFF6E5CE6), 360, 0.16),
+            child: _glow(const Color(0xFF6E5CE6), 360, 0.07),
           ),
           Positioned.fill(child: child),
         ],

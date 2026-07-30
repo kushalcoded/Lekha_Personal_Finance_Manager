@@ -430,14 +430,19 @@ class _AiInsightCard extends StatelessWidget {
             Container(
               width: 24,
               height: 24,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: cs.primary.withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(7),
               ),
-              child: Icon(
-                Icons.auto_awesome_rounded,
-                size: 14,
-                color: cs.primary,
+              child: Text(
+                'AI',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.3,
+                  color: cs.primary,
+                ),
               ),
             ),
             const SizedBox(width: 10),
