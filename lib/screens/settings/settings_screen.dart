@@ -8,6 +8,7 @@ import '../../providers/ai_providers.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/sms/sms_providers.dart';
 import '../../providers/sync/sync_providers.dart';
+import '../../providers/update_providers.dart';
 import '../ai_chat_screen.dart';
 import 'providers/productivity_providers.dart';
 import 'providers/settings_providers.dart';
@@ -73,6 +74,8 @@ class SettingsScreen extends ConsumerWidget {
     });
 
     final remindersOn = settings.remindersEnabled;
+    final appVersion = ref.watch(appVersionProvider).valueOrNull;
+    final updateVersion = ref.watch(updateAvailableProvider).valueOrNull;
 
     // Desktop: settings groups pair up two per row inside a capped column,
     // equalized via IntrinsicHeight (safe: no LayoutBuilder in the rows).
@@ -375,6 +378,23 @@ class SettingsScreen extends ConsumerWidget {
                               subtitle: 'Paste a bank SMS to test detection',
                               onTap: () => _showSimulateSmsDialog(context, ref),
                             ),
+                            if (!kIsWeb)
+                              _SettingRow(
+                                icon: Icons.system_update_rounded,
+                                title: 'App version',
+                                subtitle: updateVersion != null
+                                    ? 'Update available — v$updateVersion'
+                                    : 'v${appVersion ?? '…'} · up to date',
+                                trailing: updateVersion != null
+                                    ? _PillButton(
+                                        label: 'Update',
+                                        onTap: () => launchUrl(
+                                          Uri.parse(kReleasesLatestUrl),
+                                          mode: LaunchMode.externalApplication,
+                                        ),
+                                      )
+                                    : null,
+                              ),
                           ],
                         ),
                         _SettingsGroup(
