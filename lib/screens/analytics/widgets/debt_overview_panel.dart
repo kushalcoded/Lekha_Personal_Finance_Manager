@@ -11,12 +11,18 @@ class DebtOverviewPanel extends StatelessWidget {
   final List<PersonBalance> topDebtors;
   final List<PersonBalance> topCreditors;
 
+  /// Stack the debtor/creditor lists vertically (narrow panes). Decided by
+  /// the caller — a LayoutBuilder here breaks the desktop IntrinsicHeight
+  /// rows (zero intrinsic height in release builds).
+  final bool stackLists;
+
   const DebtOverviewPanel({
     super.key,
     required this.summary,
     required this.overdueStats,
     required this.topDebtors,
     required this.topCreditors,
+    this.stackLists = true,
   });
 
   @override
@@ -24,118 +30,113 @@ class DebtOverviewPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stackLists = constraints.maxWidth < 720;
-        final listSection = stackLists
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _BalanceList(
-                    title: 'Top debtors',
-                    entries: topDebtors,
-                    amountSelector: (entry) => entry.receivableTotal,
-                  ),
-                  const SizedBox(height: 12),
-                  _BalanceList(
-                    title: 'Top creditors',
-                    entries: topCreditors,
-                    amountSelector: (entry) => entry.payableTotal,
-                  ),
-                ],
-              )
-            : Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _BalanceList(
-                      title: 'Top debtors',
-                      entries: topDebtors,
-                      amountSelector: (entry) => entry.receivableTotal,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _BalanceList(
-                      title: 'Top creditors',
-                      entries: topCreditors,
-                      amountSelector: (entry) => entry.payableTotal,
-                    ),
-                  ),
-                ],
-              );
+    final listSection = stackLists
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _BalanceList(
+                title: 'Top debtors',
+                entries: topDebtors,
+                amountSelector: (entry) => entry.receivableTotal,
+              ),
+              const SizedBox(height: 12),
+              _BalanceList(
+                title: 'Top creditors',
+                entries: topCreditors,
+                amountSelector: (entry) => entry.payableTotal,
+              ),
+            ],
+          )
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _BalanceList(
+                  title: 'Top debtors',
+                  entries: topDebtors,
+                  amountSelector: (entry) => entry.receivableTotal,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: _BalanceList(
+                  title: 'Top creditors',
+                  entries: topCreditors,
+                  amountSelector: (entry) => entry.payableTotal,
+                ),
+              ),
+            ],
+          );
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 16,
+          runSpacing: 10,
           children: [
-            Wrap(
-              spacing: 16,
-              runSpacing: 10,
-              children: [
-                MetricTile(
-                  label: 'Receivables',
-                  value: AppFormatters.formatCurrency(summary.totalReceivables),
-                ),
-                MetricTile(
-                  label: 'Payables',
-                  value: AppFormatters.formatCurrency(summary.totalPayables),
-                  valueColor: colorScheme.error,
-                ),
-                MetricTile(
-                  label: 'Net balance',
-                  value: AppFormatters.formatCurrency(summary.netBalance),
-                  valueColor: summary.netBalance >= 0
-                      ? colorScheme.tertiary
-                      : colorScheme.error,
-                ),
-                MetricTile(
-                  label: 'Settled',
-                  value: AppFormatters.formatCurrency(summary.settledAmount),
-                ),
-              ],
+            MetricTile(
+              label: 'Receivables',
+              value: AppFormatters.formatCurrency(summary.totalReceivables),
             ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 16,
-              runSpacing: 10,
-              children: [
-                MetricTile(
-                  label: 'Overdue receivables',
-                  value: overdueStats.overdueReceivablesCount == 0
-                      ? 'None'
-                      : AppFormatters.formatCurrency(
-                          overdueStats.overdueReceivablesTotal,
-                        ),
-                  valueColor: overdueStats.overdueReceivablesCount > 0
-                      ? colorScheme.error
-                      : null,
-                ),
-                MetricTile(
-                  label: 'Overdue payables',
-                  value: overdueStats.overduePayablesCount == 0
-                      ? 'None'
-                      : AppFormatters.formatCurrency(
-                          overdueStats.overduePayablesTotal,
-                        ),
-                  valueColor: overdueStats.overduePayablesCount > 0
-                      ? colorScheme.error
-                      : null,
-                ),
-                MetricTile(
-                  label: 'Active debtors',
-                  value: summary.activeDebtors.toString(),
-                ),
-                MetricTile(
-                  label: 'Active creditors',
-                  value: summary.activeCreditors.toString(),
-                ),
-              ],
+            MetricTile(
+              label: 'Payables',
+              value: AppFormatters.formatCurrency(summary.totalPayables),
+              valueColor: colorScheme.error,
             ),
-            const SizedBox(height: 16),
-            if (topDebtors.isNotEmpty || topCreditors.isNotEmpty) listSection,
+            MetricTile(
+              label: 'Net balance',
+              value: AppFormatters.formatCurrency(summary.netBalance),
+              valueColor: summary.netBalance >= 0
+                  ? colorScheme.tertiary
+                  : colorScheme.error,
+            ),
+            MetricTile(
+              label: 'Settled',
+              value: AppFormatters.formatCurrency(summary.settledAmount),
+            ),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 16,
+          runSpacing: 10,
+          children: [
+            MetricTile(
+              label: 'Overdue receivables',
+              value: overdueStats.overdueReceivablesCount == 0
+                  ? 'None'
+                  : AppFormatters.formatCurrency(
+                      overdueStats.overdueReceivablesTotal,
+                    ),
+              valueColor: overdueStats.overdueReceivablesCount > 0
+                  ? colorScheme.error
+                  : null,
+            ),
+            MetricTile(
+              label: 'Overdue payables',
+              value: overdueStats.overduePayablesCount == 0
+                  ? 'None'
+                  : AppFormatters.formatCurrency(
+                      overdueStats.overduePayablesTotal,
+                    ),
+              valueColor: overdueStats.overduePayablesCount > 0
+                  ? colorScheme.error
+                  : null,
+            ),
+            MetricTile(
+              label: 'Active debtors',
+              value: summary.activeDebtors.toString(),
+            ),
+            MetricTile(
+              label: 'Active creditors',
+              value: summary.activeCreditors.toString(),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (topDebtors.isNotEmpty || topCreditors.isNotEmpty) listSection,
+      ],
     );
   }
 }

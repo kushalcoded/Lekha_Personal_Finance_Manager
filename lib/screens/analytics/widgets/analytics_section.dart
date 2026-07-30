@@ -6,12 +6,19 @@ class AnalyticsSection extends StatelessWidget {
   final Widget? trailing;
   final Widget child;
 
+  /// Set true only inside a bounded-height row (desktop IntrinsicHeight
+  /// pairs) so the card stretches to match its partner. Must stay a plain
+  /// flag — a LayoutBuilder here reports zero intrinsic height in release
+  /// builds and collapses the whole row.
+  final bool stretch;
+
   const AnalyticsSection({
     super.key,
     required this.title,
     this.subtitle,
     this.trailing,
     required this.child,
+    this.stretch = false,
   });
 
   @override
@@ -31,34 +38,27 @@ class AnalyticsSection extends StatelessWidget {
           ];
     final trailingWidgets = trailing == null ? null : [trailing!];
 
-    // When given a bounded height (desktop two-up rows equalized via
-    // IntrinsicHeight), let the card stretch so paired sections line up.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bounded = constraints.hasBoundedHeight;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
-                ...?trailingWidgets,
-              ],
+              ),
             ),
-            ...?subtitleWidgets,
-            const SizedBox(height: 12),
-            if (bounded) Expanded(child: child) else child,
+            ...?trailingWidgets,
           ],
-        );
-      },
+        ),
+        ...?subtitleWidgets,
+        const SizedBox(height: 12),
+        if (stretch) Expanded(child: child) else child,
+      ],
     );
   }
 }

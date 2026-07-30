@@ -106,9 +106,7 @@ class AnalyticsScreen extends ConsumerWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final isWide = constraints.maxWidth >= 1000;
-              final summaryColumns = constraints.maxWidth >= 1100
-                  ? 4
-                  : 2;
+              final summaryColumns = constraints.maxWidth >= 1100 ? 4 : 2;
               final summaryAspect = constraints.maxWidth >= 720 ? 2.6 : 1.5;
 
               // Desktop: related sections sit side by side (time view left,
@@ -124,9 +122,7 @@ class AnalyticsScreen extends ConsumerWidget {
                         ],
                       ),
                     )
-                  : Column(
-                      children: [a, const SizedBox(height: 14), b],
-                    );
+                  : Column(children: [a, const SizedBox(height: 14), b]);
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,137 +154,150 @@ class AnalyticsScreen extends ConsumerWidget {
                     const SizedBox(height: 14),
                   ],
                   twoUp(
-                  AnalyticsSection(
-                    title: 'Monthly Spending Overview',
-                    subtitle: 'Last 6 months of outflow',
-                    child: ChartCard(
-                      title: 'Monthly Spending',
-                      subtitle: 'Totals by month',
-                      child: MonthlySpendingBarChart(data: monthlyTotals),
+                    AnalyticsSection(
+                      stretch: isWide,
+                      title: 'Monthly Spending Overview',
+                      subtitle: 'Last 6 months of outflow',
+                      child: ChartCard(
+                        title: 'Monthly Spending',
+                        subtitle: 'Totals by month',
+                        child: MonthlySpendingBarChart(data: monthlyTotals),
+                      ),
                     ),
-                  ),
-                  AnalyticsSection(
-                    title: 'Category Breakdown',
-                    subtitle: 'Share of spend by category',
-                    child: ChartCard(
-                      title: 'Category Mix',
-                      subtitle: 'Top categories in focus',
-                      child: categoryStats.isEmpty
-                          ? const AnalyticsEmptyState(
-                              title: 'No category data',
-                              message: 'Add expenses to see category insights.',
-                              icon: Icons.pie_chart_rounded,
-                            )
-                          : isWide
-                          ? Row(
-                              children: [
-                                Expanded(
-                                  flex: 5,
-                                  child: CategoryPieChart(
-                                    categories: categoryStats,
+                    AnalyticsSection(
+                      stretch: isWide,
+                      title: 'Category Breakdown',
+                      subtitle: 'Share of spend by category',
+                      child: ChartCard(
+                        title: 'Category Mix',
+                        subtitle: 'Top categories in focus',
+                        child: categoryStats.isEmpty
+                            ? const AnalyticsEmptyState(
+                                title: 'No category data',
+                                message:
+                                    'Add expenses to see category insights.',
+                                icon: Icons.pie_chart_rounded,
+                              )
+                            : isWide
+                            ? Row(
+                                children: [
+                                  Expanded(
+                                    flex: 5,
+                                    child: CategoryPieChart(
+                                      categories: categoryStats,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 24),
-                                Expanded(
-                                  flex: 6,
-                                  child: CategoryLegend(items: categoryStats),
-                                ),
-                              ],
-                            )
-                          : Column(
-                              children: [
-                                CategoryPieChart(categories: categoryStats),
-                                const SizedBox(height: 16),
-                                CategoryLegend(items: categoryStats),
-                              ],
-                            ),
+                                  const SizedBox(width: 24),
+                                  Expanded(
+                                    flex: 6,
+                                    child: CategoryLegend(items: categoryStats),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                children: [
+                                  CategoryPieChart(categories: categoryStats),
+                                  const SizedBox(height: 16),
+                                  CategoryLegend(items: categoryStats),
+                                ],
+                              ),
+                      ),
                     ),
-                  ),
                   ),
                   const SizedBox(height: 14),
                   twoUp(
-                  AnalyticsSection(
-                    title: 'Spending Trends',
-                    subtitle: 'Recent movement across the period',
-                    trailing: _PeriodSelector(
-                      period: period,
-                      onChanged: (value) =>
-                          ref.read(analyticsProvider.notifier).setPeriod(value),
-                    ),
-                    child: ChartCard(
-                      title: 'Trend Line',
-                      subtitle: 'Daily or weekly totals',
-                      child: SpendingTrendLineChart(
-                        points: trendPoints,
+                    AnalyticsSection(
+                      stretch: isWide,
+                      title: 'Spending Trends',
+                      subtitle: 'Recent movement across the period',
+                      trailing: _PeriodSelector(
                         period: period,
+                        onChanged: (value) => ref
+                            .read(analyticsProvider.notifier)
+                            .setPeriod(value),
+                      ),
+                      child: ChartCard(
+                        title: 'Trend Line',
+                        subtitle: 'Daily or weekly totals',
+                        child: SpendingTrendLineChart(
+                          points: trendPoints,
+                          period: period,
+                        ),
                       ),
                     ),
-                  ),
-                  AnalyticsSection(
-                    title: 'Payment Method Analysis',
-                    subtitle: 'Where expenses are paid from',
-                    child: ChartCard(
-                      title: 'Payment Mix',
-                      subtitle: 'Methods captured from notes',
-                      child: PaymentMethodBreakdown(stats: paymentStats),
+                    AnalyticsSection(
+                      stretch: isWide,
+                      title: 'Payment Method Analysis',
+                      subtitle: 'Where expenses are paid from',
+                      child: ChartCard(
+                        title: 'Payment Mix',
+                        subtitle: 'Methods captured from notes',
+                        child: PaymentMethodBreakdown(stats: paymentStats),
+                      ),
                     ),
-                  ),
                   ),
                   const SizedBox(height: 14),
                   twoUp(
-                  AnalyticsSection(
-                    title: 'Debt Overview',
-                    subtitle: 'Receivables, payables, and net balance',
-                    child: ChartCard(
-                      title: 'Debt Snapshot',
-                      subtitle: 'Outstanding balances and overdue totals',
-                      child: DebtOverviewPanel(
-                        summary: debtSummary,
-                        overdueStats: overdueDebtStats,
-                        topDebtors: topDebtors,
-                        topCreditors: topCreditors,
+                    AnalyticsSection(
+                      stretch: isWide,
+                      title: 'Debt Overview',
+                      subtitle: 'Receivables, payables, and net balance',
+                      child: ChartCard(
+                        title: 'Debt Snapshot',
+                        subtitle: 'Outstanding balances and overdue totals',
+                        child: DebtOverviewPanel(
+                          summary: debtSummary,
+                          overdueStats: overdueDebtStats,
+                          topDebtors: topDebtors,
+                          topCreditors: topCreditors,
+                          // Wide = half-pane (~550px), so lists always stack;
+                          // single-column tablets get the side-by-side row.
+                          stackLists: isWide || constraints.maxWidth < 760,
+                        ),
                       ),
                     ),
-                  ),
-                  AnalyticsSection(
-                    title: 'Net Balance Trend',
-                    subtitle: 'Monthly receivable vs payable delta',
-                    child: ChartCard(
-                      title: 'Debt Trend',
-                      subtitle: 'Net balance by month',
-                      child: NetBalanceTrendChart(points: debtTrend),
+                    AnalyticsSection(
+                      stretch: isWide,
+                      title: 'Net Balance Trend',
+                      subtitle: 'Monthly receivable vs payable delta',
+                      child: ChartCard(
+                        title: 'Debt Trend',
+                        subtitle: 'Net balance by month',
+                        child: NetBalanceTrendChart(points: debtTrend),
+                      ),
                     ),
-                  ),
                   ),
                   const SizedBox(height: 14),
                   twoUp(
-                  AnalyticsSection(
-                    title: 'Settlement Trends',
-                    subtitle: 'Monthly settlement totals',
-                    child: ChartCard(
-                      title: 'Settlements',
-                      subtitle: 'Last 6 months of payments',
-                      child: MonthlySpendingBarChart(data: settlementTotals),
-                    ),
-                  ),
-                  AnalyticsSection(
-                    title: 'Budget Insights',
-                    subtitle: 'Baseline vs month-to-date pace',
-                    child: ChartCard(
-                      title: 'Budget Outlook',
-                      subtitle: 'Projected month-end spending',
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          BudgetInsightsCard(insight: budgetInsight),
-                          const SizedBox(height: 16),
-                          _BudgetIntelligencePanel(
-                            intelligence: budgetIntelligence,
-                          ),
-                        ],
+                    AnalyticsSection(
+                      stretch: isWide,
+                      title: 'Settlement Trends',
+                      subtitle: 'Monthly settlement totals',
+                      child: ChartCard(
+                        title: 'Settlements',
+                        subtitle: 'Last 6 months of payments',
+                        child: MonthlySpendingBarChart(data: settlementTotals),
                       ),
                     ),
-                  ),
+                    AnalyticsSection(
+                      stretch: isWide,
+                      title: 'Budget Insights',
+                      subtitle: 'Baseline vs month-to-date pace',
+                      child: ChartCard(
+                        title: 'Budget Outlook',
+                        subtitle: 'Projected month-end spending',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            BudgetInsightsCard(insight: budgetInsight),
+                            const SizedBox(height: 16),
+                            _BudgetIntelligencePanel(
+                              intelligence: budgetIntelligence,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               );
