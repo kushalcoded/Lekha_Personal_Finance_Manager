@@ -6,10 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/navigation/navigation_models.dart';
 import '../../core/navigation/navigation_provider.dart';
 import '../screens/expenses/widgets/add_expense_modal.dart';
+import '../screens/settings/settings_screen.dart';
 
 /// Bottom padding a tab screen's scrollable should add so its last content
 /// clears the floating navigation bar (pill + margin + safe area headroom).
 const double kNavBottomInset = 120;
+
+/// Window width at/above which the app switches to the desktop layout
+/// (left rail, grids, master-detail). Same breakpoint as responsive sheets.
+const double kWideBreakpoint = 900;
 
 /// Floating, frosted-glass bottom bar: two tabs, a raised center Add button,
 /// two tabs. Detached from the screen edges with a soft shadow.
@@ -87,6 +92,99 @@ class FloatingGlassNav extends ConsumerWidget {
         onTap: () => ref
             .read(navigationProvider.notifier)
             .navigateTo(NavigationTabExtension.fromId(item.id)),
+      ),
+    );
+  }
+}
+
+/// Desktop counterpart of [FloatingGlassNav]: a floating frosted rail on the
+/// left edge — logo, the four tabs, the Add button, and Settings — so nav and
+/// primary actions stay within reach of the cursor on wide screens.
+class FloatingGlassRail extends ConsumerWidget {
+  const FloatingGlassRail({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentTab = ref.watch(navigationProvider).currentTab;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(
+            width: 84,
+            decoration: BoxDecoration(
+              color: colorScheme.surface.withValues(alpha: 0.42),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 16),
+                Container(
+                  width: 42,
+                  height: 42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF8B7CF6), Color(0xFF6E5CE6)],
+                    ),
+                  ),
+                  child: Text(
+                    '₹',
+                    style: TextStyle(
+                      color: colorScheme.onPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                for (final item in navigationItems)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: SizedBox(
+                      height: 54,
+                      child: _NavButton(
+                        item: item,
+                        isActive: currentTab.id == item.id,
+                        onTap: () => ref
+                            .read(navigationProvider.notifier)
+                            .navigateTo(NavigationTabExtension.fromId(item.id)),
+                      ),
+                    ),
+                  ),
+                const Spacer(),
+                Transform.scale(
+                  scale: 0.78,
+                  child: _AddButton(
+                    onTap: () => showAddExpenseModal(context),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                IconButton(
+                  tooltip: 'Settings',
+                  icon: Icon(
+                    Icons.settings_rounded,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SettingsScreen(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

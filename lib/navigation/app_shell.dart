@@ -20,6 +20,30 @@ class AppShell extends ConsumerWidget {
     // Load custom categories once so their icons/colors apply app-wide.
     ref.watch(categoriesProvider);
 
+    // Layout answers to window width, not device type: wide (desktop web,
+    // tablets landscape) gets a left rail; narrow keeps the bottom nav.
+    final isWide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
+
+    if (isWide) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const FloatingGlassRail(),
+            Expanded(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1160),
+                  child: _buildScreenContent(navigationState.currentTab),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(

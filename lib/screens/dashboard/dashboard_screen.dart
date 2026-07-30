@@ -52,6 +52,54 @@ class DashboardScreen extends ConsumerWidget {
     final cycleDay =
         DateTime.now().difference(settings.currentCycleStartDate).inDays + 1;
 
+    final isWide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
+
+    final header = _Header(
+      cycleDay: cycleDay,
+      name: ref.watch(
+        settingsProvider.select(
+          (s) => s.displayName.isEmpty ? 'there' : s.displayName,
+        ),
+      ),
+      isSyncing: ref.watch(syncProvider.select((s) => s.isSyncing)),
+      onSync: () => ref.read(syncProvider.notifier).syncNow(),
+    );
+    final hero = _CycleHealthHero(
+      metrics: budgetMetrics,
+      monthlySpend: monthlySpend,
+      aiSummary: aiSummary,
+      onTap: () => showBudgetSettingsModal(context),
+    );
+    final statTiles = Row(
+      children: [
+        Expanded(
+          child: _StatTile(
+            label: 'Owed to you',
+            value: AppFormatters.formatCurrency(receivablesTotal),
+            valueColor: calm.positive,
+            dotColor: calm.positive,
+            sub: 'Receivables',
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatTile(
+            label: 'You owe',
+            value: AppFormatters.formatCurrency(payablesTotal),
+            valueColor: colorScheme.error,
+            dotColor: colorScheme.error,
+            sub: overdueDebtCount > 0
+                ? '$overdueDebtCount overdue'
+                : 'Payables',
+          ),
+        ),
+      ],
+    );
+    final categories = topCategories.isNotEmpty
+        ? _CategoryBreakdown(categories: topCategories.take(5).toList())
+        : null;
+    final recent = _RecentCard(expenses: recentExpenses.take(5).toList());
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: dashboardState.isLoading
@@ -62,67 +110,59 @@ class DashboardScreen extends ConsumerWidget {
                 bottom: false,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + kNavBottomInset),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    8,
+                    16,
+                    isWide ? 24 : 16 + kNavBottomInset,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _Header(
-                        cycleDay: cycleDay,
-                        name: ref.watch(
-                          settingsProvider.select(
-                            (s) => s.displayName.isEmpty
-                                ? 'there'
-                                : s.displayName,
-                          ),
-                        ),
-                        isSyncing: ref.watch(
-                          syncProvider.select((s) => s.isSyncing),
-                        ),
-                        onSync: () => ref.read(syncProvider.notifier).syncNow(),
-                      ),
+                      header,
                       const SizedBox(height: 18),
-                      _CycleHealthHero(
-                        metrics: budgetMetrics,
-                        monthlySpend: monthlySpend,
-                        aiSummary: aiSummary,
-                        onTap: () => showBudgetSettingsModal(context),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _StatTile(
-                              label: 'Owed to you',
-                              value: AppFormatters.formatCurrency(
-                                receivablesTotal,
+                      if (isWide)
+                        // Desktop: hero + recent on the left, totals and
+                        // categories in a right sidebar column.
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 7,
+                              child: Column(
+                                children: [
+                                  hero,
+                                  const SizedBox(height: 12),
+                                  recent,
+                                ],
                               ),
-                              valueColor: calm.positive,
-                              dotColor: calm.positive,
-                              sub: 'Receivables',
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _StatTile(
-                              label: 'You owe',
-                              value: AppFormatters.formatCurrency(payablesTotal),
-                              valueColor: colorScheme.error,
-                              dotColor: colorScheme.error,
-                              sub: overdueDebtCount > 0
-                                  ? '$overdueDebtCount overdue'
-                                  : 'Payables',
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 5,
+                              child: Column(
+                                children: [
+                                  statTiles,
+                                  if (categories != null) ...[
+                                    const SizedBox(height: 12),
+                                    categories,
+                                  ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      if (topCategories.isNotEmpty) ...[
+                          ],
+                        )
+                      else ...[
+                        hero,
                         const SizedBox(height: 12),
-                        _CategoryBreakdown(
-                          categories: topCategories.take(5).toList(),
-                        ),
+                        statTiles,
+                        if (categories != null) ...[
+                          const SizedBox(height: 12),
+                          categories,
+                        ],
+                        const SizedBox(height: 12),
+                        recent,
                       ],
-                      const SizedBox(height: 12),
-                      _RecentCard(expenses: recentExpenses.take(5).toList()),
                     ],
                   ),
                 ),
