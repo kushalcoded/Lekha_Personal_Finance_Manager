@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../core/navigation/navigation_models.dart';
 import '../../core/navigation/navigation_provider.dart';
 import '../providers/sync/sync_providers.dart';
+import '../services/storage/hive_service.dart' show kLocalPrefsBox;
 import '../screens/expenses/widgets/add_expense_modal.dart';
 import '../screens/settings/providers/settings_providers.dart';
 import '../screens/settings/settings_screen.dart';
@@ -85,19 +87,58 @@ class FloatingGlassNav extends ConsumerWidget {
 }
 
 /// Desktop counterpart of [FloatingGlassNav]. 900–1280px: a compact icon
-/// rail. ≥1280px: a labeled sidebar with a New-expense button and sync +
-/// account status pinned to the bottom.
-class FloatingGlassRail extends ConsumerWidget {
+/// rail. ≥1280px: a labeled sidebar (collapsible back down to the icon rail;
+/// the choice sticks per device, like the last-open tab).
+class FloatingGlassRail extends ConsumerStatefulWidget {
   const FloatingGlassRail({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentTab = ref.watch(navigationProvider).currentTab;
-    final colorScheme = Theme.of(context).colorScheme;
+  ConsumerState<FloatingGlassRail> createState() => _FloatingGlassRailState();
+}
 
-    if (MediaQuery.sizeOf(context).width >= 1280) {
-      return _LabeledSidebar(currentTab: currentTab);
+class _FloatingGlassRailState extends ConsumerState<FloatingGlassRail> {
+  bool _collapsed =
+      Hive.isBoxOpen(kLocalPrefsBox) &&
+      Hive.box(kLocalPrefsBox).get('sidebarCollapsed') == true;
+
+  void _toggle() {
+    setState(() => _collapsed = !_collapsed);
+    if (Hive.isBoxOpen(kLocalPrefsBox)) {
+      Hive.box(kLocalPrefsBox).put('sidebarCollapsed', _collapsed);
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentTab = ref.watch(navigationProvider).currentTab;
+    // Below 1280px there isn't room for the labeled sidebar, so the compact
+    // rail is forced and the expand toggle hidden.
+    final canExpand = MediaQuery.sizeOf(context).width >= 1280;
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+      alignment: Alignment.centerLeft,
+      child: canExpand && !_collapsed
+          ? _LabeledSidebar(currentTab: currentTab, onCollapse: _toggle)
+          : _CompactRail(
+              currentTab: currentTab,
+              onExpand: canExpand ? _toggle : null,
+            ),
+    );
+  }
+}
+
+/// Icon-only rail: always at 900–1280px, and the collapsed state ≥1280px.
+class _CompactRail extends ConsumerWidget {
+  final NavigationTab currentTab;
+  final VoidCallback? onExpand;
+
+  const _CompactRail({required this.currentTab, this.onExpand});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
@@ -128,7 +169,20 @@ class FloatingGlassRail extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 18),
+            if (onExpand != null) ...[
+              const SizedBox(height: 6),
+              IconButton(
+                tooltip: 'Expand sidebar',
+                iconSize: 20,
+                icon: Icon(
+                  Icons.keyboard_double_arrow_right_rounded,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                onPressed: onExpand,
+              ),
+              const SizedBox(height: 4),
+            ] else
+              const SizedBox(height: 18),
             for (final item in navigationItems)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
@@ -171,8 +225,9 @@ class FloatingGlassRail extends ConsumerWidget {
 /// keyboard hint), and sync + account status where the eye rests.
 class _LabeledSidebar extends ConsumerWidget {
   final NavigationTab currentTab;
+  final VoidCallback onCollapse;
 
-  const _LabeledSidebar({required this.currentTab});
+  const _LabeledSidebar({required this.currentTab, required this.onCollapse});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -222,12 +277,29 @@ class _LabeledSidebar extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 9),
-                  Text(
-                    'Lekha',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontFamily: 'Space Grotesk',
-                      fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: Text(
+                      'Lekha',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontFamily: 'Space Grotesk',
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
+                  ),
+                  IconButton(
+                    tooltip: 'Collapse sidebar',
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 30,
+                      minHeight: 30,
+                    ),
+                    iconSize: 18,
+                    icon: Icon(
+                      Icons.keyboard_double_arrow_left_rounded,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    onPressed: onCollapse,
                   ),
                 ],
               ),
@@ -353,7 +425,7 @@ class _SidebarItem extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           decoration: BoxDecoration(
             color: isActive
                 ? cs.primary.withValues(alpha: 0.12)
@@ -362,12 +434,12 @@ class _SidebarItem extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(item.icon, size: 17, color: color),
-              const SizedBox(width: 10),
+              Icon(item.icon, size: 20, color: color),
+              const SizedBox(width: 12),
               Text(
                 item.label,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 15,
                   color: color,
                   fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                 ),
