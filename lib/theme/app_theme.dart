@@ -88,6 +88,20 @@ class AppTheme {
       fontFamily: 'Inter',
       textTheme: _textTheme(),
       dividerColor: _hairline,
+      // Desktop pointer states per spec: hover white 4%, pressed white 6%.
+      hoverColor: const Color(0x0AFFFFFF),
+      highlightColor: const Color(0x0FFFFFFF),
+      // Thin unobtrusive scrollbars on web/desktop.
+      scrollbarTheme: ScrollbarThemeData(
+        thickness: const WidgetStatePropertyAll(8),
+        radius: const Radius.circular(4),
+        crossAxisMargin: 2,
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.hovered)
+              ? const Color(0x47FFFFFF)
+              : const Color(0x2EFFFFFF),
+        ),
+      ),
       extensions: const [CalmColors(positive: _positive, warning: _warning)],
       appBarTheme: const AppBarTheme(
         elevation: 0,

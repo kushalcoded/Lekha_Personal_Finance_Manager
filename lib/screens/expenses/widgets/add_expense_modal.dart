@@ -1,5 +1,6 @@
 import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:uuid/uuid.dart';
@@ -794,176 +795,193 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     final categories = ref.watch(expenseCategoriesProvider);
     final inlineWarning = _inlineWarning();
 
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(20, widget.isDialog ? 20 : 12, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!widget.isDialog)
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-              ),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Add expense',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.3,
+    return CallbackShortcuts(
+      // Works even while a field has focus — key events bubble up to here.
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): () {
+          if (_isFormValid) _handleSave();
+        },
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true): () {
+          if (_isFormValid) _handleSave();
+        },
+      },
+      child: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(20, widget.isDialog ? 20 : 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!widget.isDialog)
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
                 ),
-                InkResponse(
-                  onTap: () => Navigator.of(context).pop(),
-                  radius: 22,
-                  child: Icon(Icons.close_rounded, color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            if (widget.sourceLabel != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A1A21),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.07),
-                  ),
-                ),
-                child: Text(
-                  widget.sourceLabel!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-            ],
-            if (aiConfigured) ...[_nlQuickAdd(cs), const SizedBox(height: 18)],
-            const FieldLabel('Amount'),
-            const SizedBox(height: 8),
-            _amountBox(theme, cs),
-            const SizedBox(height: 18),
-            const FieldLabel('Note'),
-            const SizedBox(height: 8),
-            ExpenseNotesField(
-              controller: _notesController,
-              onChanged: (_) => _markInteracted(),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                const FieldLabel('Category'),
-                const Spacer(),
-                if (aiConfigured) _suggestLink(cs),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: categories.map((c) {
-                final style = CategoryStyles.of(c);
-                return ChoicePill(
-                  label: c,
-                  dotColor: style.color,
-                  selected: _selectedCategory == c,
-                  onTap: () {
-                    _markInteracted();
-                    setState(() => _selectedCategory = c);
-                  },
-                );
-              }).toList(),
-            ),
-            if (_showValidation && _selectedCategory == null) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Select a category',
-                style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
-              ),
-            ],
-            const SizedBox(height: 18),
-            const FieldLabel('Payment · Date'),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ..._paymentMethods.map(
-                  (m) => ChoicePill(
-                    label: m,
-                    selected: _selectedPaymentMethod == m,
-                    onTap: () {
-                      _markInteracted();
-                      setState(() => _selectedPaymentMethod = m);
-                    },
-                  ),
-                ),
-                ChoicePill(
-                  label: _formatShortDate(_selectedDate),
-                  icon: Icons.calendar_today_rounded,
-                  selected: false,
-                  onTap: _pickDate,
-                ),
-              ],
-            ),
-            if (_showValidation && _selectedPaymentMethod == null) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Select a payment method',
-                style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
-              ),
-            ],
-            const SizedBox(height: 18),
-            const FieldLabel('Split'),
-            const SizedBox(height: 8),
-            _splitRow(theme, cs),
-            if (inlineWarning != null) ...[
-              const SizedBox(height: 16),
-              _WarnBanner(text: inlineWarning),
-            ],
-            const SizedBox(height: 22),
-            if (widget.isDialog)
               Row(
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
-                    child: GradientButton(
-                      label: 'Add expense',
-                      enabled: _isFormValid,
-                      onPressed: _handleSave,
+                    child: Text(
+                      'Add expense',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ),
+                  InkResponse(
+                    onTap: () => Navigator.of(context).pop(),
+                    radius: 22,
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ],
-              )
-            else
-              GradientButton(
-                label: 'Add expense',
-                enabled: _isFormValid,
-                onPressed: _handleSave,
               ),
-          ],
+              const SizedBox(height: 18),
+              if (widget.sourceLabel != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1A21),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.07),
+                    ),
+                  ),
+                  child: Text(
+                    widget.sourceLabel!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+              if (aiConfigured) ...[
+                _nlQuickAdd(cs),
+                const SizedBox(height: 18),
+              ],
+              const FieldLabel('Amount'),
+              const SizedBox(height: 8),
+              _amountBox(theme, cs),
+              const SizedBox(height: 18),
+              const FieldLabel('Note'),
+              const SizedBox(height: 8),
+              ExpenseNotesField(
+                controller: _notesController,
+                onChanged: (_) => _markInteracted(),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  const FieldLabel('Category'),
+                  const Spacer(),
+                  if (aiConfigured) _suggestLink(cs),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: categories.map((c) {
+                  final style = CategoryStyles.of(c);
+                  return ChoicePill(
+                    label: c,
+                    dotColor: style.color,
+                    selected: _selectedCategory == c,
+                    onTap: () {
+                      _markInteracted();
+                      setState(() => _selectedCategory = c);
+                    },
+                  );
+                }).toList(),
+              ),
+              if (_showValidation && _selectedCategory == null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Select a category',
+                  style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+                ),
+              ],
+              const SizedBox(height: 18),
+              const FieldLabel('Payment · Date'),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ..._paymentMethods.map(
+                    (m) => ChoicePill(
+                      label: m,
+                      selected: _selectedPaymentMethod == m,
+                      onTap: () {
+                        _markInteracted();
+                        setState(() => _selectedPaymentMethod = m);
+                      },
+                    ),
+                  ),
+                  ChoicePill(
+                    label: _formatShortDate(_selectedDate),
+                    icon: Icons.calendar_today_rounded,
+                    selected: false,
+                    onTap: _pickDate,
+                  ),
+                ],
+              ),
+              if (_showValidation && _selectedPaymentMethod == null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Select a payment method',
+                  style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+                ),
+              ],
+              const SizedBox(height: 18),
+              const FieldLabel('Split'),
+              const SizedBox(height: 8),
+              _splitRow(theme, cs),
+              if (inlineWarning != null) ...[
+                const SizedBox(height: 16),
+                _WarnBanner(text: inlineWarning),
+              ],
+              const SizedBox(height: 22),
+              if (widget.isDialog)
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GradientButton(
+                        label: 'Add expense',
+                        enabled: _isFormValid,
+                        onPressed: _handleSave,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                GradientButton(
+                  label: 'Add expense',
+                  enabled: _isFormValid,
+                  onPressed: _handleSave,
+                ),
+            ],
+          ),
         ),
       ),
     );

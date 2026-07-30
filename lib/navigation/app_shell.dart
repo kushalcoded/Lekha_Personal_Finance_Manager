@@ -10,6 +10,8 @@ import '../screens/expenses/expenses_screen.dart';
 import '../screens/analytics/analytics_screen.dart';
 import '../screens/debts/debts_screen.dart';
 import '../screens/expenses/widgets/add_expense_modal.dart';
+import '../screens/expenses/widgets/expenses_widgets.dart'
+    show ExpenseSearchBar;
 import 'floating_glass_nav.dart';
 
 /// App shell: the current tab under a floating glass navigation bar.
@@ -52,6 +54,16 @@ class AppShell extends ConsumerWidget {
               goTo(NavigationTab.insights),
           const SingleActivator(LogicalKeyboardKey.digit4): () =>
               goTo(NavigationTab.debts),
+          // "/" jumps to Expenses and drops the cursor into search.
+          const SingleActivator(LogicalKeyboardKey.slash): () {
+            if (_typing()) return;
+            ref
+                .read(navigationProvider.notifier)
+                .navigateTo(NavigationTab.expenses);
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => ExpenseSearchBar.focusNode.requestFocus(),
+            );
+          },
         },
         child: Focus(
           autofocus: true,

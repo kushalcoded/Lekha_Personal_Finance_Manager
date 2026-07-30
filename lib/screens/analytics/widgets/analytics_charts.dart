@@ -173,6 +173,8 @@ class MonthlySpendingBarChart extends StatelessWidget {
           barGroups: data.asMap().entries.map((entry) {
             final index = entry.key;
             final total = entry.value.total;
+            // Spec chart rule: history bars 32% accent, current bar full.
+            final isCurrent = index == data.length - 1;
             return BarChartGroupData(
               x: index,
               barRods: [
@@ -180,7 +182,9 @@ class MonthlySpendingBarChart extends StatelessWidget {
                   toY: total,
                   width: 14,
                   borderRadius: BorderRadius.circular(6),
-                  color: colorScheme.primary,
+                  color: isCurrent
+                      ? colorScheme.primary
+                      : colorScheme.primary.withValues(alpha: 0.32),
                   backDrawRodData: BackgroundBarChartRodData(
                     show: true,
                     toY: maxValue <= 0 ? 1 : maxValue * 1.05,

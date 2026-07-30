@@ -55,6 +55,10 @@ class ExpenseSearchBar extends StatefulWidget {
   final ValueChanged<String> onSearch;
   final VoidCallback onFilterTapped;
 
+  /// Focused by the desktop "/" shortcut. App-singleton (one search bar
+  /// exists), so it is never disposed.
+  static final FocusNode focusNode = FocusNode();
+
   const ExpenseSearchBar({
     super.key,
     required this.onSearch,
@@ -87,6 +91,7 @@ class _ExpenseSearchBarState extends State<ExpenseSearchBar> {
         Expanded(
           child: TextField(
             controller: _controller,
+            focusNode: ExpenseSearchBar.focusNode,
             decoration: InputDecoration(
               hintText: 'Search expenses...',
               prefixIcon: const Icon(Icons.search),
