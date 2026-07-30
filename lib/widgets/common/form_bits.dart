@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Small uppercase field label (mockup `.fieldlab`).
+/// Small uppercase data label — JetBrains Mono, the Midnight Terminal
+/// signature detail. Used above fields and sections.
 class FieldLabel extends StatelessWidget {
   final String text;
 
@@ -13,9 +14,10 @@ class FieldLabel extends StatelessWidget {
       child: Text(
         text.toUpperCase(),
         style: TextStyle(
-          fontSize: 10.5,
-          letterSpacing: 0.7,
-          fontWeight: FontWeight.w600,
+          fontFamily: 'JetBrains Mono',
+          fontSize: 10,
+          letterSpacing: 0.8,
+          fontWeight: FontWeight.w500,
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
@@ -108,35 +110,24 @@ class GradientButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    // Flat accent fill with dark text (spec: no gradients, no glow; white
+    // on the light violet fails contrast).
     return Opacity(
-      opacity: enabled ? 1 : 0.5,
+      opacity: enabled ? 1 : 0.38,
       child: Material(
-        color: Colors.transparent,
+        color: cs.primary,
+        borderRadius: BorderRadius.circular(10),
         child: InkWell(
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(10),
           onTap: enabled ? onPressed : null,
-          child: Ink(
+          child: SizedBox(
             height: 52,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF8B7CF6), Color(0xFF6E5CE6)],
-              ),
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6E5CE6).withValues(alpha: 0.45),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
             child: Center(
               child: Text(
                 label,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: cs.onPrimary,
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
                 ),

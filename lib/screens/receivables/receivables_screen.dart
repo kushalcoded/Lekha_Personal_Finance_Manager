@@ -72,7 +72,7 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
                         end: Alignment.bottomLeft,
                         colors: [
                           calm.positive.withValues(alpha: 0.16),
-                          const Color(0xFF1E1B28).withValues(alpha: 0.42),
+                          const Color(0xFF131318).withValues(alpha: 0.42),
                         ],
                       ),
                       border: Border.all(

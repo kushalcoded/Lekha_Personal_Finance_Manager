@@ -530,7 +530,7 @@ class SettingsScreen extends ConsumerWidget {
   ) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF17151C),
+      backgroundColor: const Color(0xFF131318),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -599,7 +599,7 @@ Future<void> _pickOption(
 }) async {
   final selected = await showModalBottomSheet<String>(
     context: context,
-    backgroundColor: const Color(0xFF17151C),
+    backgroundColor: const Color(0xFF131318),
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),

@@ -62,8 +62,8 @@ class HistoryScreen extends ConsumerWidget {
                           end: Alignment.bottomLeft,
                           colors: [
                             theme.colorScheme.primary.withValues(alpha: 0.16),
-                            const Color(0xFF1E1B28).withValues(alpha: 0.42),
-                            const Color(0xFF1E1B28).withValues(alpha: 0.42),
+                            const Color(0xFF131318).withValues(alpha: 0.42),
+                            const Color(0xFF131318).withValues(alpha: 0.42),
                           ],
                           stops: const [0.0, 0.4, 1.0],
                         ),

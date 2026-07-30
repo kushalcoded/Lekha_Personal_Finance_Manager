@@ -35,9 +35,9 @@ class FloatingGlassNav extends ConsumerWidget {
             width: double.infinity,
             height: 70,
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1925),
+              color: const Color(0xFF131318),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.35),
@@ -97,9 +97,9 @@ class FloatingGlassRail extends ConsumerWidget {
       child: Container(
         width: 84,
         decoration: BoxDecoration(
-          color: const Color(0xFF1C1925),
+          color: const Color(0xFF131318),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
         ),
         child: Column(
           children: [

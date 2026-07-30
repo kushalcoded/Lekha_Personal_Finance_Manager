@@ -17,7 +17,7 @@ class GlassCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(16),
-    this.radius = 18,
+    this.radius = 12,
     this.border,
     this.gradient,
     this.shadow,
@@ -31,11 +31,11 @@ class GlassCard extends StatelessWidget {
     Widget content = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: gradient == null ? const Color(0xFF1C1925) : null,
+        color: gradient == null ? const Color(0xFF131318) : null,
         gradient: gradient,
         borderRadius: br,
         border:
-            border ?? Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border ?? Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       child: child,
     );

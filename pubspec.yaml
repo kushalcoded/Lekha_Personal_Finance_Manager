@@ -101,6 +101,9 @@ flutter:
     - family: Space Grotesk
       fonts:
         - asset: assets/fonts/SpaceGrotesk-Variable.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Variable.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

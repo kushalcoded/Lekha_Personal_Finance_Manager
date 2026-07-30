@@ -10,8 +10,8 @@ class CalmColors extends ThemeExtension<CalmColors> {
   const CalmColors({required this.positive, required this.warning});
 
   static const _fallback = CalmColors(
-    positive: Color(0xFF5FBE93),
-    warning: Color(0xFFD7A24C),
+    positive: Color(0xFF46C98B),
+    warning: Color(0xFFF0A13B),
   );
 
   /// Convenience lookup with a safe fallback.
@@ -38,50 +38,57 @@ class CalmColors extends ThemeExtension<CalmColors> {
 }
 
 class AppTheme {
-  // Calm Ledger tokens.
-  static const _accent = Color(0xFF8B7CF6);
-  static const _surface = Color(0xFF17151C);
-  static const _tile = Color(0xFF1C1925);
-  static const _text = Color(0xFFECEAF3);
-  static const _muted = Color(0xFF968FA8);
-  static const _border = Color(0x14FFFFFF); // ~8% white hairline
-  static const _positive = Color(0xFF5FBE93);
-  static const _negative = Color(0xFFE27C71);
-  static const _warning = Color(0xFFD7A24C);
+  // "Midnight Terminal" tokens (locked spec, 30 Jul 2026).
+  // The accent is light violet, so fills carry DARK text — white fails 3.2:1.
+  static const _accent = Color(0xFF9083F0);
+  static const _onAccent = Color(0xFF0A0A0D);
+  static const _ground = Color(0xFF0A0A0D);
+  static const _surface = Color(0xFF131318);
+  static const _surface2 = Color(0xFF1A1A21);
+  static const _text = Color(0xFFEDEDEF);
+  static const _muted = Color(0xFF8A8F98);
+  static const _hairline = Color(0x12FFFFFF); // white 7%
+  static const _hairlineStrong = Color(0x24FFFFFF); // white 14%
+  static const _positive = Color(0xFF46C98B);
+  static const _negative = Color(0xFFF2555A);
+  static const _warning = Color(0xFFF0A13B);
 
-  /// The app uses a single dark theme — "Calm Ledger", violet accent.
+  /// Exposed for the rare place that needs the ground outside a Scaffold
+  /// (splash, ambient background).
+  static const Color ground = _ground;
+
+  /// The app uses a single dark theme — violet accent on neutral near-black.
   static ThemeData get darkTheme {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: _accent,
-      brightness: Brightness.dark,
-    ).copyWith(
-      primary: _accent,
-      onPrimary: Colors.white,
-      secondary: _accent,
-      surface: _surface,
-      onSurface: _text,
-      onSurfaceVariant: _muted,
-      surfaceContainerHighest: _tile,
-      tertiary: _positive,
-      error: _negative,
-      onError: Colors.white,
-      outline: const Color(0x24FFFFFF),
-      outlineVariant: _border,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: _accent,
+          brightness: Brightness.dark,
+        ).copyWith(
+          primary: _accent,
+          onPrimary: _onAccent,
+          secondary: _accent,
+          onSecondary: _onAccent,
+          surface: _surface,
+          onSurface: _text,
+          onSurfaceVariant: _muted,
+          surfaceContainerHighest: _surface2,
+          tertiary: _positive,
+          error: _negative,
+          onError: Colors.white,
+          outline: _hairlineStrong,
+          outlineVariant: _hairline,
+        );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      // Transparent so the global AmbientBackground shows through every screen
-      // and glass surfaces have something to blur.
+      // Transparent so the global AmbientBackground provides the ground.
       scaffoldBackgroundColor: Colors.transparent,
       colorScheme: scheme,
       fontFamily: 'Inter',
       textTheme: _textTheme(),
-      dividerColor: _border,
-      extensions: const [
-        CalmColors(positive: _positive, warning: _warning),
-      ],
+      dividerColor: _hairline,
+      extensions: const [CalmColors(positive: _positive, warning: _warning)],
       appBarTheme: const AppBarTheme(
         elevation: 0,
         centerTitle: false,
@@ -91,58 +98,81 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: _tile,
+        color: _surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: _border),
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: _hairline),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: _accent,
-          foregroundColor: Colors.white,
+          foregroundColor: _onAccent,
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
           ),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: _tile,
+          backgroundColor: _surface2,
           foregroundColor: _text,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _accent,
+          side: const BorderSide(color: Color(0x809083F0)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
           ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(foregroundColor: _accent),
       ),
-      chipTheme: ChipThemeData(
-        backgroundColor: _tile,
-        side: const BorderSide(color: _border),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? _onAccent : _muted,
         ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? _accent : _surface2,
+        ),
+        trackOutlineColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.transparent
+              : _hairlineStrong,
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: _surface2,
+        side: const BorderSide(color: _hairline),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: _tile,
+        fillColor: _surface2,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: _border),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: _hairline),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: _accent, width: 1.4),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: _accent, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -155,8 +185,10 @@ class AppTheme {
     );
   }
 
-  /// Space Grotesk for display / headings / big money figures, Inter for UI
-  /// and body. Tabular figures everywhere so amounts line up in columns.
+  /// Space Grotesk is rationed: display + headline roles only (money heroes,
+  /// screen titles, stat values). Everything else is Inter; data labels use
+  /// bundled JetBrains Mono via [FieldLabel]-style widgets. Tabular figures
+  /// everywhere so amounts line up in columns.
   static TextTheme _textTheme() {
     const tnum = [FontFeature.tabularFigures()];
     final base = Typography.material2021(
@@ -181,7 +213,7 @@ class AppTheme {
       headlineLarge: display(base.headlineLarge),
       headlineMedium: display(base.headlineMedium),
       headlineSmall: display(base.headlineSmall),
-      titleLarge: display(base.titleLarge),
+      titleLarge: ui(base.titleLarge),
       titleMedium: ui(base.titleMedium),
       titleSmall: ui(base.titleSmall),
       bodyLarge: ui(base.bodyLarge),

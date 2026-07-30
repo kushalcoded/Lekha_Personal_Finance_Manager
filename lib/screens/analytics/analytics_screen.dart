@@ -420,7 +420,7 @@ class _AiInsightCard extends StatelessWidget {
           end: Alignment.bottomLeft,
           colors: [
             cs.primary.withValues(alpha: 0.18),
-            const Color(0xFF1E1B28).withValues(alpha: 0.42),
+            const Color(0xFF131318).withValues(alpha: 0.42),
           ],
         ),
         border: Border.all(color: cs.primary.withValues(alpha: 0.22)),

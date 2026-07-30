@@ -165,7 +165,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
   void _showAddChooser(BuildContext context) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF17151C),
+      backgroundColor: const Color(0xFF131318),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -220,7 +220,7 @@ class _TotalBanner extends StatelessWidget {
         end: Alignment.bottomLeft,
         colors: [
           color.withValues(alpha: 0.18),
-          const Color(0xFF1E1B28).withValues(alpha: 0.42),
+          const Color(0xFF131318).withValues(alpha: 0.42),
         ],
       ),
       border: Border.all(color: color.withValues(alpha: 0.22)),
