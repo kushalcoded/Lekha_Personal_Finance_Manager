@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/auth/auth_provider.dart';
 import '../../widgets/common/form_bits.dart';
@@ -204,6 +206,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ),
             ),
+            if (kIsWeb) ...[
+              const SizedBox(height: 6),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => launchUrl(
+                    Uri.parse(
+                      'https://github.com/kushalcoded/Lekha_Personal_Finance_Manager/releases/latest',
+                    ),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  icon: const Icon(Icons.android_rounded, size: 18),
+                  label: const Text('Get the Android app'),
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -1,7 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/ai_providers.dart';
 import '../../providers/auth/auth_provider.dart';
@@ -15,7 +15,12 @@ import '../../widgets/common/glass.dart';
 import '../cycle_recap_dialog.dart';
 import '../dashboard/widgets/budget_settings_modal.dart';
 import 'widgets/export_modal.dart';
+import 'widgets/iphone_sms_guide_screen.dart';
 import 'widgets/manage_categories_screen.dart';
+
+/// Latest Android APK lives on the GitHub release page.
+const _androidAppUrl =
+    'https://github.com/kushalcoded/Lekha_Personal_Finance_Manager/releases/latest';
 
 /// Settings screen — grouped, compact rows (icon · label · value/chevron/toggle)
 /// over frosted cards, matching the Calm Ledger mockup.
@@ -265,8 +270,22 @@ class SettingsScreen extends ConsumerWidget {
                         _SettingRow(
                           icon: Icons.phone_iphone_rounded,
                           title: 'Connect iPhone SMS',
-                          subtitle: 'Forward bank SMS via a Shortcuts automation',
-                          onTap: () => _showIphoneSmsDialog(context, ref),
+                          subtitle: 'Step-by-step Shortcuts setup guide',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const IphoneSmsGuideScreen(),
+                            ),
+                          ),
+                        ),
+                      if (kIsWeb)
+                        _SettingRow(
+                          icon: Icons.android_rounded,
+                          title: 'Get the Android app',
+                          subtitle: 'Native app with automatic SMS detection',
+                          onTap: () => launchUrl(
+                            Uri.parse(_androidAppUrl),
+                            mode: LaunchMode.externalApplication,
+                          ),
                         ),
                       _SettingRow(
                         icon: Icons.bug_report_rounded,
@@ -527,134 +546,6 @@ Future<void> _editDisplayName(BuildContext context, WidgetRef ref) async {
   );
   if (name != null && name.isNotEmpty) {
     await ref.read(settingsProvider.notifier).setDisplayName(name);
-  }
-}
-
-/// iPhone SMS capture: show the per-user ingest token + endpoint the user
-/// pastes into a Shortcuts automation (full steps in SETUP_IOS_SMS.md).
-Future<void> _showIphoneSmsDialog(BuildContext context, WidgetRef ref) async {
-  final sms = ref.read(smsCaptureServiceProvider);
-  final token = await sms.ensureIngestToken();
-  final lastAt = await sms.lastCloudSmsAt();
-  if (!context.mounted) return;
-  if (token == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Could not get a token — check you are signed in and online.'),
-      ),
-    );
-    return;
-  }
-  final endpoint =
-      '${dotenv.env['SUPABASE_URL'] ?? ''}/functions/v1/ingest-sms';
-
-  await showDialog<void>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Connect iPhone SMS'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'On the iPhone: Shortcuts → Automation → Message → '
-              '"Message Contains: debited" → Run Immediately → action '
-              '"Get Contents of URL" (POST, JSON) with:',
-              style: TextStyle(fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            _CopyField(label: 'URL', value: endpoint),
-            const SizedBox(height: 8),
-            _CopyField(label: 'token', value: token),
-            const SizedBox(height: 8),
-            const Text(
-              'body → the Message magic variable',
-              style: TextStyle(fontSize: 12.5),
-            ),
-            const SizedBox(height: 12),
-            Builder(
-              builder: (ctx2) {
-                final cs = Theme.of(ctx2).colorScheme;
-                final stale =
-                    lastAt != null &&
-                    DateTime.now().difference(lastAt).inDays >= 3;
-                final label = lastAt == null
-                    ? 'No SMS received from the iPhone yet.'
-                    : 'Last SMS received ${_relativeTime(lastAt)}.';
-                return Text(
-                  stale
-                      ? '$label If your iPhone has had bank SMS since, iOS may '
-                            'have disabled the automation — open Shortcuts and '
-                            'check it is still on.'
-                      : label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: stale ? cs.error : cs.onSurfaceVariant,
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text('Done'),
-        ),
-      ],
-    ),
-  );
-}
-
-String _relativeTime(DateTime time) {
-  final diff = DateTime.now().difference(time);
-  if (diff.inMinutes < 1) return 'just now';
-  if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
-  if (diff.inHours < 24) return '${diff.inHours} h ago';
-  return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
-}
-
-class _CopyField extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _CopyField({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
-              ),
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12.5),
-              ),
-            ],
-          ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.copy_rounded, size: 18),
-          onPressed: () {
-            Clipboard.setData(ClipboardData(text: value));
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('$label copied')),
-            );
-          },
-        ),
-      ],
-    );
   }
 }
 
