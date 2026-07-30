@@ -70,11 +70,16 @@ class ExpenseDetailsContent extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
+  /// True when embedded in the desktop master-detail pane: no close button,
+  /// and actions don't pop (there is no sheet/dialog to dismiss).
+  final bool inline;
+
   const ExpenseDetailsContent({
     super.key,
     required this.expense,
     required this.onEdit,
     required this.onDelete,
+    this.inline = false,
   });
 
   @override
@@ -101,11 +106,12 @@ class ExpenseDetailsContent extends StatelessWidget {
                   ),
                 ),
               ),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close_rounded),
-                tooltip: 'Close',
-              ),
+              if (!inline)
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded),
+                  tooltip: 'Close',
+                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -183,7 +189,7 @@ class ExpenseDetailsContent extends StatelessWidget {
             children: [
               TextButton(
                 onPressed: () {
-                  Navigator.of(context).pop();
+                  if (!inline) Navigator.of(context).pop();
                   onDelete();
                 },
                 style: TextButton.styleFrom(foregroundColor: colorScheme.error),
@@ -192,7 +198,7 @@ class ExpenseDetailsContent extends StatelessWidget {
               const Spacer(),
               ElevatedButton(
                 onPressed: () {
-                  Navigator.of(context).pop();
+                  if (!inline) Navigator.of(context).pop();
                   onEdit();
                 },
                 child: const Text('Edit Expense'),

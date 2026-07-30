@@ -34,6 +34,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   /// Detected section is in selection mode.
   final Set<String> _selectedPending = {};
 
+  /// Desktop master-detail: the expense shown in the right pane.
+  String? _selectedExpenseId;
+
   @override
   Widget build(BuildContext context) {
     final filterState = ref.watch(expensesListProvider);
@@ -42,6 +45,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     final categories = ref.watch(expenseCategoriesProvider);
     final stats = ref.watch(expenseStatsProvider);
     final pending = ref.watch(pendingTransactionsProvider);
+    final isWide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -75,7 +79,10 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       ),
       body: expensesState.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
+          : _wideWrap(
+              isWide,
+              expensesState.expenses,
+              RefreshIndicator(
               onRefresh: () => ref.read(syncProvider.notifier).syncNow(),
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -213,11 +220,55 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                       }, childCount: groupedExpenses.length),
                     ),
                   SliverToBoxAdapter(
-                    child: SizedBox(height: kNavBottomInset),
+                    child: SizedBox(height: isWide ? 24 : kNavBottomInset),
                   ),
                 ],
               ),
+              ),
             ),
+    );
+  }
+
+  /// Desktop: pin the list into a fixed-width master column with the selected
+  /// expense in a live detail pane beside it. Narrow screens get [list] as-is.
+  Widget _wideWrap(bool isWide, List<Expense> all, Widget list) {
+    if (!isWide) return list;
+    final matches = all.where((e) => e.id == _selectedExpenseId);
+    final selected = matches.isEmpty ? null : matches.first;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(width: 440, child: list),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 12, 16, 24),
+            child: selected == null
+                ? GlassCard(
+                    radius: 18,
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: Text(
+                        'Select an expense to see its details',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  )
+                : GlassCard(
+                    radius: 18,
+                    padding: EdgeInsets.zero,
+                    child: ExpenseDetailsContent(
+                      inline: true,
+                      expense: selected,
+                      onEdit: () =>
+                          showEditExpenseModal(context, expense: selected),
+                      onDelete: () => _confirmDelete(selected),
+                    ),
+                  ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -271,6 +322,11 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   }
 
   void _showDetails(Expense expense) {
+    // Desktop: select into the detail pane instead of opening a sheet.
+    if (MediaQuery.sizeOf(context).width >= kWideBreakpoint) {
+      setState(() => _selectedExpenseId = expense.id);
+      return;
+    }
     showExpenseDetailsSheet(
       context: context,
       expense: expense,
