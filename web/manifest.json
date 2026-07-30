@@ -5,7 +5,7 @@
     "display": "standalone",
     "background_color": "#0E0D12",
     "theme_color": "#0E0D12",
-    "description": "Offline-first money & debt tracker. Private by default, sync when you want it.",
+    "description": "Money & debt tracker. Auto-captures bank SMS, splits bills, syncs across your devices.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
