@@ -70,7 +70,13 @@ class SupabaseSyncService {
         downloads = 1;
         marker = remote.updatedAt;
       } else {
-        // PUSH: send our snapshot up.
+        // PUSH — but first fold in any detected-SMS state the other device
+        // pushed since our last pull; a wholesale upload would silently
+        // drop it. Counted as a download so the UI refreshes.
+        if (remote != null) {
+          final merged = await _hiveService.mergeRemotePending(remote.snapshot);
+          if (merged) downloads = 1;
+        }
         marker = await _uploadSnapshot(userId);
         uploads = 1;
       }

@@ -683,6 +683,49 @@ class HiveService {
     _notifyChanged();
   }
 
+  /// Fold another device's detected-SMS state into this one before a push.
+  /// Whole-snapshot last-write-wins would otherwise drop pending items this
+  /// device never pulled (phone detects an SMS while you're active on web →
+  /// web's next push clobbers it). Union by id; a terminal status (added /
+  /// dismissed) beats pending. Returns true if anything changed locally.
+  ///
+  /// Deliberately does NOT go through _notifyChanged: the caller pushes the
+  /// merged snapshot immediately, and merged-in remote data isn't a local
+  /// edit.
+  Future<bool> mergeRemotePending(Map<String, dynamic> snapshot) async {
+    if (!_initialized) return false;
+    var changed = false;
+    final remotePending = snapshot['pendingTransactions'];
+    if (remotePending is List) {
+      for (final entry in remotePending.whereType<Map>()) {
+        final map = Map<String, dynamic>.from(entry);
+        final id = map['id'];
+        if (id is! String) continue;
+        final local = _pendingBox.get(id);
+        if (local == null) {
+          await _pendingBox.put(id, map);
+          changed = true;
+        } else if (local['status'] == PendingStatus.pending.name &&
+            map['status'] != PendingStatus.pending.name) {
+          // The other device already added or dismissed it.
+          await _pendingBox.put(id, map);
+          changed = true;
+        }
+      }
+    }
+    // Union the seen-hash set so neither device re-parses the other's SMS.
+    final remoteSeen = snapshot['smsSeen'];
+    if (remoteSeen is Map) {
+      for (final key in remoteSeen.keys) {
+        final hash = '$key';
+        if (!(_smsSeenBox.get(hash) ?? false)) {
+          await _smsSeenBox.put(hash, true);
+        }
+      }
+    }
+    return changed;
+  }
+
   /// Have we already run this SMS (by hash) through the parse pipeline?
   bool isSmsSeen(String hash) {
     if (!_initialized) return false;
@@ -870,20 +913,39 @@ class HiveService {
       await setMonthlyBudget(userId, DateTime.now(), monthlyBudgetValue);
     }
 
-    // Detected-SMS pending list + the seen-hashes dedup set.
-    await _pendingBox.clear();
+    // Detected-SMS pending list + the seen-hashes dedup set. Rows are never
+    // deleted (only status-changed), so a local row the snapshot has never
+    // heard of is a fresh detection this device hasn't pushed yet — keep it
+    // rather than losing it to the restore.
+    final localOnlyPending = <String, Map<String, dynamic>>{};
     final pendingRaw = snapshot['pendingTransactions'];
+    final snapshotIds = pendingRaw is List
+        ? pendingRaw.whereType<Map>().map((e) => '${e['id']}').toSet()
+        : const <String>{};
+    for (final entry in _pendingBox.values) {
+      final map = Map<String, dynamic>.from(entry);
+      final id = map['id'];
+      if (id is String && !snapshotIds.contains(id)) {
+        localOnlyPending[id] = map;
+      }
+    }
+    await _pendingBox.clear();
     if (pendingRaw is List) {
       for (final entry in pendingRaw.whereType<Map>()) {
         final map = Map<String, dynamic>.from(entry);
         await _pendingBox.put(map['id'], map);
       }
     }
-    await _smsSeenBox.clear();
+    for (final entry in localOnlyPending.entries) {
+      await _pendingBox.put(entry.key, entry.value);
+    }
+    // Seen hashes: union instead of replace, for the same reason.
     final smsSeenRaw = snapshot['smsSeen'];
     if (smsSeenRaw is Map) {
       for (final entry in smsSeenRaw.entries) {
-        await _smsSeenBox.put(entry.key.toString(), entry.value == true);
+        if (entry.value == true) {
+          await _smsSeenBox.put(entry.key.toString(), true);
+        }
       }
     }
 
