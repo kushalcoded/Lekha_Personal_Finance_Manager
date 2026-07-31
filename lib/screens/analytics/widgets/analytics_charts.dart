@@ -270,8 +270,12 @@ class SpendingTrendLineChart extends StatelessWidget {
                   } else {
                     label = DateFormat('MMM').format(date);
                   }
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                  // fitInside keeps the first/last labels within the chart
+                  // bounds — otherwise they center on the edge points and
+                  // paint outside the card.
+                  return SideTitleWidget(
+                    meta: meta,
+                    fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
                     child: Text(
                       label,
                       style: theme.textTheme.labelSmall?.copyWith(

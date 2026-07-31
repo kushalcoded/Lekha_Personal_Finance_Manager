@@ -69,8 +69,10 @@ class NetBalanceTrendChart extends StatelessWidget {
                   }
                   final date = points[index].date;
                   final label = DateFormat('MMM').format(date);
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
+                  // fitInside keeps edge labels within the card bounds.
+                  return SideTitleWidget(
+                    meta: meta,
+                    fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
                     child: Text(
                       label,
                       style: theme.textTheme.labelSmall?.copyWith(
