@@ -57,7 +57,27 @@ class PersonLedgerScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(title: Text(person)),
+      appBar: AppBar(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 14,
+              backgroundColor: const Color(0xFF1A1A21),
+              child: Text(
+                person.isEmpty ? '?' : person[0].toUpperCase(),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(person),
+          ],
+        ),
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
@@ -104,26 +124,45 @@ class PersonLedgerScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => _recordPayment(context, ref, balance),
-              icon: const Icon(Icons.payments_rounded, size: 18),
-              label: Text(
-                net >= 0 ? 'Record a payment' : 'Record what you paid',
-              ),
-            ),
-          ),
-          if (net > 0) ...[
-            const SizedBox(height: 10),
+          // Mockup: iconless buttons — paired on desktop, stacked on phone.
+          if (isWide && net > 0)
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () => _recordPayment(context, ref, balance),
+                    child: const Text('Record a payment'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _sendReminder(context, ref, balance),
+                    child: const Text('Send reminder'),
+                  ),
+                ),
+              ],
+            )
+          else ...[
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _sendReminder(context, ref, balance),
-                icon: const Icon(Icons.waving_hand_rounded, size: 18),
-                label: const Text('Send a gentle reminder'),
+              child: FilledButton(
+                onPressed: () => _recordPayment(context, ref, balance),
+                child: Text(
+                  net >= 0 ? 'Record a payment' : 'Record what you paid',
+                ),
               ),
             ),
+            if (net > 0) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => _sendReminder(context, ref, balance),
+                  child: const Text('Send a gentle reminder'),
+                ),
+              ),
+            ],
           ],
           const SizedBox(height: 18),
           FieldLabel(isWide ? 'Ledger' : 'Ledger · swipe to settle'),
@@ -430,19 +469,29 @@ class _ReminderPreviewDialogState extends State<_ReminderPreviewDialog> {
   }
 }
 
-class _LedgerRow extends StatelessWidget {
+class _LedgerRow extends StatefulWidget {
   final PersonLedgerItem item;
   final VoidCallback onSettle;
 
   const _LedgerRow({required this.item, required this.onSettle});
 
   @override
+  State<_LedgerRow> createState() => _LedgerRowState();
+}
+
+class _LedgerRowState extends State<_LedgerRow> {
+  bool _hover = false;
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final calm = CalmColors.of(context);
+    final item = widget.item;
     final color = item.isReceivable ? calm.positive : cs.error;
     final when = DateFormat('MMM d').format(item.date);
+    // Desktop has no swipe — the settle check appears on hover instead.
+    final wide = MediaQuery.sizeOf(context).width >= 900;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -453,7 +502,7 @@ class _LedgerRow extends StatelessWidget {
           extentRatio: 0.3,
           children: [
             SlidableAction(
-              onPressed: (_) => onSettle(),
+              onPressed: (_) => widget.onSettle(),
               backgroundColor: calm.positive,
               foregroundColor: Colors.white,
               icon: Icons.check_rounded,
@@ -462,90 +511,76 @@ class _LedgerRow extends StatelessWidget {
             ),
           ],
         ),
-        child: GlassCard(
-          radius: 12,
-          padding: const EdgeInsets.all(12),
-          child: Opacity(
-            opacity: item.settled ? 0.45 : 1,
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Icon(
-                    item.isReceivable
-                        ? Icons.south_west_rounded
-                        : Icons.north_east_rounded,
-                    size: 17,
-                    color: color,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.note?.isNotEmpty == true
-                            ? item.note!
-                            : (item.isReceivable ? 'Owes you' : 'You owe'),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w500,
-                          decoration: item.settled
-                              ? TextDecoration.lineThrough
-                              : null,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: GlassCard(
+            radius: 12,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Opacity(
+              opacity: item.settled ? 0.45 : 1,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.note?.isNotEmpty == true
+                              ? item.note!
+                              : (item.isReceivable ? 'Owes you' : 'You owe'),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            decoration: item.settled
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        item.settled
-                            ? '$when · settled'
-                            : item.isOverdue
-                            ? '$when · overdue'
-                            : when,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: item.isOverdue && !item.settled
-                              ? cs.error
-                              : cs.onSurfaceVariant,
-                          fontSize: 11.5,
+                        const SizedBox(height: 2),
+                        Text(
+                          item.settled
+                              ? 'Settled $when'
+                              : item.isOverdue
+                              ? '$when · overdue'
+                              : when,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: item.isOverdue && !item.settled
+                                ? cs.error
+                                : cs.onSurfaceVariant,
+                            fontSize: 11.5,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${item.isReceivable ? '+' : '-'}${AppFormatters.formatCurrency(item.amount)}',
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: item.settled ? cs.onSurfaceVariant : color,
-                    decoration: item.settled
-                        ? TextDecoration.lineThrough
-                        : null,
-                  ),
-                ),
-                // Desktop has no swipe — surface the settle action directly.
-                if (!item.settled &&
-                    MediaQuery.sizeOf(context).width >= 900) ...[
-                  const SizedBox(width: 6),
-                  IconButton(
-                    onPressed: onSettle,
-                    tooltip: item.isReceivable ? 'Mark received' : 'Settle',
-                    icon: Icon(
-                      Icons.check_circle_outline_rounded,
-                      size: 19,
-                      color: cs.onSurfaceVariant,
+                      ],
                     ),
-                    visualDensity: VisualDensity.compact,
                   ),
+                  const SizedBox(width: 8),
+                  Text(
+                    AppFormatters.formatCurrency(item.amount),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: item.settled ? cs.onSurfaceVariant : color,
+                      decoration: item.settled
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
+                  ),
+                  if (!item.settled && wide && _hover) ...[
+                    const SizedBox(width: 6),
+                    IconButton(
+                      onPressed: widget.onSettle,
+                      tooltip: item.isReceivable ? 'Mark received' : 'Settle',
+                      icon: Icon(
+                        Icons.check_circle_outline_rounded,
+                        size: 19,
+                        color: cs.onSurfaceVariant,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
