@@ -445,8 +445,10 @@ class _StatBox extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            // Spec: stat values are Space Grotesk 600.
             style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
+              fontFamily: 'Space Grotesk',
+              fontWeight: FontWeight.w600,
               letterSpacing: -0.3,
             ),
           ),
@@ -566,7 +568,7 @@ class _ExpenseRowState extends State<_ExpenseRow> {
             ],
             const SizedBox(width: 8),
             Text(
-              '-${AppFormatters.formatCurrency(expense.amount)}',
+              AppFormatters.formatCurrency(expense.amount),
               style: theme.textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w700,
               ),

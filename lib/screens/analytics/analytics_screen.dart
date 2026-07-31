@@ -127,11 +127,7 @@ class AnalyticsScreen extends ConsumerWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Spending Analysis',
-                    style: theme.textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 16),
+                  // Mockup: AI card leads directly under the screen title.
                   _AiInsightCard(summary: aiSummary),
                   GridView.builder(
                     itemCount: summaryCards.length,

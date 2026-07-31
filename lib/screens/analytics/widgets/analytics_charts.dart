@@ -350,26 +350,6 @@ class PaymentMethodBreakdown extends StatelessWidget {
 
   const PaymentMethodBreakdown({super.key, required this.stats});
 
-  Color _methodColor(BuildContext context, String method) {
-    final colorScheme = Theme.of(context).colorScheme;
-    switch (method) {
-      case 'GPay':
-        return const Color(0xFF3AA76D);
-      case 'PhonePe':
-        return const Color(0xFF6E7BB8);
-      case 'Paytm':
-        return const Color(0xFF4A8CC5);
-      case 'Cash':
-        return const Color(0xFFB28A4A);
-      case 'Card':
-        return colorScheme.secondary;
-      case 'Bank Transfer':
-        return colorScheme.tertiary;
-      default:
-        return colorScheme.primary;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -384,9 +364,19 @@ class PaymentMethodBreakdown extends StatelessWidget {
       );
     }
 
+    // Mockup: only methods actually used, violet bars whose intensity
+    // tracks their share.
+    final visible = stats.where((s) => s.amount > 0).toList();
+    final maxShare = visible.fold<double>(
+      0,
+      (m, s) => s.share > m ? s.share : m,
+    );
+
     return Column(
-      children: stats.map((stat) {
-        final color = _methodColor(context, stat.method);
+      children: visible.map((stat) {
+        final barColor = colorScheme.primary.withValues(
+          alpha: maxShare <= 0 ? 1.0 : 0.28 + 0.72 * (stat.share / maxShare),
+        );
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Column(
@@ -411,7 +401,7 @@ class PaymentMethodBreakdown extends StatelessWidget {
                   Text(
                     '${(stat.share * 100).toStringAsFixed(0)}%',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: color,
+                      color: colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -424,7 +414,7 @@ class PaymentMethodBreakdown extends StatelessWidget {
                   value: stat.share,
                   minHeight: 8,
                   backgroundColor: colorScheme.surfaceContainerHighest,
-                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                  valueColor: AlwaysStoppedAnimation<Color>(barColor),
                 ),
               ),
             ],

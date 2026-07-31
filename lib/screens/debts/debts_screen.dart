@@ -126,18 +126,21 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: Padding(
-        // Lift the add button clear above the floating navigation bar (which
-        // doesn't exist on wide screens).
-        padding: EdgeInsets.only(bottom: isWide ? 0 : kNavBottomInset - 36),
-        child: FloatingActionButton(
-          onPressed: () => _showAddChooser(context),
-          backgroundColor: cs.primary,
-          foregroundColor: cs.onPrimary,
-          tooltip: 'Add a debt',
-          child: const Icon(Icons.add_rounded),
-        ),
-      ),
+      // Desktop already has the inline add row + sidebar button; the FAB is
+      // a thumb-reach affordance for phones only.
+      floatingActionButton: isWide
+          ? null
+          : Padding(
+              // Lift the add button clear above the floating navigation bar.
+              padding: EdgeInsets.only(bottom: kNavBottomInset - 36),
+              child: FloatingActionButton(
+                onPressed: () => _showAddChooser(context),
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
+                tooltip: 'Add a debt',
+                child: const Icon(Icons.add_rounded),
+              ),
+            ),
       body: SafeArea(
         bottom: false,
         child: isWide

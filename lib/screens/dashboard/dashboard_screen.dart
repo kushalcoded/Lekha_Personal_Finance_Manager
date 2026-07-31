@@ -214,17 +214,18 @@ class _Header extends StatelessWidget {
             ),
           ),
         ),
+        // Informational, not tappable — so no violet (locked accent rule).
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: cs.primary.withValues(alpha: 0.14),
+            color: const Color(0xFF1A1A21),
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: cs.primary.withValues(alpha: 0.28)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
           ),
           child: Text(
             'Cycle · day $cycleDay',
             style: theme.textTheme.labelSmall?.copyWith(
-              color: cs.primary,
+              color: cs.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
