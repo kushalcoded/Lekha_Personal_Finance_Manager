@@ -27,7 +27,7 @@ class ExpenseCategory {
     return ExpenseCategory(
       name: json['name'] as String,
       iconKey: json['iconKey'] as String? ?? 'category',
-      colorHex: json['colorHex'] as String? ?? '#8A8A8A',
+      colorHex: json['colorHex'] as String? ?? '#9AA1AD',
     );
   }
 }
@@ -37,44 +37,46 @@ class ExpenseCategory {
 /// existing default for [Payable.category].
 const kProtectedCategoryName = 'Miscellaneous';
 
-/// Seeded on first run so the app starts with the same categories as before.
+/// Seeded on first run — colors from the Midnight Terminal tint family
+/// (CategoryStyles.paletteHex). Pre-redesign hexes already stored in Hive
+/// are remapped at render time by CategoryStyles.parseHex.
 const defaultExpenseCategories = <ExpenseCategory>[
-  ExpenseCategory(name: 'Food', iconKey: 'restaurant', colorHex: '#6E8FA5'),
-  ExpenseCategory(name: 'Friends', iconKey: 'people', colorHex: '#8A9B6E'),
+  ExpenseCategory(name: 'Food', iconKey: 'restaurant', colorHex: '#F0A13B'),
+  ExpenseCategory(name: 'Friends', iconKey: 'people', colorHex: '#7BC98F'),
   ExpenseCategory(
     name: 'Fuel',
     iconKey: 'local_gas_station',
-    colorHex: '#7C6FAF',
+    colorHex: '#E8906A',
   ),
   ExpenseCategory(
     name: 'Shopping',
     iconKey: 'shopping_bag',
-    colorHex: '#6EA39B',
+    colorHex: '#5AB5A5',
   ),
-  ExpenseCategory(name: 'Luxury', iconKey: 'diamond', colorHex: '#B18AA8'),
-  ExpenseCategory(name: 'Rent', iconKey: 'home', colorHex: '#7FA8A8'),
-  ExpenseCategory(name: 'Bills', iconKey: 'receipt_long', colorHex: '#7E9C85'),
+  ExpenseCategory(name: 'Luxury', iconKey: 'diamond', colorHex: '#CE93C4'),
+  ExpenseCategory(name: 'Rent', iconKey: 'home', colorHex: '#D8A878'),
+  ExpenseCategory(name: 'Bills', iconKey: 'receipt_long', colorHex: '#8FA3BF'),
   ExpenseCategory(
     name: 'Subscriptions',
     iconKey: 'subscriptions',
-    colorHex: '#9B7C7C',
+    colorHex: '#8F9FE0',
   ),
-  ExpenseCategory(name: 'Travel', iconKey: 'flight', colorHex: '#6E7F9C'),
+  ExpenseCategory(name: 'Travel', iconKey: 'flight', colorHex: '#6BC0CE'),
   ExpenseCategory(
     name: 'Health',
     iconKey: 'local_hospital',
-    colorHex: '#9C7E6E',
+    colorHex: '#E8879C',
   ),
-  ExpenseCategory(name: 'Gifts', iconKey: 'card_giftcard', colorHex: '#8A7C9A'),
-  ExpenseCategory(name: 'Entertainment', iconKey: 'movie', colorHex: '#7A9C8B'),
+  ExpenseCategory(name: 'Gifts', iconKey: 'card_giftcard', colorHex: '#D98BB0'),
+  ExpenseCategory(name: 'Entertainment', iconKey: 'movie', colorHex: '#C08AD8'),
   ExpenseCategory(
     name: 'Investment',
     iconKey: 'trending_up',
-    colorHex: '#8E8A6D',
+    colorHex: '#A3BF7B',
   ),
   ExpenseCategory(
     name: kProtectedCategoryName,
     iconKey: 'category',
-    colorHex: '#8A8A8A',
+    colorHex: '#9AA1AD',
   ),
 ];

@@ -20,8 +20,12 @@ void main() {
   test('parseHex handles valid, prefixed, and invalid input', () {
     expect(CategoryStyles.parseHex('#FF8800'), const Color(0xFFFF8800));
     expect(CategoryStyles.parseHex('FF8800'), const Color(0xFFFF8800));
-    // Invalid falls back to the neutral grey rather than throwing.
-    expect(CategoryStyles.parseHex('nope'), const Color(0xFF8A8A8A));
+    // Invalid falls back to the neutral slate rather than throwing.
+    expect(CategoryStyles.parseHex('nope'), const Color(0xFF9AA1AD));
+    // Pre-redesign palette hexes stored in Hive remap to the Midnight
+    // Terminal family at render time.
+    expect(CategoryStyles.parseHex('#8A9B6E'), const Color(0xFF7BC98F));
+    expect(CategoryStyles.parseHex('#8a9b6e'), const Color(0xFF7BC98F));
   });
 
   test('iconForKey falls back for unknown keys', () {

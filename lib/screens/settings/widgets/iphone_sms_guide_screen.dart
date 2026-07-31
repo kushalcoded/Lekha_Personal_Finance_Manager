@@ -311,7 +311,7 @@ class _Step extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1925),
+                  color: const Color(0xFF1A1A21),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.08),

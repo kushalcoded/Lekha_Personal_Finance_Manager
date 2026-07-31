@@ -71,96 +71,123 @@ class CategoryStyles {
     'category': Icons.category_rounded,
   };
 
-  /// Muted palette used for the color picker and deterministic fallbacks.
+  /// Midnight Terminal category tint family (mockup: amber/teal/sky/tan/
+  /// purple…) — consistent saturation and lightness so every hue sits calmly
+  /// on the dark ground. Used for the color picker and deterministic
+  /// fallbacks. Violet is deliberately absent: violet means tappable.
   static const List<String> paletteHex = [
-    '#6E8FA5',
-    '#7C6FAF',
-    '#6EA39B',
-    '#8A9B6E',
-    '#9B7C7C',
-    '#6E7F9C',
-    '#9C7E6E',
-    '#7E9C85',
-    '#7A9C8B',
-    '#8E8A6D',
-    '#B18AA8',
-    '#7FA8A8',
-    '#8A7C9A',
-    '#6D8AAE',
-    '#B07A7A',
-    '#8A8A8A',
+    '#F0A13B', // amber
+    '#E8906A', // coral
+    '#D8A878', // sand
+    '#C7B08A', // tan
+    '#A3BF7B', // sage
+    '#7BC98F', // green
+    '#5AB5A5', // teal
+    '#6BC0CE', // cyan
+    '#64B5E8', // sky
+    '#8FA3BF', // slate blue
+    '#8F9FE0', // periwinkle
+    '#C08AD8', // purple
+    '#CE93C4', // orchid
+    '#D98BB0', // pink
+    '#E8879C', // rose
+    '#9AA1AD', // neutral slate
   ];
 
-  /// Built-in fallback styles for any legacy category names.
+  /// Old muted palette → its Midnight Terminal replacement. Custom
+  /// categories saved before the redesign carry these hexes in Hive; the
+  /// remap converts them at render time without rewriting storage.
+  static const Map<String, String> _legacyHex = {
+    '#6E8FA5': '#64B5E8',
+    '#7C6FAF': '#8F9FE0',
+    '#6EA39B': '#5AB5A5',
+    '#8A9B6E': '#7BC98F',
+    '#9B7C7C': '#E8879C',
+    '#6E7F9C': '#8FA3BF',
+    '#9C7E6E': '#E8906A',
+    '#7E9C85': '#A3BF7B',
+    '#7A9C8B': '#6BC0CE',
+    '#8E8A6D': '#A3BF7B',
+    '#B18AA8': '#CE93C4',
+    '#7FA8A8': '#5AB5A5',
+    '#8A7C9A': '#C08AD8',
+    '#6D8AAE': '#64B5E8',
+    '#B07A7A': '#D98BB0',
+    '#9A8C6E': '#C7B08A',
+    '#8A8A8A': '#9AA1AD',
+  };
+
+  /// Built-in styles, on the Midnight Terminal tint family (Food amber,
+  /// Shopping teal, Transport sky, Utilities tan — straight from the mockup).
   static const Map<String, CategoryStyle> _styles = {
     'Food': CategoryStyle(
       icon: Icons.restaurant_rounded,
-      color: Color(0xFF6E8FA5),
+      color: Color(0xFFF0A13B),
     ),
     'Fuel': CategoryStyle(
       icon: Icons.local_gas_station_rounded,
-      color: Color(0xFF7C6FAF),
+      color: Color(0xFFE8906A),
     ),
     'Shopping': CategoryStyle(
       icon: Icons.shopping_bag_rounded,
-      color: Color(0xFF6EA39B),
+      color: Color(0xFF5AB5A5),
     ),
     'Friends': CategoryStyle(
       icon: Icons.people_alt_rounded,
-      color: Color(0xFF8A9B6E),
+      color: Color(0xFF7BC98F),
     ),
     'Subscriptions': CategoryStyle(
       icon: Icons.subscriptions_rounded,
-      color: Color(0xFF9B7C7C),
+      color: Color(0xFF8F9FE0),
     ),
     'Travel': CategoryStyle(
       icon: Icons.flight_rounded,
-      color: Color(0xFF6E7F9C),
+      color: Color(0xFF6BC0CE),
     ),
     'Health': CategoryStyle(
       icon: Icons.local_hospital_rounded,
-      color: Color(0xFF9C7E6E),
+      color: Color(0xFFE8879C),
     ),
     'Bills': CategoryStyle(
       icon: Icons.receipt_long_rounded,
-      color: Color(0xFF7E9C85),
+      color: Color(0xFF8FA3BF),
     ),
     'Entertainment': CategoryStyle(
       icon: Icons.movie_rounded,
-      color: Color(0xFF7A9C8B),
+      color: Color(0xFFC08AD8),
     ),
     'Investment': CategoryStyle(
       icon: Icons.trending_up_rounded,
-      color: Color(0xFF8E8A6D),
+      color: Color(0xFFA3BF7B),
     ),
     'Luxury': CategoryStyle(
       icon: Icons.diamond_rounded,
-      color: Color(0xFFB18AA8),
+      color: Color(0xFFCE93C4),
     ),
     'Miscellaneous': CategoryStyle(
       icon: Icons.category_rounded,
-      color: Color(0xFF8A8A8A),
+      color: Color(0xFF9AA1AD),
     ),
-    'Rent': CategoryStyle(icon: Icons.home_rounded, color: Color(0xFF7FA8A8)),
+    'Rent': CategoryStyle(icon: Icons.home_rounded, color: Color(0xFFD8A878)),
     'Gifts': CategoryStyle(
       icon: Icons.card_giftcard_rounded,
-      color: Color(0xFF8A7C9A),
+      color: Color(0xFFD98BB0),
     ),
     'Transport': CategoryStyle(
       icon: Icons.directions_car_rounded,
-      color: Color(0xFF6D8AAE),
+      color: Color(0xFF64B5E8),
     ),
     'Utilities': CategoryStyle(
       icon: Icons.lightbulb_rounded,
-      color: Color(0xFF9A8C6E),
+      color: Color(0xFFC7B08A),
     ),
     'Healthcare': CategoryStyle(
       icon: Icons.favorite_rounded,
-      color: Color(0xFFB07A7A),
+      color: Color(0xFFE8879C),
     ),
     'Other': CategoryStyle(
       icon: Icons.category_rounded,
-      color: Color(0xFF8A8A8A),
+      color: Color(0xFF9AA1AD),
     ),
   };
 
@@ -193,15 +220,16 @@ class CategoryStyles {
   }
 
   static Color parseHex(String hex) {
-    var value = hex.trim().replaceAll('#', '');
+    final normalized = '#${hex.trim().replaceAll('#', '').toUpperCase()}';
+    var value = (_legacyHex[normalized] ?? normalized).replaceAll('#', '');
     if (value.length == 6) value = 'FF$value';
     final parsed = int.tryParse(value, radix: 16);
-    return parsed == null ? const Color(0xFF8A8A8A) : Color(parsed);
+    return parsed == null ? const Color(0xFF9AA1AD) : Color(parsed);
   }
 
   /// Stable palette color for a name when no explicit style exists.
   static String fallbackHexFor(String name) {
-    if (name.isEmpty) return '#8A8A8A';
+    if (name.isEmpty) return '#9AA1AD';
     return paletteHex[name.hashCode.abs() % paletteHex.length];
   }
 
