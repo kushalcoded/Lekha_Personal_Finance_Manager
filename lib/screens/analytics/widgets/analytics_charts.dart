@@ -178,20 +178,18 @@ class MonthlySpendingBarChart extends StatelessWidget {
             return BarChartGroupData(
               x: index,
               barRods: [
+                // Mockup: wide rectangular bars, slight rounding, no
+                // background track.
                 BarChartRodData(
                   toY: total,
-                  width: 14,
-                  borderRadius: BorderRadius.circular(6),
+                  width: 30,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(4),
+                    bottom: Radius.circular(2),
+                  ),
                   color: isCurrent
                       ? colorScheme.primary
                       : colorScheme.primary.withValues(alpha: 0.32),
-                  backDrawRodData: BackgroundBarChartRodData(
-                    show: true,
-                    toY: maxValue <= 0 ? 1 : maxValue * 1.05,
-                    color: colorScheme.surfaceContainerHighest.withValues(
-                      alpha: 0.5,
-                    ),
-                  ),
                 ),
               ],
             );
