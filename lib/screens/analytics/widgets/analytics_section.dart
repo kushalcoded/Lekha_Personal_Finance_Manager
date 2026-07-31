@@ -44,11 +44,16 @@ class AnalyticsSection extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // Mockup chart cards carry mono uppercase headers.
             Expanded(
               child: Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
+                title.toUpperCase(),
+                style: TextStyle(
+                  fontFamily: 'JetBrains Mono',
+                  fontSize: 10,
+                  letterSpacing: 0.8,
+                  fontWeight: FontWeight.w500,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
             ),

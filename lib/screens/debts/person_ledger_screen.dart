@@ -9,6 +9,7 @@ import '../../providers/ai_providers.dart';
 import '../../providers/storage/storage_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
+import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
 import '../payables/widgets/payable_settlement_modal.dart';
 import '../receivables/widgets/receivable_settlement_modal.dart';
@@ -44,6 +45,15 @@ class PersonLedgerScreen extends ConsumerWidget {
 
     final net = balance.net;
     final netColor = net >= 0 ? calm.positive : cs.error;
+    final open = balance.items.where((i) => !i.settled).toList();
+    final oldestDays = open.isEmpty
+        ? 0
+        : DateTime.now()
+              .difference(
+                open.map((i) => i.date).reduce((a, b) => a.isBefore(b) ? a : b),
+              )
+              .inDays;
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -59,23 +69,29 @@ class PersonLedgerScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  net >= 0 ? 'Owes you' : 'You owe',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
+                FieldLabel(net >= 0 ? 'Owes you' : 'You owe'),
                 const SizedBox(height: 6),
                 Text(
                   AppFormatters.formatCurrency(net.abs()),
                   style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: -0.5,
                     color: netColor,
                   ),
                 ),
+                if (open.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${open.length} ${open.length == 1 ? 'item' : 'items'}'
+                    ' · oldest $oldestDays ${oldestDays == 1 ? 'day' : 'days'}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
                 if (balance.owedToYou > 0 && balance.youOwe > 0) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(
                     'Net of ${AppFormatters.formatCurrency(balance.owedToYou)} owed to you '
                     'and ${AppFormatters.formatCurrency(balance.youOwe)} you owe',
@@ -90,7 +106,7 @@ class PersonLedgerScreen extends ConsumerWidget {
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
-            child: FilledButton.tonalIcon(
+            child: FilledButton.icon(
               onPressed: () => _recordPayment(context, ref, balance),
               icon: const Icon(Icons.payments_rounded, size: 18),
               label: Text(
@@ -110,19 +126,7 @@ class PersonLedgerScreen extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 18),
-          Text(
-            'Ledger',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Swipe an entry to settle it.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: cs.onSurfaceVariant,
-            ),
-          ),
+          FieldLabel(isWide ? 'Ledger' : 'Ledger · swipe to settle'),
           const SizedBox(height: 10),
           SlidableAutoCloseBehavior(
             child: Column(
@@ -342,8 +346,17 @@ class _ReminderPreviewDialogState extends State<_ReminderPreviewDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return AlertDialog(
-      title: const Text('Reminder preview'),
+      title: const Text(
+        'Send a reminder',
+        style: TextStyle(
+          fontFamily: 'Space Grotesk',
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -351,17 +364,16 @@ class _ReminderPreviewDialogState extends State<_ReminderPreviewDialog> {
           if (widget.canRegenerate) ...[
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: _languages.map((lang) {
-                return ChoiceChip(
-                  label: Text(lang),
+                return ChoicePill(
+                  label: lang == 'Hindi' ? 'हिन्दी' : lang,
                   selected: _language == lang,
-                  onSelected: _loading
-                      ? null
-                      : (_) {
-                          if (_language == lang) return;
-                          setState(() => _language = lang);
-                          _draft();
-                        },
+                  onTap: () {
+                    if (_loading || _language == lang) return;
+                    setState(() => _language = lang);
+                    _draft();
+                  },
                 );
               }).toList(),
             ),
@@ -380,6 +392,15 @@ class _ReminderPreviewDialogState extends State<_ReminderPreviewDialog> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+          const SizedBox(height: 10),
+          Center(
+            child: Text(
+              'Drafted by AI · no name included · edit before sending',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
         ],
       ),
       actions: [
@@ -388,8 +409,12 @@ class _ReminderPreviewDialogState extends State<_ReminderPreviewDialog> {
           child: const Text('Cancel'),
         ),
         if (widget.canRegenerate)
-          TextButton.icon(
+          OutlinedButton.icon(
             onPressed: _loading ? null : _draft,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: cs.onSurface,
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
+            ),
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text('Regenerate'),
           ),
@@ -441,7 +466,7 @@ class _LedgerRow extends StatelessWidget {
           radius: 12,
           padding: const EdgeInsets.all(12),
           child: Opacity(
-            opacity: item.settled ? 0.5 : 1,
+            opacity: item.settled ? 0.45 : 1,
             child: Row(
               children: [
                 Container(
@@ -472,6 +497,9 @@ class _LedgerRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w500,
+                          decoration: item.settled
+                              ? TextDecoration.lineThrough
+                              : null,
                         ),
                       ),
                       const SizedBox(height: 2),

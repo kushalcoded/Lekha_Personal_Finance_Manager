@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/people/people_providers.dart';
+import '../../../theme/app_theme.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../../../widgets/common/form_bits.dart';
 import '../utils/split_helpers.dart';
@@ -129,28 +130,17 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
               ),
             ),
           ),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Split bill',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-              ),
-              Text(
-                'Total ${AppFormatters.formatCurrency(widget.total)}',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-            ],
+          Text(
+            'Split ${AppFormatters.formatCurrency(widget.total)}',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontFamily: 'Space Grotesk',
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.3,
+            ),
           ),
           const SizedBox(height: 18),
 
-          const FieldLabel('Split with'),
+          const FieldLabel('With'),
           const SizedBox(height: 8),
           if (_people.isNotEmpty) ...[
             Wrap(
@@ -221,22 +211,12 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
             ),
 
             const SizedBox(height: 18),
-            const FieldLabel('Split'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                ChoicePill(
-                  label: 'Equally',
-                  selected: _mode == SplitMode.equal,
-                  onTap: () => setState(() => _mode = SplitMode.equal),
-                ),
-                ChoicePill(
-                  label: 'Exact amounts',
-                  selected: _mode == SplitMode.exact,
-                  onTap: () => setState(() => _mode = SplitMode.exact),
-                ),
-              ],
+            // Mockup: Equal / Exact as a segmented control.
+            _Segmented(
+              exact: _mode == SplitMode.exact,
+              onChanged: (exact) => setState(
+                () => _mode = exact ? SplitMode.exact : SplitMode.equal,
+              ),
             ),
 
             if (_mode == SplitMode.exact) ...[
@@ -325,10 +305,10 @@ class _PersonChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.fromLTRB(11, 7, 6, 7),
+      padding: const EdgeInsets.fromLTRB(12, 7, 7, 7),
       decoration: BoxDecoration(
         color: cs.primary.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(999),
         border: Border.all(color: cs.primary.withValues(alpha: 0.4)),
       ),
       child: Row(
@@ -354,64 +334,172 @@ class _PersonChip extends StatelessWidget {
   }
 }
 
-/// Live preview of who ends up owing what.
+/// Mockup's Equal / Exact segmented control: dark track, violet active pill.
+class _Segmented extends StatelessWidget {
+  final bool exact;
+  final ValueChanged<bool> onChanged;
+
+  const _Segmented({required this.exact, required this.onChanged});
+
+  Widget _seg(BuildContext context, String label, bool on, VoidCallback tap) {
+    final cs = Theme.of(context).colorScheme;
+    return Expanded(
+      child: GestureDetector(
+        onTap: tap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: on ? cs.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: on ? FontWeight.w700 : FontWeight.w600,
+              color: on ? cs.onPrimary : cs.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A21),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          _seg(context, 'Equal', !exact, () => onChanged(false)),
+          _seg(context, 'Exact', exact, () => onChanged(true)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Live preview of who ends up owing what — mockup share rows (avatar, name,
+/// 'will owe you') plus the outcome stated in words before Done.
 class _Preview extends StatelessWidget {
   final SplitResult result;
   final String? paidBy;
 
   const _Preview({required this.result, required this.paidBy});
 
+  Widget _row(
+    BuildContext context,
+    String name,
+    double amount, {
+    String? caption,
+    Color? captionColor,
+  }) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A21),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 12,
+            backgroundColor: const Color(0xFF131318),
+            child: Text(
+              name == 'You' ? 'Y' : name[0].toUpperCase(),
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurface,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (caption != null)
+                  Text(
+                    caption,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 11,
+                      color: captionColor ?? cs.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Text(
+            AppFormatters.formatCurrency(amount),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final calm = CalmColors.of(context);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cs.primary.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.primary.withValues(alpha: 0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Your share ${AppFormatters.formatCurrency(result.myShare)}',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+    final outcome = paidBy == null
+        ? 'Your expense records ${AppFormatters.formatCurrency(result.myShare)}'
+              ' · ${AppFormatters.formatCurrency(result.othersTotal)} to receivables'
+        : 'Your expense records ${AppFormatters.formatCurrency(result.myShare)}'
+              ' · you will owe $paidBy';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _row(
+          context,
+          'You',
+          result.myShare,
+          caption: paidBy != null ? 'you will owe $paidBy' : null,
+          captionColor: paidBy != null ? cs.error : null,
+        ),
+        ...result.others.map(
+          (s) => _row(
+            context,
+            s.person,
+            s.amount,
+            caption: paidBy == null ? 'will owe you' : null,
+            captionColor: calm.positive,
           ),
-          const SizedBox(height: 6),
-          if (paidBy == null)
-            Text(
-              '${AppFormatters.formatCurrency(result.othersTotal)} goes to receivables:',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant,
-              ),
-            )
-          else
-            Text(
-              'You owe $paidBy ${AppFormatters.formatCurrency(result.myShare)} — added to payables.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          if (paidBy == null) ...[
-            const SizedBox(height: 6),
-            ...result.others.map(
-              (s) => Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  '${s.person} owes ${AppFormatters.formatCurrency(s.amount)}',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          outcome,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: cs.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }

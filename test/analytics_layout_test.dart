@@ -62,7 +62,8 @@ void main() {
       ),
     );
 
-    final shortHeight = tester.getSize(find.text('Short')).height;
+    // Section titles render as mono uppercase.
+    final shortHeight = tester.getSize(find.text('SHORT')).height;
     expect(shortHeight, greaterThan(0));
 
     final sections = find.byType(AnalyticsSection);

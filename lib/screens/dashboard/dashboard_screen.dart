@@ -503,9 +503,14 @@ class _DetectedSmsCard extends ConsumerWidget {
         initialDate: txn.dateTime,
         sourceLabel:
             'Detected from SMS · ${DateFormat('EEE d MMM').format(txn.dateTime)}',
-        onSaved: (expense) => ref
-            .read(pendingTransactionsProvider.notifier)
-            .markAdded(txn.id, expense.id),
+        onSaved: (expense) {
+          ref
+              .read(pendingTransactionsProvider.notifier)
+              .markAdded(txn.id, expense.id);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('✓ Added — synced to all devices')),
+          );
+        },
       );
     }
 

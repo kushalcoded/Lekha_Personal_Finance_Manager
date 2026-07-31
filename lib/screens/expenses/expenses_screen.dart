@@ -211,6 +211,18 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                                       child: _ExpenseRow(
                                         expense: expense,
                                         onTap: () => _showDetails(expense),
+                                        selected:
+                                            isWide &&
+                                            _selectedExpenseId == expense.id,
+                                        onEdit: isWide
+                                            ? () => showEditExpenseModal(
+                                                context,
+                                                expense: expense,
+                                              )
+                                            : null,
+                                        onDelete: isWide
+                                            ? () => _confirmDelete(expense)
+                                            : null,
                                       ),
                                     ),
                                   ),
@@ -280,9 +292,20 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       initialDate: txn.dateTime,
       sourceLabel:
           'Detected from SMS · ${DateFormat('EEE d MMM').format(txn.dateTime)}',
-      onSaved: (expense) => ref
-          .read(pendingTransactionsProvider.notifier)
-          .markAdded(txn.id, expense.id),
+      onSaved: (expense) {
+        ref
+            .read(pendingTransactionsProvider.notifier)
+            .markAdded(txn.id, expense.id);
+        _confirmAdded();
+      },
+    );
+  }
+
+  /// Mockup SMS flow state 4: brief green confirmation once saved.
+  void _confirmAdded() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('✓ Added — synced to all devices')),
     );
   }
 
@@ -323,6 +346,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         for (final id in ids) {
           notifier.markAdded(id, expense.id);
         }
+        _confirmAdded();
       },
     );
     _clearPendingSelection();
@@ -432,72 +456,123 @@ class _StatBox extends StatelessWidget {
   }
 }
 
-class _ExpenseRow extends StatelessWidget {
+class _ExpenseRow extends StatefulWidget {
   final Expense expense;
   final VoidCallback onTap;
 
-  const _ExpenseRow({required this.expense, required this.onTap});
+  /// Desktop: selected row carries the accent-10% wash; hovering reveals
+  /// inline edit/delete (the mouse's stand-in for swipe).
+  final bool selected;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  const _ExpenseRow({
+    required this.expense,
+    required this.onTap,
+    this.selected = false,
+    this.onEdit,
+    this.onDelete,
+  });
+
+  @override
+  State<_ExpenseRow> createState() => _ExpenseRowState();
+}
+
+class _ExpenseRowState extends State<_ExpenseRow> {
+  bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final expense = widget.expense;
     final style = CategoryStyles.of(expense.category);
     final method =
         expense.paymentMethod ?? inferPaymentMethod(expense.description);
     final subtitle = method == null
         ? expense.category
         : '${expense.category} · $method';
+    final showActions = _hover && widget.onEdit != null;
 
-    return GlassCard(
-      onTap: onTap,
-      radius: 12,
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: style.color.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(11),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GlassCard(
+        onTap: widget.onTap,
+        radius: 12,
+        padding: const EdgeInsets.all(12),
+        color: widget.selected ? cs.primary.withValues(alpha: 0.10) : null,
+        border: widget.selected
+            ? Border.all(color: cs.primary.withValues(alpha: 0.35))
+            : null,
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: style.color.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(style.icon, size: 17, color: style.color),
             ),
-            child: Icon(style.icon, size: 17, color: style.color),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  expense.description ?? expense.category,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    expense.description ?? expense.category,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                    fontSize: 11.5,
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontSize: 11.5,
+                    ),
                   ),
+                ],
+              ),
+            ),
+            if (showActions) ...[
+              IconButton(
+                onPressed: widget.onEdit,
+                tooltip: 'Edit',
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  Icons.edit_outlined,
+                  size: 16,
+                  color: cs.onSurfaceVariant,
                 ),
-              ],
+              ),
+              IconButton(
+                onPressed: widget.onDelete,
+                tooltip: 'Delete',
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  size: 16,
+                  color: cs.error,
+                ),
+              ),
+            ],
+            const SizedBox(width: 8),
+            Text(
+              '-${AppFormatters.formatCurrency(expense.amount)}',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '-${AppFormatters.formatCurrency(expense.amount)}',
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
