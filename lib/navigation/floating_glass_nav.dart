@@ -340,7 +340,16 @@ class _LabeledSidebar extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Row(
                 children: [
-                  Icon(Icons.circle, size: 7, color: const Color(0xFF46C98B)),
+                  // Green only when the data really is up in the cloud.
+                  Icon(
+                    Icons.circle,
+                    size: 7,
+                    color: sync.isSyncing
+                        ? const Color(0xFFF0A13B)
+                        : sync.lastSyncedAt == null
+                        ? cs.onSurfaceVariant
+                        : const Color(0xFF46C98B),
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(

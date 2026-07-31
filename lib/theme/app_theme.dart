@@ -109,6 +109,16 @@ class AppTheme {
         backgroundColor: Colors.transparent,
         foregroundColor: _text,
         surfaceTintColor: Colors.transparent,
+        // Screen titles are one of the three sanctioned Space Grotesk roles
+        // (money hero, screen title, stat value) — AppBar would otherwise
+        // fall back to titleLarge, which is Inter.
+        titleTextStyle: TextStyle(
+          fontFamily: 'Space Grotesk',
+          fontSize: 21,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
+          color: _text,
+        ),
       ),
       cardTheme: CardThemeData(
         elevation: 0,
@@ -124,7 +134,13 @@ class AppTheme {
           backgroundColor: _accent,
           foregroundColor: _onAccent,
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          // styleFrom's textStyle REPLACES labelLarge rather than merging, so
+          // the family has to be repeated — without it filled buttons fall
+          // back to the platform font while the rest of the app is Inter.
+          textStyle: const TextStyle(
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w700,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),

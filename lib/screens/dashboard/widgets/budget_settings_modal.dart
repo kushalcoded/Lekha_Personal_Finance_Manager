@@ -38,7 +38,7 @@ Future<void> _showCycleAmountSettingsModal(
           ),
           backgroundColor: colorScheme.surface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 460),

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:personal_expanse_tracker/models/pending/pending_transaction.dart';
 import 'package:personal_expanse_tracker/providers/sms/sms_providers.dart';
+import 'package:personal_expanse_tracker/screens/expenses/utils/expense_helpers.dart';
 
 PendingTransaction _txn(double amount, DateTime dt) => PendingTransaction(
   id: '$amount-$dt',
@@ -36,5 +37,23 @@ void main() {
 
   test('empty history is never a duplicate', () {
     expect(isDuplicateTransaction(const [], 820, base), isFalse);
+  });
+
+  group('smsSenderLabel', () {
+    test('reads the sender and the channel out of a bank template', () {
+      expect(
+        smsSenderLabel('HDFC Bank: Rs.450 debited via UPI'),
+        'HDFC Bank · UPI',
+      );
+      expect(
+        smsSenderLabel('SBI - Rs.2000 withdrawn at ATM'),
+        'SBI · ATM',
+      );
+    });
+
+    test('trims a long sender and survives a body with no separator', () {
+      expect(smsSenderLabel('Rs 300 spent on your debit card'), 'Rs 300 · Card');
+      expect(smsSenderLabel('   '), 'Bank SMS');
+    });
   });
 }

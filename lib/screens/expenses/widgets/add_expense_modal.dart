@@ -42,7 +42,7 @@ Future<void> showAddExpenseModal(
           ),
           backgroundColor: colorScheme.surface,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
@@ -624,7 +624,12 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
+                // The hairline underline below is the only chrome here —
+                // the theme's filled box would break the mockup's naked
+                // money entry.
+                filled: false,
                 isCollapsed: true,
+                contentPadding: EdgeInsets.zero,
                 hintText: '0',
               ),
               onChanged: (_) {
@@ -753,7 +758,8 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                     child: Text(
                       'Add expense',
                       style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontFamily: 'Space Grotesk',
+                        fontWeight: FontWeight.w600,
                         letterSpacing: -0.3,
                       ),
                     ),

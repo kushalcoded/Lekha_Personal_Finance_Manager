@@ -10,6 +10,7 @@ import '../../providers/sms/sms_providers.dart';
 import '../../providers/storage/storage_providers.dart';
 import '../../providers/sync/sync_providers.dart';
 import '../../utils/formatters/formatters.dart';
+import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
 import 'providers/expenses_providers.dart';
 import 'recurring_screen.dart';
@@ -630,38 +631,19 @@ class _DetectedSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.sms_rounded, size: 16, color: cs.primary),
-              const SizedBox(width: 7),
-              Text(
-                'Detected',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 7),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '${pending.length}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: cs.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
+          // Mockup SMS flow: mono header carries the count; violet when a
+          // selection is in progress.
+          FieldLabel(
+            selectMode
+                ? '${selectedIds.length} selected'
+                : 'Detected · ${pending.length} pending',
+            color: selectMode ? cs.primary : null,
           ),
           const SizedBox(height: 4),
           Text(
             selectMode
-                ? 'Tap cards to pick which to merge into one expense.'
-                : 'From your bank SMS — add, or long-press to merge several.',
+                ? 'Tap to pick, then merge into one expense.'
+                : 'Long-press to merge several into one.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: cs.onSurfaceVariant,
             ),
@@ -740,76 +722,62 @@ class _DetectedCard extends StatelessWidget {
           color: cs.primary.withValues(alpha: selected ? 0.60 : 0.30),
           width: selected ? 1.4 : 1,
         ),
+        // Mockup row: sender line + amount, actions underneath. The raw SMS
+        // is the tooltip/secondary detail, not the headline.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: cs.primary.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(11),
+                if (selectMode) ...[
+                  Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.circle_outlined,
+                    size: 18,
+                    color: selected ? cs.primary : cs.onSurfaceVariant,
                   ),
-                  child: Icon(
-                    selectMode
-                        ? (selected
-                              ? Icons.check_circle_rounded
-                              : Icons.circle_outlined)
-                        : Icons.south_west_rounded,
-                    size: 17,
-                    color: cs.primary,
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Text(
+                    smsSenderLabel(txn.rawBody),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '-${AppFormatters.formatCurrency(txn.amount)}',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      Text(
-                        '$when · from SMS',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                          fontSize: 11.5,
-                        ),
-                      ),
-                    ],
+                const SizedBox(width: 8),
+                Text(
+                  AppFormatters.formatCurrency(txn.amount),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontFamily: 'Space Grotesk',
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 3),
             Text(
-              txn.rawBody,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              when,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: cs.onSurfaceVariant,
-                height: 1.35,
+                fontSize: 11.5,
               ),
             ),
-            if (!selectMode)
+            if (!selectMode) ...[
+              const SizedBox(height: 10),
               Row(
-                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                    onPressed: onDismiss,
-                    child: const Text('Dismiss'),
-                  ),
+                  SmsActionPill(label: 'Add', primary: true, onTap: onAdd),
                   const SizedBox(width: 8),
-                  FilledButton(onPressed: onAdd, child: const Text('Add')),
+                  SmsActionPill(label: 'Dismiss', onTap: onDismiss),
                 ],
-              )
-            else
-              const SizedBox(height: 8),
+              ),
+            ],
+            const SizedBox(height: 2),
           ],
         ),
       ),

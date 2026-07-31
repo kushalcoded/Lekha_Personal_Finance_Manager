@@ -1,0 +1,10 @@
+# Declares the `design` tag used by the golden render harness
+# (test/design_qc_test.dart), which renders every designed surface to PNG.
+#
+# Regenerate the renders after a design change:
+#   flutter test test/design_qc_test.dart --update-goldens
+#
+# Skip them in a plain run (they are font/platform-sensitive):
+#   flutter test --exclude-tags design
+tags:
+  design:

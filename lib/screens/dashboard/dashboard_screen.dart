@@ -553,9 +553,9 @@ class _DetectedSmsCard extends ConsumerWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                _SmsAction(label: 'Add', primary: true, onTap: add),
+                SmsActionPill(label: 'Add', primary: true, onTap: add),
                 const SizedBox(width: 8),
-                _SmsAction(
+                SmsActionPill(
                   label: 'Dismiss',
                   onTap: () => ref
                       .read(pendingTransactionsProvider.notifier)
@@ -582,49 +582,6 @@ class _DetectedSmsCard extends ConsumerWidget {
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SmsAction extends StatelessWidget {
-  final String label;
-  final bool primary;
-  final VoidCallback onTap;
-
-  const _SmsAction({
-    required this.label,
-    this.primary = false,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: primary
-              ? cs.primary.withValues(alpha: 0.14)
-              : const Color(0xFF1A1A21),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: primary
-                ? cs.primary.withValues(alpha: 0.30)
-                : Colors.white.withValues(alpha: 0.07),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: primary ? cs.primary : cs.onSurfaceVariant,
-          ),
         ),
       ),
     );
@@ -732,12 +689,8 @@ class _CategoryBreakdown extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                "Where it's going",
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              // Mono, like every other section header (RECENT, DETECTED…).
+              const FieldLabel("Where it's going"),
               Text(
                 'this cycle',
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -757,7 +710,9 @@ class _CategoryBreakdown extends StatelessWidget {
               child: Row(
                 children: [
                   SizedBox(
-                    width: 74,
+                    // Fits the longest built-in category ("Entertainment")
+                    // without ellipsis.
+                    width: 104,
                     child: Row(
                       children: [
                         Container(

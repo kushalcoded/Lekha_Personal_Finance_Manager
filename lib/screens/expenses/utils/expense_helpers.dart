@@ -67,6 +67,37 @@ ExpenseWarning detectExpenseWarning({
   );
 }
 
+/// Short "who and how" line for a detected SMS — "HDFC Bank · UPI" — built
+/// from the sender words at the start of the body plus the channel keyword.
+/// Falls back to a generic label so a row is never blank.
+String smsSenderLabel(String rawBody) {
+  final body = rawBody.trim();
+  if (body.isEmpty) return 'Bank SMS';
+
+  // Sender sits before the first ':' / '-' in nearly every bank template.
+  var head = body.split(RegExp(r'[:\-—]')).first.trim();
+  final words = head.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  if (words.length > 3 || head.isEmpty) {
+    head = words.take(2).join(' ');
+  }
+  if (head.isEmpty) head = 'Bank SMS';
+
+  const channels = {
+    'upi': 'UPI',
+    'atm': 'ATM',
+    'imps': 'IMPS',
+    'neft': 'NEFT',
+    'debit card': 'Card',
+    'credit card': 'Card',
+    'autopay': 'Autopay',
+  };
+  final lower = body.toLowerCase();
+  for (final entry in channels.entries) {
+    if (lower.contains(entry.key)) return '$head · ${entry.value}';
+  }
+  return head;
+}
+
 String? inferPaymentMethod(String? notes) {
   if (notes == null || notes.trim().isEmpty) {
     return null;

@@ -5,7 +5,11 @@ import 'package:flutter/material.dart';
 class FieldLabel extends StatelessWidget {
   final String text;
 
-  const FieldLabel(this.text, {super.key});
+  /// Defaults to the muted label colour; pass the accent to mark an active
+  /// state (e.g. the detected-SMS selection header).
+  final Color? color;
+
+  const FieldLabel(this.text, {super.key, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +22,7 @@ class FieldLabel extends StatelessWidget {
           fontSize: 10,
           letterSpacing: 0.8,
           fontWeight: FontWeight.w500,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -97,6 +101,52 @@ class ChoicePill extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact pill action used by the detected-SMS cards (mockup: `Add` in a
+/// violet-tinted pill, `Dismiss` in a plain one).
+class SmsActionPill extends StatelessWidget {
+  final String label;
+  final bool primary;
+  final VoidCallback onTap;
+
+  const SmsActionPill({
+    super.key,
+    required this.label,
+    this.primary = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: primary
+              ? cs.primary.withValues(alpha: 0.14)
+              : const Color(0xFF1A1A21),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: primary
+                ? cs.primary.withValues(alpha: 0.30)
+                : Colors.white.withValues(alpha: 0.07),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: primary ? cs.primary : cs.onSurfaceVariant,
+          ),
         ),
       ),
     );

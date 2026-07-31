@@ -5,6 +5,7 @@ import '../../core/constants/category_styles.dart';
 import '../../providers/ai_providers.dart';
 import '../../providers/budget/budget_providers.dart';
 import '../../providers/auth/auth_provider.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/common/ai_text.dart';
 import '../../widgets/common/glass.dart';
 import '../../utils/formatters/formatters.dart';
@@ -79,9 +80,15 @@ class AnalyticsScreen extends ConsumerWidget {
         subLabel: budgetMetrics.hasBudget
             ? 'Projected ${AppFormatters.formatCurrency(budgetIntelligence.projectedMonthEndSpend)}'
             : 'Unlock budget intelligence',
-        accentColor: budgetMetrics.isOverBudget
+        // Semantic, never violet: the accent means "tappable", and a health
+        // score reads as good/at-risk/over, not as a control.
+        accentColor: !budgetMetrics.hasBudget
+            ? null
+            : budgetMetrics.isOverBudget
             ? theme.colorScheme.error
-            : theme.colorScheme.primary,
+            : budgetIntelligence.budgetHealthScore >= 70
+            ? CalmColors.of(context).positive
+            : CalmColors.of(context).warning,
       ),
     ];
 
