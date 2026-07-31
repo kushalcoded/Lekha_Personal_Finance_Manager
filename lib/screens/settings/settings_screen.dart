@@ -760,11 +760,12 @@ class _SettingsGroup extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
             child: Text(
               label.toUpperCase(),
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              style: TextStyle(
+                fontFamily: 'JetBrains Mono',
                 color: cs.onSurfaceVariant,
                 letterSpacing: 0.8,
-                fontWeight: FontWeight.w600,
-                fontSize: 10.5,
+                fontWeight: FontWeight.w500,
+                fontSize: 10,
               ),
             ),
           ),

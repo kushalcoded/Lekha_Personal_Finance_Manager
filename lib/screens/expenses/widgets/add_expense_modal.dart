@@ -584,18 +584,22 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     );
   }
 
+  /// Mockup amount entry: naked over a hairline underline — muted ₹, the
+  /// figure in Space Grotesk, calculator total ('450+89') live at the right.
   Widget _amountBox(ThemeData theme, ColorScheme cs) {
     final err = _showValidation && !_isAmountValid;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF221E2C),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: err ? cs.error : Colors.white.withValues(alpha: 0.08),
+        border: Border(
+          bottom: BorderSide(
+            color: err ? cs.error : Colors.white.withValues(alpha: 0.09),
+          ),
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
         children: [
           Text(
             '₹',
@@ -618,6 +622,8 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
               ),
               decoration: const InputDecoration(
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 isCollapsed: true,
                 hintText: '0',
               ),
@@ -634,7 +640,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
               child: Text(
                 '= ${AppFormatters.formatCurrency(_total)}',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: cs.primary,
+                  color: cs.onSurfaceVariant,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -669,90 +675,6 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       initial: _split,
     );
     if (result != null && mounted) setState(() => _split = result);
-  }
-
-  Widget _splitRow(ThemeData theme, ColorScheme cs) {
-    if (!_split.isActive) {
-      return InkWell(
-        onTap: _openSplit,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF221E2C),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.call_split_rounded, size: 18, color: cs.primary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Split this bill',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: cs.onSurfaceVariant,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final result = _splitResult;
-    final sub = _split.paidByMe
-        ? '${AppFormatters.formatCurrency(result.othersTotal)} to receivables'
-        : 'you owe ${_split.paidBy}';
-
-    return InkWell(
-      onTap: _openSplit,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: cs.primary.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: cs.primary.withValues(alpha: 0.28)),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.call_split_rounded, size: 18, color: cs.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Split with ${_split.people.join(', ')}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Your share ${AppFormatters.formatCurrency(result.myShare)} · $sub',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                      fontSize: 11.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.edit_rounded, size: 15, color: cs.onSurfaceVariant),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _suggestLink(ColorScheme cs) {
@@ -874,16 +796,11 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                 _nlQuickAdd(cs),
                 const SizedBox(height: 18),
               ],
+              // Mockup order: amount → category → paid via → date·split →
+              // notes → save.
               const FieldLabel('Amount'),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               _amountBox(theme, cs),
-              const SizedBox(height: 18),
-              const FieldLabel('Note'),
-              const SizedBox(height: 8),
-              ExpenseNotesField(
-                controller: _notesController,
-                onChanged: (_) => _markInteracted(),
-              ),
               const SizedBox(height: 18),
               Row(
                 children: [
@@ -902,6 +819,8 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                     label: c,
                     dotColor: style.color,
                     selected: _selectedCategory == c,
+                    // Mockup: a chosen category wears its own tint.
+                    selectedColor: style.color,
                     onTap: () {
                       _markInteracted();
                       setState(() => _selectedCategory = c);
@@ -917,29 +836,23 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                 ),
               ],
               const SizedBox(height: 18),
-              const FieldLabel('Payment · Date'),
+              const FieldLabel('Paid via'),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: [
-                  ..._paymentMethods.map(
-                    (m) => ChoicePill(
-                      label: m,
-                      selected: _selectedPaymentMethod == m,
-                      onTap: () {
-                        _markInteracted();
-                        setState(() => _selectedPaymentMethod = m);
-                      },
-                    ),
-                  ),
-                  ChoicePill(
-                    label: _formatShortDate(_selectedDate),
-                    icon: Icons.calendar_today_rounded,
-                    selected: false,
-                    onTap: _pickDate,
-                  ),
-                ],
+                children: _paymentMethods
+                    .map(
+                      (m) => ChoicePill(
+                        label: m,
+                        selected: _selectedPaymentMethod == m,
+                        onTap: () {
+                          _markInteracted();
+                          setState(() => _selectedPaymentMethod = m);
+                        },
+                      ),
+                    )
+                    .toList(),
               ),
               if (_showValidation && _selectedPaymentMethod == null) ...[
                 const SizedBox(height: 6),
@@ -949,9 +862,36 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                 ),
               ],
               const SizedBox(height: 18),
-              const FieldLabel('Split'),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MiniTile(
+                      label: 'Date',
+                      value: _formatShortDate(_selectedDate),
+                      onTap: _pickDate,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MiniTile(
+                      label: 'Split',
+                      value: _split.isActive
+                          ? '${_split.people.length + 1} people · '
+                                'your ${AppFormatters.formatCurrency(_splitResult.myShare)}'
+                          : 'Just me',
+                      muted: !_split.isActive,
+                      onTap: _openSplit,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              const FieldLabel('Note'),
               const SizedBox(height: 8),
-              _splitRow(theme, cs),
+              ExpenseNotesField(
+                controller: _notesController,
+                onChanged: (_) => _markInteracted(),
+              ),
               if (inlineWarning != null) ...[
                 const SizedBox(height: 16),
                 _WarnBanner(text: inlineWarning),
@@ -982,6 +922,55 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Mockup's small labeled tile (DATE / SPLIT): mono label over a value.
+class _MiniTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool muted;
+  final VoidCallback onTap;
+
+  const _MiniTile({
+    required this.label,
+    required this.value,
+    this.muted = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A21),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FieldLabel(label),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: muted ? cs.onSurfaceVariant : cs.onSurface,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/category_styles.dart';
+import '../../core/navigation/navigation_models.dart';
+import '../../core/navigation/navigation_provider.dart';
 import '../../models/expense/expense_model.dart';
 import '../../navigation/floating_glass_nav.dart';
 import '../../providers/ai_providers.dart';
+import '../../providers/sms/sms_providers.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/budget/budget_providers.dart';
 import '../../providers/cycle/cycle_providers.dart';
@@ -16,8 +19,10 @@ import '../../providers/sync/sync_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
 import '../../widgets/common/ai_text.dart';
+import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
 import '../ai_chat_screen.dart';
+import '../expenses/widgets/add_expense_modal.dart';
 import '../settings/providers/settings_providers.dart';
 import '../settings/settings_screen.dart';
 import 'providers/dashboard_providers.dart';
@@ -68,10 +73,7 @@ class DashboardScreen extends ConsumerWidget {
     final hero = _CycleHealthHero(
       metrics: budgetMetrics,
       monthlySpend: monthlySpend,
-      aiSummary: aiSummary,
       onTap: () => showBudgetSettingsModal(context),
-      // Desktop: the AI summary moves to its own sidebar card.
-      showAi: !isWide,
     );
     final statTiles = Row(
       children: [
@@ -146,6 +148,7 @@ class DashboardScreen extends ConsumerWidget {
                               child: Column(
                                 children: [
                                   statTiles,
+                                  const _DetectedSmsCard(),
                                   if (categories != null) ...[
                                     const SizedBox(height: 12),
                                     categories,
@@ -159,13 +162,15 @@ class DashboardScreen extends ConsumerWidget {
                         )
                       else ...[
                         hero,
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
+                        _AiInsightCard(aiSummary: aiSummary, bottomGap: 12),
                         statTiles,
+                        const _DetectedSmsCard(),
                         if (categories != null) ...[
                           const SizedBox(height: 12),
                           categories,
                         ],
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
                         recent,
                       ],
                     ],
@@ -195,34 +200,18 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final hour = DateTime.now().hour;
-    final greet = hour < 12
-        ? 'Good morning,'
-        : (hour < 17 ? 'Good afternoon,' : 'Good evening,');
 
     return Row(
       children: [
+        // Mockup greeting: one quiet line — the money hero below is the star.
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                greet,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
-                ),
-              ),
-            ],
+          child: Text(
+            '${DateFormat('EEEE').format(DateTime.now())} · Hi $name',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
           ),
         ),
         Container(
@@ -322,22 +311,18 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// Glass hero: left-to-spend + budget ring + AI insight. Tap → budget settings.
+/// Mockup hero: the spent figure sits naked on the ground — Space Grotesk
+/// with the paise dimmed — over a 'spent this cycle · budget X' caption and
+/// a thin progress bar (red once over). Tap → budget settings.
 class _CycleHealthHero extends StatelessWidget {
   final BudgetMetrics metrics;
   final double monthlySpend;
-  final AsyncValue<String?> aiSummary;
   final VoidCallback onTap;
-
-  /// Desktop shows the AI summary as its own sidebar card instead.
-  final bool showAi;
 
   const _CycleHealthHero({
     required this.metrics,
     required this.monthlySpend,
-    required this.aiSummary,
     required this.onTap,
-    this.showAi = true,
   });
 
   @override
@@ -346,72 +331,68 @@ class _CycleHealthHero extends StatelessWidget {
     final cs = theme.colorScheme;
     final hasBudget = metrics.hasBudget;
     final over = hasBudget && metrics.remaining < 0;
-    final percent = hasBudget ? metrics.percentSpent.clamp(0.0, 1.0) : 0.0;
-    final headline = hasBudget
-        ? (over ? metrics.remaining.abs() : metrics.remaining)
-        : monthlySpend;
-    final aiText = aiSummary.maybeWhen(
-      data: (t) => (t == null || t.trim().isEmpty) ? null : t.trim(),
-      orElse: () => null,
+    final money = AppFormatters.formatCurrency(
+      hasBudget ? metrics.spent : monthlySpend,
     );
-    final aiLoading = aiSummary.isLoading;
+    final dot = money.lastIndexOf('.');
+    final main = dot == -1 ? money : money.substring(0, dot);
+    final paise = dot == -1 ? null : money.substring(dot);
 
-    return GlassCard(
+    return InkWell(
       onTap: onTap,
-      radius: 12,
-      padding: const EdgeInsets.all(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      hasBudget
-                          ? (over
-                                ? 'Over budget this cycle'
-                                : 'Left to spend this cycle')
-                          : 'Spent this cycle',
-                      style: theme.textTheme.labelMedium?.copyWith(
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text.rich(
+              TextSpan(
+                text: main,
+                children: [
+                  if (paise != null)
+                    TextSpan(
+                      text: paise,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                         color: cs.onSurfaceVariant,
+                        letterSpacing: 0,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      AppFormatters.formatCurrency(headline),
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                        color: over ? cs.error : cs.onSurface,
-                      ),
-                    ),
-                    if (hasBudget) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'of ${AppFormatters.formatCurrency(metrics.budget)} budget · '
-                        '${AppFormatters.formatCurrency(metrics.spent)} spent',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ],
+                ],
+              ),
+              style: theme.textTheme.displaySmall?.copyWith(
+                fontSize: 30,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              hasBudget
+                  ? 'spent this cycle · budget ${AppFormatters.formatCurrency(metrics.budget)}'
+                  : 'spent this cycle',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            if (hasBudget) ...[
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: metrics.percentSpent.clamp(0.0, 1.0),
+                  minHeight: 4,
+                  backgroundColor: Colors.white.withValues(alpha: 0.06),
+                  valueColor: AlwaysStoppedAnimation(
+                    over ? cs.error : cs.primary,
+                  ),
                 ),
               ),
-              if (hasBudget) _BudgetRing(percent: percent, over: over),
             ],
-          ),
-          if (showAi && (aiText != null || aiLoading)) ...[
-            const SizedBox(height: 14),
-            Divider(height: 1, color: cs.outlineVariant),
-            const SizedBox(height: 12),
-            _AiSummaryRow(aiText: aiText),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -476,11 +457,12 @@ class _AiSummaryRow extends StatelessWidget {
   }
 }
 
-/// Desktop sidebar card housing the AI summary (mobile keeps it in the hero).
+/// AI summary card — mockup style: solid card with a 2px violet left edge.
 class _AiInsightCard extends StatelessWidget {
   final AsyncValue<String?> aiSummary;
+  final double bottomGap;
 
-  const _AiInsightCard({required this.aiSummary});
+  const _AiInsightCard({required this.aiSummary, this.bottomGap = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -491,59 +473,153 @@ class _AiInsightCard extends StatelessWidget {
     if (aiText == null && !aiSummary.isLoading) {
       return const SizedBox.shrink();
     }
-    return GlassCard(
-      radius: 12,
-      padding: const EdgeInsets.all(16),
-      child: _AiSummaryRow(aiText: aiText),
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomGap),
+      child: AccentEdgeCard(
+        padding: const EdgeInsets.all(14),
+        child: _AiSummaryRow(aiText: aiText),
+      ),
     );
   }
 }
 
-class _BudgetRing extends StatelessWidget {
-  final double percent;
-  final bool over;
+/// Mockup's dashboard 'DETECTED · SMS' card: the first pending transaction
+/// with inline Add / Dismiss, and a jump to Expenses when more are waiting.
+class _DetectedSmsCard extends ConsumerWidget {
+  const _DetectedSmsCard();
 
-  const _BudgetRing({required this.percent, required this.over});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final pending = ref.watch(pendingTransactionsProvider);
+    if (pending.isEmpty) return const SizedBox.shrink();
+    final txn = pending.first;
+
+    void add() {
+      showAddExpenseModal(
+        context,
+        initialAmount: txn.amount,
+        initialDate: txn.dateTime,
+        sourceLabel:
+            'Detected from SMS · ${DateFormat('EEE d MMM').format(txn.dateTime)}',
+        onSaved: (expense) => ref
+            .read(pendingTransactionsProvider.notifier)
+            .markAdded(txn.id, expense.id),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: GlassCard(
+        radius: 12,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FieldLabel(
+              pending.length == 1
+                  ? 'Detected · SMS'
+                  : 'Detected · ${pending.length} pending',
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    DateFormat('EEE d MMM · h:mm a').format(txn.dateTime),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Text(
+                  AppFormatters.formatCurrency(txn.amount),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontFamily: 'Space Grotesk',
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _SmsAction(label: 'Add', primary: true, onTap: add),
+                const SizedBox(width: 8),
+                _SmsAction(
+                  label: 'Dismiss',
+                  onTap: () => ref
+                      .read(pendingTransactionsProvider.notifier)
+                      .dismiss(txn.id),
+                ),
+                const Spacer(),
+                if (pending.length > 1)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => ref
+                        .read(navigationProvider.notifier)
+                        .navigateTo(NavigationTab.expenses),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Text(
+                        'View all',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SmsAction extends StatelessWidget {
+  final String label;
+  final bool primary;
+  final VoidCallback onTap;
+
+  const _SmsAction({
+    required this.label,
+    this.primary = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final ringColor = over ? cs.error : cs.primary;
-    return SizedBox(
-      width: 76,
-      height: 76,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox(
-            width: 76,
-            height: 76,
-            child: CircularProgressIndicator(
-              value: 1,
-              strokeWidth: 7,
-              valueColor: AlwaysStoppedAnimation(
-                Colors.white.withValues(alpha: 0.06),
-              ),
-            ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: primary
+              ? cs.primary.withValues(alpha: 0.14)
+              : const Color(0xFF1A1A21),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: primary
+                ? cs.primary.withValues(alpha: 0.30)
+                : Colors.white.withValues(alpha: 0.07),
           ),
-          SizedBox(
-            width: 76,
-            height: 76,
-            child: CircularProgressIndicator(
-              value: percent,
-              strokeWidth: 7,
-              strokeCap: StrokeCap.round,
-              backgroundColor: Colors.transparent,
-              valueColor: AlwaysStoppedAnimation(ringColor),
-            ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: primary ? cs.primary : cs.onSurfaceVariant,
           ),
-          Text(
-            '${(percent * 100).round()}%',
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -609,8 +685,10 @@ class _StatTile extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            // Spec: stat values are Space Grotesk 600.
             style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
+              fontFamily: 'Space Grotesk',
+              fontWeight: FontWeight.w600,
               color: valueColor,
               letterSpacing: -0.3,
             ),
@@ -727,7 +805,8 @@ class _CategoryBreakdown extends StatelessWidget {
   }
 }
 
-/// Recent transactions in a glass card.
+/// Mockup 'RECENT': mono header on the ground, each transaction its own
+/// solid row card ('Name / Category · Method' + tabular amount).
 class _RecentCard extends StatelessWidget {
   final List<Expense> expenses;
 
@@ -747,82 +826,85 @@ class _RecentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    return GlassCard(
-      radius: 12,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Recent',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          if (expenses.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              child: Center(
-                child: Text(
-                  'No transactions yet',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 2, bottom: 8),
+          child: FieldLabel('Recent'),
+        ),
+        if (expenses.isEmpty)
+          GlassCard(
+            radius: 12,
+            padding: const EdgeInsets.symmetric(vertical: 22),
+            child: Center(
+              child: Text(
+                'No transactions yet',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
                 ),
               ),
-            )
-          else
-            ...expenses.map((e) {
-              final style = CategoryStyles.of(e.category);
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: style.color.withValues(alpha: 0.16),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(style.icon, size: 16, color: style.color),
+            ),
+          )
+        else
+          ...expenses.map((e) {
+            final style = CategoryStyles.of(e.category);
+            final method = e.paymentMethod;
+            final caption =
+                '${e.category} · ${(method == null || method.isEmpty) ? _formatDate(e.date) : method}';
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: const Color(0xFF131318),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: style.color.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            e.description ?? e.category,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w500,
-                            ),
+                    child: Icon(style.icon, size: 16, color: style.color),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          e.description ?? e.category,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
                           ),
-                          Text(
-                            '${e.category} · ${_formatDate(e.date)}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant,
-                              fontSize: 11.5,
-                            ),
+                        ),
+                        Text(
+                          caption,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 11.5,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      '-${AppFormatters.formatCurrency(e.amount)}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                  ),
+                  Text(
+                    AppFormatters.formatCurrency(e.amount),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
-                ),
-              );
-            }),
-        ],
-      ),
+                  ),
+                ],
+              ),
+            );
+          }),
+      ],
     );
   }
 }

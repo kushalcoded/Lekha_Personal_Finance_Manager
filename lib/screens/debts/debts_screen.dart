@@ -7,6 +7,7 @@ import '../../providers/storage/storage_providers.dart'
     show totalPayablesProvider, totalReceivablesProvider;
 import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
+import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
 import '../payables/widgets/payable_modal.dart';
 import '../receivables/widgets/receivable_modal.dart';
@@ -88,17 +89,35 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
             ),
           )
         else ...[
-          Text(
-            'People',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          const FieldLabel('People'),
           const SizedBox(height: 10),
           ...people.map(
             (p) => Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _PersonRow(balance: p, onTap: () => _openPerson(p.name)),
+            ),
+          ),
+          // Mockup's inline add row (the FAB stays for thumb reach).
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _showAddChooser(context),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+              ),
+              child: Center(
+                child: Text(
+                  '+ Add a debt',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: cs.primary,
+                  ),
+                ),
+              ),
             ),
           ),
         ],

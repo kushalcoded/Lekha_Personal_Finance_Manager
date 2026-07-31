@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/ai_providers.dart';
 import '../widgets/common/ai_text.dart';
+import '../widgets/common/form_bits.dart';
 import '../widgets/common/glass.dart';
 
 class AiChatScreen extends ConsumerStatefulWidget {
@@ -26,6 +27,11 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
     final text = _controller.text;
     if (text.trim().isEmpty) return;
     _controller.clear();
+    await ref.read(aiChatProvider.notifier).send(text);
+  }
+
+  Future<void> _sendQuick(String text, bool configured, bool loading) async {
+    if (loading || !configured) return;
     await ref.read(aiChatProvider.notifier).send(text);
   }
 
@@ -172,6 +178,33 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                 ),
               ),
             ),
+          // Mockup: quick-question chips sit just above the input.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Row(
+              children: [
+                ChoicePill(
+                  label: 'Budget left?',
+                  selected: false,
+                  onTap: () => _sendQuick(
+                    'How much budget do I have left this cycle?',
+                    configured,
+                    chat.isLoading,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ChoicePill(
+                  label: 'Top categories',
+                  selected: false,
+                  onTap: () => _sendQuick(
+                    'What are my top spending categories this cycle?',
+                    configured,
+                    chat.isLoading,
+                  ),
+                ),
+              ],
+            ),
+          ),
           SafeArea(
             top: false,
             child: Padding(

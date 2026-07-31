@@ -26,11 +26,14 @@ class FieldLabel extends StatelessWidget {
 }
 
 /// A selectable pill with an optional leading colour dot or icon.
+/// [selectedColor] tints the selected state with a semantic colour (mockup:
+/// category chips take the category tint instead of violet).
 class ChoicePill extends StatelessWidget {
   final String label;
   final Color? dotColor;
   final IconData? icon;
   final bool selected;
+  final Color? selectedColor;
   final VoidCallback onTap;
 
   const ChoicePill({
@@ -39,26 +42,31 @@ class ChoicePill extends StatelessWidget {
     this.dotColor,
     this.icon,
     required this.selected,
+    this.selectedColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final fg = selected ? cs.primary : cs.onSurfaceVariant;
+    final accent = selectedColor ?? cs.primary;
+    final selectedText = selectedColor == null
+        ? cs.primary
+        : Color.lerp(selectedColor, Colors.white, 0.35)!;
+    final fg = selected ? selectedText : cs.onSurfaceVariant;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(11),
+      borderRadius: BorderRadius.circular(999),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: selected
-              ? cs.primary.withValues(alpha: 0.15)
-              : const Color(0xFF1C1925),
-          borderRadius: BorderRadius.circular(11),
+              ? accent.withValues(alpha: 0.15)
+              : const Color(0xFF1A1A21),
+          borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: selected
-                ? cs.primary.withValues(alpha: 0.5)
+                ? accent.withValues(alpha: 0.45)
                 : Colors.white.withValues(alpha: 0.07),
           ),
         ),
@@ -84,7 +92,7 @@ class ChoicePill extends StatelessWidget {
               label,
               style: TextStyle(
                 fontSize: 12.5,
-                color: selected ? cs.primary : cs.onSurface,
+                color: selected ? selectedText : cs.onSurface,
                 fontWeight: FontWeight.w500,
               ),
             ),

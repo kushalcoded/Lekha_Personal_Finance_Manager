@@ -20,33 +20,27 @@ class ExpenseSectionHeader extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final label = _labelForDate(date);
 
+    // Mockup day header: one mono line, day total quiet on the right.
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '$count transactions',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+          child: Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontFamily: 'JetBrains Mono',
+              fontSize: 10,
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w500,
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         Text(
           AppFormatters.formatCurrency(total),
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: colorScheme.onSurface,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
       ],

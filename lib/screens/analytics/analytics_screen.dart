@@ -413,8 +413,8 @@ class _AiInsightCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: GlassCard(
-        radius: 12,
+      // Mockup: AI card carries a 2px violet left edge.
+      child: AccentEdgeCard(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
