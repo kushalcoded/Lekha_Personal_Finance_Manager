@@ -213,11 +213,14 @@ void main() {
     String name,
     Widget child, {
     Size size = _phone,
+    double textScale = 1.0,
     Duration settle = const Duration(milliseconds: 400),
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
+    tester.platformDispatcher.textScaleFactorTestValue = textScale;
     addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
     // Screens read from in-memory stores that main.dart normally fills on
     // launch, so prime them before the first frame.
@@ -302,6 +305,27 @@ void main() {
   testWidgets(
     'mobile shell (bottom nav)',
     (t) => shoot(t, 'mobile_shell', const AppShell()),
+  );
+  // The bottom bar has to survive the narrowest phone still shipping, a
+  // large phone, and a user running big system fonts — no wrapped labels,
+  // no clipping, no collision with the centre button.
+  testWidgets(
+    'nav on a 320dp phone',
+    (t) => shoot(t, 'nav_320', const AppShell(), size: const Size(320, 568)),
+  );
+  testWidgets(
+    'nav on a 430dp phone',
+    (t) => shoot(t, 'nav_430', const AppShell(), size: const Size(430, 932)),
+  );
+  testWidgets(
+    'nav at 130% system font',
+    (t) => shoot(
+      t,
+      'nav_large_text',
+      const AppShell(),
+      size: const Size(360, 800),
+      textScale: 1.3,
+    ),
   );
   testWidgets(
     'desktop dashboard',

@@ -28,7 +28,16 @@ class FloatingGlassNav extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentTab = ref.watch(navigationProvider).currentTab;
-    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final media = MediaQuery.of(context);
+    final bottomInset = media.padding.bottom;
+
+    // Everything scales off the actual window: a 320dp phone, a 430dp Max and
+    // a user running 130% font size all have to fit four labelled tabs plus
+    // the centre button without wrapping or clipping.
+    final width = media.size.width;
+    final textScale = media.textScaler.scale(1).clamp(1.0, 1.3);
+    final fabSize = (width * 0.18).clamp(52.0, 68.0);
+    final barHeight = (62.0 * textScale).clamp(62.0, 84.0);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(10, 0, 10, 12 + bottomInset),
@@ -38,7 +47,7 @@ class FloatingGlassNav extends ConsumerWidget {
         children: [
           Container(
             width: double.infinity,
-            height: 70,
+            height: barHeight,
             decoration: BoxDecoration(
               color: const Color(0xFF131318),
               borderRadius: BorderRadius.circular(24),
@@ -56,7 +65,8 @@ class FloatingGlassNav extends ConsumerWidget {
               children: [
                 _tab(ref, navigationItems[0], currentTab),
                 _tab(ref, navigationItems[1], currentTab),
-                const SizedBox(width: 72),
+                // Clearance for the centre button, which overlaps the bar.
+                SizedBox(width: fabSize + 6),
                 _tab(ref, navigationItems[2], currentTab),
                 _tab(ref, navigationItems[3], currentTab),
               ],
@@ -65,8 +75,11 @@ class FloatingGlassNav extends ConsumerWidget {
           // Circular Add button, seated into the bar's center with a small
           // lift — a circle overlaps the bar cleanly where a square didn't.
           Positioned(
-            top: -12,
-            child: _AddButton(onTap: () => showAddExpenseModal(context)),
+            top: -fabSize * 0.18,
+            child: _AddButton(
+              size: fabSize,
+              onTap: () => showAddExpenseModal(context),
+            ),
           ),
         ],
       ),
@@ -483,24 +496,33 @@ class _NavButton extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: isActive
                 ? colorScheme.primary.withValues(alpha: 0.12)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(item.icon, size: 23, color: color),
+              Icon(item.icon, size: 22, color: color),
               const SizedBox(height: 3),
-              Text(
-                item.label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: color,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+              // Never wrap: on a narrow phone (or at a large system font
+              // size) the label shrinks to fit instead of breaking into
+              // "Expens / es".
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  softWrap: false,
+                  textScaler: TextScaler.noScaling,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: color,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -514,14 +536,17 @@ class _NavButton extends StatelessWidget {
 class _AddButton extends StatelessWidget {
   final VoidCallback onTap;
 
-  const _AddButton({required this.onTap});
+  /// Scales with the window so it never crowds the tabs on small phones.
+  final double size;
+
+  const _AddButton({required this.onTap, this.size = 68});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      width: 68,
-      height: 68,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: colorScheme.primary,
@@ -543,7 +568,7 @@ class _AddButton extends StatelessWidget {
           child: Icon(
             Icons.add_rounded,
             color: colorScheme.onPrimary,
-            size: 32,
+            size: size * 0.47,
           ),
         ),
       ),

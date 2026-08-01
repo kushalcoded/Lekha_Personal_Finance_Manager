@@ -97,7 +97,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
               child: _PersonRow(balance: p, onTap: () => _openPerson(p.name)),
             ),
           ),
-          // Mockup's inline add row (the FAB stays for thumb reach).
+          // The only add-a-debt entry point: a FAB here would collide with
+          // the bottom bar's centre button (they are different actions, so
+          // two violet circles read as a bug).
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () => _showAddChooser(context),
@@ -128,19 +130,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
       backgroundColor: Colors.transparent,
       // Desktop already has the inline add row + sidebar button; the FAB is
       // a thumb-reach affordance for phones only.
-      floatingActionButton: isWide
-          ? null
-          : Padding(
-              // Lift the add button clear above the floating navigation bar.
-              padding: EdgeInsets.only(bottom: kNavBottomInset - 36),
-              child: FloatingActionButton(
-                onPressed: () => _showAddChooser(context),
-                backgroundColor: cs.primary,
-                foregroundColor: cs.onPrimary,
-                tooltip: 'Add a debt',
-                child: const Icon(Icons.add_rounded),
-              ),
-            ),
+      // No FAB: the inline "+ Add a debt" row is the entry point on both
+      // layouts. On mobile a FAB here would land on top of the nav bar's own
+      // centre button — two violet circles doing different things.
       body: SafeArea(
         bottom: false,
         child: isWide
