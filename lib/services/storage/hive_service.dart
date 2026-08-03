@@ -680,7 +680,12 @@ class HiveService {
   Future<void> savePendingTransaction(PendingTransaction txn) async {
     if (!_initialized) throw Exception('HiveService not initialized');
     await _pendingBox.put(txn.id, txn.toJson());
-    _notifyChanged();
+    // Deliberately does NOT mark the account dirty. Detections sync through
+    // detected_transactions, not the snapshot — and marking dirty here meant
+    // that merely *receiving* a detection made the device look like it had
+    // unpushed edits, so every later sync pushed instead of pulling and the
+    // device silently stopped accepting other devices' expenses.
+    // Only real money edits (addExpense and friends) may set that flag.
   }
 
   /// Fold another device's detected-SMS state into this one before a push.
