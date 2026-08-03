@@ -2,14 +2,24 @@
 
 iOS has no SMS-read API, so the iPhone forwards bank SMS itself: a **Shortcuts
 automation** fires on incoming messages and POSTs the text to a tiny Supabase
-Edge Function, which queues it per-user. The app (web or Android) drains that
-queue through the **same Gemini parse + dedup pipeline** as native Android SMS —
-detected debits appear as the usual "Detected" cards.
+Edge Function. That function **parses the SMS as it arrives** and stores the
+result in `detected_transactions`, which every signed-in device reads.
 
 ```
-iPhone SMS → Shortcuts automation → ingest-sms Edge Function → ingested_sms table
-          → app drains on open/poll → Gemini parse → Detected card
+iPhone SMS → Shortcuts automation → ingest-sms Edge Function
+          → parses immediately → detected_transactions → Detected card
+             (on every device, no app-open needed)
 ```
+
+Parsing used to wait for the app to be opened, which on iOS could be days —
+nothing of ours can run in the background there, so detections appeared in a
+late batch. Parsing server-side removes that gap. If the function can't parse
+(no key, quota, model error) the raw row stays `status='new'` and the app's own
+drain still handles it on next open, exactly as before.
+
+Android keeps parsing on-device (its receiver is instant either way) and
+publishes its detections to the same table, so a phone-detected SMS shows up on
+the web app too, and adding or dismissing a card clears it everywhere.
 
 Auth is a **per-user ingest token** generated in the app (Settings → Connect
 iPhone SMS) — requires being signed in.
@@ -49,6 +59,33 @@ create policy "Users manage their own ingested sms"
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- Parsed detections, shared by every device. Deliberately its own table
+-- rather than part of the whole-account snapshot: a detection must survive
+-- last-write-wins, and each device decides add/dismiss independently.
+create table if not exists public.detected_transactions (
+  id                text primary key,          -- stable per source SMS
+  user_id           uuid not null references auth.users(id) on delete cascade,
+  amount            numeric not null,
+  occurred_at       timestamptz not null,
+  raw_body          text not null,
+  status            text not null default 'pending',  -- pending|added|dismissed
+  linked_expense_id text,
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+create index if not exists detected_transactions_user_status_idx
+  on public.detected_transactions (user_id, status, occurred_at desc);
+
+alter table public.detected_transactions enable row level security;
+
+create policy "Users manage their own detected transactions"
+  on public.detected_transactions
+  for all
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 ```
 
 (The Edge Function inserts with the service-role key, which bypasses RLS; the
@@ -61,11 +98,16 @@ stays so the connection health card can show when the last SMS arrived.)
 Code: `supabase/functions/ingest-sms/index.ts`.
 
 - Dashboard → **Edge Functions → Create a function** → name `ingest-sms` →
-  paste the file → Deploy.
+  paste the file → Deploy. **Redeploy after any change to this file** — the
+  dashboard runs the copy you pasted, not the one in git.
 - **CRITICAL: turn OFF "Verify JWT"** for this function (Shortcuts can't send
   one; the ingest token is the auth). Same lesson as the send-sms hook.
-- No extra secrets needed — `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are
-  auto-injected.
+- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are auto-injected.
+- For server-side parsing it reads the **same secrets as gemini-proxy**:
+  `GEMINI_API_KEY` (+ optional `GEMINI_MODEL`, `GROQ_API_KEY`, `GROQ_MODEL`).
+  Secrets are project-wide, so if gemini-proxy already works there is nothing
+  to add. Without them the function still queues the SMS and the app parses it
+  on next open, i.e. the old behaviour.
 
 ## 3. In the app
 

@@ -87,12 +87,124 @@ class SmsCaptureService {
   /// were added. Already-seen entries are skipped, and both queues keep
   /// unparsed entries so an offline failure is retried next time.
   Future<int> sync() async {
-    // AI-first: nothing to parse without it.
-    if (!_gemini.isConfigured) return 0;
-    var added = 0;
+    // Detections parsed on the server need no local AI, so they are pulled
+    // even when this device has none configured.
+    var added = await _pullDetected();
+    await _pushDetected();
+    if (!_gemini.isConfigured) return added;
     if (!kIsWeb) added += await _syncNativeQueue();
+    // Fallback drain: rows the server couldn't parse are still status 'new'.
     added += await _syncCloudQueue();
     return added;
+  }
+
+  /// Adopt detections the server parsed (iPhone SMS are parsed the moment
+  /// they arrive) and status changes made on other devices. This is what
+  /// removes the "nothing shows up until I open the app" gap on iOS.
+  Future<int> _pullDetected() async {
+    List<dynamic> rows;
+    try {
+      final client = SupabaseService.client;
+      if (client.auth.currentUser == null) return 0;
+      rows = await client
+          .from('detected_transactions')
+          .select('id, amount, occurred_at, raw_body, status, linked_expense_id')
+          .order('occurred_at', ascending: false)
+          .limit(100);
+    } catch (_) {
+      return 0; // offline / table not created yet
+    }
+
+    final hive = HiveService();
+    final local = {for (final t in hive.getPendingTransactions()) t.id: t};
+    var added = 0;
+    for (final row in rows.whereType<Map>()) {
+      final id = row['id']?.toString();
+      final amount = (row['amount'] as num?)?.toDouble() ?? 0;
+      if (id == null || id.isEmpty || amount <= 0) continue;
+      final status = _statusFrom(row['status']);
+      final existing = local[id];
+      if (existing != null) {
+        // Terminal beats pending, whichever device decided it.
+        if (existing.status == PendingStatus.pending &&
+            status != PendingStatus.pending) {
+          await hive.savePendingTransaction(
+            existing.copyWith(
+              status: status,
+              linkedExpenseId: row['linked_expense_id']?.toString(),
+            ),
+          );
+        }
+        continue;
+      }
+      if (status != PendingStatus.pending) {
+        // Already handled elsewhere: remember it so the local dedup and the
+        // seen-set don't resurrect it, but don't show a card.
+        await hive.markSmsSeen(id);
+        continue;
+      }
+      final occurred =
+          DateTime.tryParse(row['occurred_at']?.toString() ?? '') ??
+          DateTime.now();
+      final body = row['raw_body']?.toString() ?? '';
+      if (isDuplicateTransaction(
+        hive.getPendingTransactions(),
+        amount,
+        occurred,
+      )) {
+        continue;
+      }
+      await hive.markSmsSeen(id);
+      await hive.savePendingTransaction(
+        PendingTransaction(
+          id: id,
+          amount: amount,
+          dateTime: occurred,
+          rawBody: body,
+          createdAt: DateTime.now(),
+        ),
+      );
+      added++;
+    }
+    return added;
+  }
+
+  /// Publish this device's detections and decisions so the others match —
+  /// an Android-detected SMS shows up on the web app, and adding one here
+  /// clears the card everywhere.
+  Future<void> _pushDetected() async {
+    try {
+      final client = SupabaseService.client;
+      final user = client.auth.currentUser;
+      if (user == null) return;
+      final rows = HiveService()
+          .getPendingTransactions()
+          .map(
+            (t) => {
+              'id': t.id,
+              'user_id': user.id,
+              'amount': t.amount,
+              'occurred_at': t.dateTime.toIso8601String(),
+              'raw_body': t.rawBody,
+              'status': t.status.name,
+              'linked_expense_id': t.linkedExpenseId,
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+          )
+          .toList();
+      if (rows.isEmpty) return;
+      await client.from('detected_transactions').upsert(rows);
+    } catch (_) {
+      // Offline or table missing — the next sync retries.
+    }
+  }
+
+  static PendingStatus _statusFrom(Object? raw) {
+    final name = raw?.toString() ?? '';
+    return PendingStatus.values.firstWhere(
+      (s) => s.name == name,
+      orElse: () => PendingStatus.pending,
+    );
   }
 
   Future<int> _syncNativeQueue() async {
@@ -280,6 +392,14 @@ class SmsCaptureService {
     }
   }
 }
+
+/// How long since the iPhone last forwarded an SMS, or null if it never has
+/// / we can't tell. iOS silently disables Shortcuts automations, and the only
+/// symptom is silence — so this is surfaced in Settings rather than buried in
+/// the setup guide.
+final iphoneSmsHealthProvider = FutureProvider<DateTime?>((ref) async {
+  return ref.read(smsCaptureServiceProvider).lastCloudSmsAt();
+});
 
 final smsCaptureServiceProvider = Provider<SmsCaptureService>((ref) {
   return SmsCaptureService(ref.read(geminiServiceProvider));

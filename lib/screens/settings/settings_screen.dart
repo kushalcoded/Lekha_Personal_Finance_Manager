@@ -12,6 +12,7 @@ import '../../providers/update_providers.dart';
 import '../ai_chat_screen.dart';
 import 'providers/productivity_providers.dart';
 import 'providers/settings_providers.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
 import '../../widgets/common/glass.dart';
 import '../cycle_recap_dialog.dart';
@@ -353,7 +354,16 @@ class SettingsScreen extends ConsumerWidget {
                               _SettingRow(
                                 icon: Icons.phone_iphone_rounded,
                                 title: 'Connect iPhone SMS',
-                                subtitle: 'Step-by-step Shortcuts setup guide',
+                                subtitle: _iphoneSmsSubtitle(
+                                  ref.watch(iphoneSmsHealthProvider),
+                                ),
+                                // Silence is the only symptom when iOS turns
+                                // the automation off, so say it here.
+                                subtitleColor: _iphoneSmsStale(
+                                  ref.watch(iphoneSmsHealthProvider),
+                                )
+                                    ? CalmColors.of(context).warning
+                                    : null,
                                 onTap: () => Navigator.of(context).push(
                                   MaterialPageRoute<void>(
                                     builder: (_) =>
@@ -778,10 +788,36 @@ class _SettingsGroup extends StatelessWidget {
 
 /// One compact settings row: leading icon, title (+ optional subtitle), and a
 /// trailing control — a value+chevron (tappable), a switch, or a pill button.
+/// iOS turns Shortcuts automations off without telling anyone, and the only
+/// symptom is that detections quietly stop. Three days of silence from a
+/// previously-working setup is worth flagging on the Settings row itself.
+const _kIphoneSmsStaleAfter = Duration(days: 3);
+
+bool _iphoneSmsStale(AsyncValue<DateTime?> health) {
+  final last = health.valueOrNull;
+  if (last == null) return false;
+  return DateTime.now().difference(last) > _kIphoneSmsStaleAfter;
+}
+
+String _iphoneSmsSubtitle(AsyncValue<DateTime?> health) {
+  final last = health.valueOrNull;
+  if (health.isLoading) return 'Step-by-step Shortcuts setup guide';
+  if (last == null) return 'Step-by-step Shortcuts setup guide';
+  final ago = DateTime.now().difference(last);
+  if (ago > _kIphoneSmsStaleAfter) {
+    return 'No SMS for ${AppFormatters.getRelativeTime(last)} — the iPhone '
+        'automation may have switched itself off';
+  }
+  return 'Working · last SMS ${AppFormatters.getRelativeTime(last)}';
+}
+
 class _SettingRow extends StatelessWidget {
   final IconData icon;
   final String title;
   final String? subtitle;
+
+  /// Lets a row raise its own alarm (e.g. iPhone SMS capture gone quiet).
+  final Color? subtitleColor;
   final String? value;
   final Widget? trailing;
   final VoidCallback? onTap;
@@ -790,6 +826,7 @@ class _SettingRow extends StatelessWidget {
     required this.icon,
     required this.title,
     this.subtitle,
+    this.subtitleColor,
     this.value,
     this.trailing,
     this.onTap,
@@ -826,7 +863,7 @@ class _SettingRow extends StatelessWidget {
                       Text(
                         subtitle!,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
+                          color: subtitleColor ?? cs.onSurfaceVariant,
                           fontSize: 11.5,
                         ),
                       ),
