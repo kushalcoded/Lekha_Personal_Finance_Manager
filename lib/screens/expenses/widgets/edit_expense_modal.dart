@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/storage/storage_providers.dart';
 import '../../../utils/formatters/formatters.dart';
+import '../../../widgets/common/form_bits.dart';
+import '../../settings/providers/settings_providers.dart';
 import '../providers/expenses_providers.dart';
 import '../utils/expense_helpers.dart';
 import '../utils/split_helpers.dart';
@@ -462,6 +464,23 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
                 );
               },
             ),
+            // Moving a date before the cycle start hides the expense from the
+            // list, which reads as "my edit deleted it".
+            if (OutOfCycleNote.applies(
+              _selectedDate,
+              ref.watch(
+                settingsProvider.select((s) => s.currentCycleStartDate),
+              ),
+            )) ...[
+              const SizedBox(height: 10),
+              OutOfCycleNote(
+                date: _selectedDate,
+                onUseToday: () {
+                  _markInteracted();
+                  setState(() => _selectedDate = DateTime.now());
+                },
+              ),
+            ],
             const SizedBox(height: 16),
             CategorySelector(
               categories: ref.watch(expenseCategoriesProvider),

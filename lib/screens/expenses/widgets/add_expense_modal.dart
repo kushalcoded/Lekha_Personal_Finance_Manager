@@ -2,7 +2,6 @@ import '../../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:uuid/uuid.dart';
 
@@ -12,7 +11,6 @@ import '../../../providers/ai_providers.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/cycle/cycle_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
-import '../../../theme/app_theme.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../../settings/providers/settings_providers.dart';
 import '../providers/expenses_providers.dart';
@@ -662,14 +660,10 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
   /// salary cycle, so an expense dated before it saves correctly but is
   /// invisible there — which reads as "it didn't save". Detected SMS from
   /// just before a cycle rollover land here most often.
-  bool _outOfCycle(WidgetRef ref) {
-    final start = ref.watch(
-      settingsProvider.select((s) => s.currentCycleStartDate),
-    );
-    return _selectedDate.isBefore(
-      DateTime(start.year, start.month, start.day),
-    );
-  }
+  bool _outOfCycle(WidgetRef ref) => OutOfCycleNote.applies(
+    _selectedDate,
+    ref.watch(settingsProvider.select((s) => s.currentCycleStartDate)),
+  );
 
   double get _total =>
       parseAmountExpression(_amountController.text.trim()) ?? 0;
@@ -909,7 +903,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
               ),
               if (_outOfCycle(ref)) ...[
                 const SizedBox(height: 10),
-                _OutOfCycleNote(
+                OutOfCycleNote(
                   date: _selectedDate,
                   onUseToday: () {
                     _markInteracted();
@@ -955,56 +949,6 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Explains — at the moment it can still be changed — that this date falls
-/// outside the current cycle, so the expense won't show in the cycle list.
-class _OutOfCycleNote extends StatelessWidget {
-  final DateTime date;
-  final VoidCallback onUseToday;
-
-  const _OutOfCycleNote({required this.date, required this.onUseToday});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final calm = CalmColors.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: calm.warning.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: calm.warning.withValues(alpha: 0.30)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Dated ${DateFormat('d MMM').format(date)} — before this cycle '
-            'started, so it saves but stays out of this cycle\'s list and '
-            'totals.',
-            style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
-          ),
-          const SizedBox(height: 6),
-          InkWell(
-            onTap: onUseToday,
-            borderRadius: BorderRadius.circular(6),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Text(
-                "Use today's date instead",
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

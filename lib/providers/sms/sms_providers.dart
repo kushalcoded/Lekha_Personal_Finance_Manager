@@ -86,15 +86,36 @@ class SmsCaptureService {
   /// SMS) → parse new ones → store. Returns how many new pending transactions
   /// were added. Already-seen entries are skipped, and both queues keep
   /// unparsed entries so an offline failure is retried next time.
-  Future<int> sync() async {
-    // Detections parsed on the server need no local AI, so they are pulled
-    // even when this device has none configured.
-    var added = await _pullDetected();
-    await _pushDetected();
+  /// Cloud round-trips are throttled: the foreground poll runs every few
+  /// seconds so a native Android SMS appears almost instantly, but that
+  /// cadence must not become three Supabase calls every few seconds — it
+  /// would burn quota and battery for nothing. Local queues stay on the fast
+  /// path; the network side runs at most once a minute, or immediately when
+  /// [force] is set (app resume, manual sync).
+  static const _cloudInterval = Duration(seconds: 60);
+  DateTime? _lastCloudAt;
+
+  Future<int> sync({bool force = false}) async {
+    var added = 0;
+    final now = DateTime.now();
+    final cloudDue =
+        force ||
+        _lastCloudAt == null ||
+        now.difference(_lastCloudAt!) >= _cloudInterval;
+
+    if (cloudDue) {
+      _lastCloudAt = now;
+      // Server-parsed detections need no local AI, so they are pulled even
+      // when this device has none configured.
+      added += await _pullDetected();
+      await _pushDetected();
+    }
     if (!_gemini.isConfigured) return added;
     if (!kIsWeb) added += await _syncNativeQueue();
-    // Fallback drain: rows the server couldn't parse are still status 'new'.
-    added += await _syncCloudQueue();
+    if (cloudDue) {
+      // Fallback drain: rows the server couldn't parse are still 'new'.
+      added += await _syncCloudQueue();
+    }
     return added;
   }
 

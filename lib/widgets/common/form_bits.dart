@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../../theme/app_theme.dart';
 
 /// Small uppercase data label — JetBrains Mono, the Midnight Terminal
 /// signature detail. Used above fields and sections.
@@ -102,6 +105,66 @@ class ChoicePill extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Says — while the date can still be changed — that this one falls outside
+/// the current salary cycle, so the expense saves but stays out of that
+/// cycle's list and totals. Without it a saved expense simply vanishes and
+/// reads as "it didn't save".
+class OutOfCycleNote extends StatelessWidget {
+  final DateTime date;
+  final VoidCallback onUseToday;
+
+  const OutOfCycleNote({
+    super.key,
+    required this.date,
+    required this.onUseToday,
+  });
+
+  /// True when [date] falls before the cycle beginning [cycleStart].
+  static bool applies(DateTime date, DateTime cycleStart) => date.isBefore(
+    DateTime(cycleStart.year, cycleStart.month, cycleStart.day),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final calm = CalmColors.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: calm.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: calm.warning.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Dated ${DateFormat('d MMM').format(date)} — before this cycle '
+            "started, so it stays out of this cycle's list and totals.",
+            style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+          ),
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: onUseToday,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                "Use today's date instead",
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

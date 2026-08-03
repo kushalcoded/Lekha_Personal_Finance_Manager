@@ -25,11 +25,24 @@ class SyncNotifier extends StateNotifier<SyncState> {
     return _ref.read(currentUserIdProvider);
   }
 
-  /// The sync currently running, if any. Two syncs at once is how data got
-  /// lost: one clears the boxes to restore a pull while the other snapshots
-  /// them mid-clear and uploads that empty result. Taps coalesce onto the
-  /// in-flight run instead.
+  /// The sync currently running, if any — repeated taps coalesce onto it
+  /// rather than starting another.
   Future<SyncResult>? _inFlight;
+
+  /// Serialises EVERY sync operation, force-push and force-pull included.
+  /// Two at once is how data got lost: one clears the boxes to restore a pull
+  /// while the other snapshots them mid-clear and uploads that empty result.
+  /// The reconciler's force actions run at sign-in — exactly when the startup
+  /// sync or a debounced push is most likely already in flight — so guarding
+  /// syncNow alone left the hole open.
+  Future<void> _lock = Future<void>.value();
+
+  Future<T> _serialize<T>(Future<T> Function() body) {
+    final result = _lock.then((_) => body());
+    // Keep the chain alive even when one operation fails.
+    _lock = result.then((_) {}, onError: (_) {});
+    return result;
+  }
 
   /// Perform full sync now. [pushOnly] forces an upload (used when the local
   /// side is the fresh editor, e.g. app going to background) so a concurrent
@@ -37,7 +50,7 @@ class SyncNotifier extends StateNotifier<SyncState> {
   Future<SyncResult> syncNow({bool pushOnly = false}) {
     final running = _inFlight;
     if (running != null) return running;
-    final future = _syncNow(pushOnly: pushOnly);
+    final future = _serialize(() => _syncNow(pushOnly: pushOnly));
     _inFlight = future;
     return future.whenComplete(() => _inFlight = null);
   }
@@ -124,21 +137,21 @@ class SyncNotifier extends StateNotifier<SyncState> {
   }
 
   /// Reconciler action: overwrite the cloud with this device's data.
-  Future<void> forcePush() async {
+  Future<void> forcePush() => _serialize(() async {
     final userId = _getUserId();
     if (userId == null || userId.isEmpty) return;
     await _syncService.pushSnapshot(userId);
     state = _hiveService.getSyncState(userId);
-  }
+  });
 
   /// Reconciler action: overwrite this device with the cloud snapshot.
-  Future<void> forcePull() async {
+  Future<void> forcePull() => _serialize(() async {
     final userId = _getUserId();
     if (userId == null || userId.isEmpty) return;
     await _syncService.pullSnapshot(userId);
     state = _hiveService.getSyncState(userId);
     await _refreshLocalStores(userId);
-  }
+  });
 
   /// Refresh current sync status
   Future<void> refreshStatus() async {

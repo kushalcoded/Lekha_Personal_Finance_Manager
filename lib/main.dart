@@ -336,7 +336,7 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
     // waiting for this one to be backgrounded.
     HiveService.onDataChanged = _schedulePush;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncSms();
+      _syncSms(force: true);
       _startPolling();
     });
   }
@@ -354,7 +354,9 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _syncSms();
+      // Coming back is exactly when the cloud queue is worth a look, so skip
+      // the throttle here; the periodic poll keeps to it.
+      _syncSms(force: true);
       _startPolling();
     } else {
       _stopPolling();
@@ -380,7 +382,7 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
   }
 
   /// Detect new bank/UPI debits from SMS captured while we were away.
-  Future<void> _syncSms() async {
+  Future<void> _syncSms({bool force = false}) async {
     if (_syncing) return;
     if (!ref.read(settingsProvider).smsAutoDetectEnabled) return;
     _syncing = true;
@@ -392,7 +394,7 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
           await sms.requestPermission();
         }
       }
-      final count = await sms.sync();
+      final count = await sms.sync(force: force);
       if (count > 0 && mounted) {
         ref.read(pendingTransactionsProvider.notifier).refresh();
       }
