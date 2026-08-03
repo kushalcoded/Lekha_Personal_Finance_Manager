@@ -189,6 +189,19 @@ class SettingsScreen extends ConsumerWidget {
                               onTap: () => showSalarySettingsModal(context),
                             ),
                             _SettingRow(
+                              icon: Icons.event_repeat_rounded,
+                              title: 'Salary day',
+                              subtitle: settings.salaryDay == null
+                                  ? 'Get asked to start a new cycle'
+                                  : 'Asks around the '
+                                        '${_ordinal(settings.salaryDay!)} — '
+                                        'you confirm the real date',
+                              value: settings.salaryDay == null
+                                  ? 'Not set'
+                                  : _ordinal(settings.salaryDay!),
+                              onTap: () => _pickSalaryDay(context, ref),
+                            ),
+                            _SettingRow(
                               icon: Icons.restart_alt_rounded,
                               title: 'Current cycle',
                               subtitle:
@@ -477,7 +490,7 @@ class SettingsScreen extends ConsumerWidget {
       builder: (context) => AlertDialog(
         title: const Text('Start new salary cycle?'),
         content: const Text(
-          'Dashboard and budget tracking will restart from today. '
+          'Dashboard and budget tracking restart from the date you pick. '
           'Previous records remain saved for history and analytics.',
         ),
         actions: [
@@ -487,15 +500,107 @@ class SettingsScreen extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Start'),
+            child: const Text('Pick date'),
           ),
         ],
       ),
     );
-    if (confirmed != true) return;
-    await ref.read(settingsProvider.notifier).resetSalaryCycle();
+    if (confirmed != true || !context.mounted) return;
+    // Salary lands early some months and late others, so the cycle must be
+    // able to start on the day the money actually arrived — not just today.
+    final start = await _pickCycleStart(context, ref);
+    if (start == null || !context.mounted) return;
+    await ref.read(settingsProvider.notifier).resetSalaryCycle(
+      startDate: start,
+    );
     if (!context.mounted) return;
     await showCycleResetRecap(context, ref);
+  }
+
+  /// Date picker for a new cycle's first day, defaulting to the salary day
+  /// this month when one is set, else today. Never allows a future start.
+  static Future<DateTime?> _pickCycleStart(
+    BuildContext context,
+    WidgetRef ref,
+  ) {
+    final settings = ref.read(settingsProvider);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    var initial = today;
+    final day = settings.salaryDay;
+    if (day != null) {
+      final lastDayOfMonth = DateTime(now.year, now.month + 1, 0).day;
+      final thisMonth = DateTime(
+        now.year,
+        now.month,
+        day.clamp(1, lastDayOfMonth),
+      );
+      if (!thisMonth.isAfter(today)) initial = thisMonth;
+    }
+    return showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 2),
+      lastDate: today,
+      helpText: 'Cycle starts on',
+    );
+  }
+
+  static Future<void> _pickSalaryDay(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(settingsProvider).salaryDay;
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Salary day'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Text(
+              'Which day of the month does your salary usually land? Lekha '
+              'only uses it to ask about starting a new cycle — you always '
+              'confirm the real date.',
+              style: Theme.of(ctx).textTheme.bodySmall,
+            ),
+          ),
+          SizedBox(
+            height: 260,
+            width: 320,
+            child: GridView.count(
+              crossAxisCount: 6,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                for (var day = 1; day <= 31; day++)
+                  InkWell(
+                    onTap: () => Navigator.of(ctx).pop(day),
+                    child: Center(
+                      child: Text(
+                        '$day',
+                        style: TextStyle(
+                          fontWeight: day == current
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: day == current
+                              ? Theme.of(ctx).colorScheme.primary
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (current != null)
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(-1),
+              child: const Text("Don't ask me"),
+            ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    await ref
+        .read(settingsProvider.notifier)
+        .setSalaryDay(picked == -1 ? null : picked);
   }
 
   Future<void> _confirmRestore(
@@ -723,6 +828,21 @@ String _formatCycleDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day/$month/${date.year}';
+}
+
+/// "7th", "1st", "22nd" — used wherever the salary day is shown.
+String _ordinal(int day) {
+  if (day >= 11 && day <= 13) return '${day}th';
+  switch (day % 10) {
+    case 1:
+      return '${day}st';
+    case 2:
+      return '${day}nd';
+    case 3:
+      return '${day}rd';
+    default:
+      return '${day}th';
+  }
 }
 
 /// A tiny uppercase section label above a frosted card of rows.

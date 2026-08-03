@@ -22,6 +22,7 @@ import '../../widgets/common/ai_text.dart';
 import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
 import '../ai_chat_screen.dart';
+import '../cycle_recap_dialog.dart';
 import '../expenses/widgets/add_expense_modal.dart';
 import '../settings/providers/settings_providers.dart';
 import '../settings/settings_screen.dart';
@@ -126,6 +127,7 @@ class DashboardScreen extends ConsumerWidget {
                     children: [
                       header,
                       const SizedBox(height: 18),
+                      const _CycleRollPrompt(),
                       if (isWide)
                         // Desktop: hero + recent on the left, totals and
                         // categories in a right sidebar column.
@@ -455,6 +457,91 @@ class _AiSummaryRow extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// Asks — around the salary day — whether to start a new cycle, because the
+/// cycle boundary is the thing every budget number is measured against and
+/// nothing else moves it. Deliberately a question with an editable date:
+/// salary lands early some months and late others, so the app must never
+/// pick the date itself.
+class _CycleRollPrompt extends ConsumerWidget {
+  const _CycleRollPrompt();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    if (!settings.cycleRollDue()) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final started = settings.currentCycleStartDate;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: AccentEdgeCard(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Start a new cycle?',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'This one began ${DateFormat('d MMM').format(started)} — '
+              '${DateTime.now().difference(started).inDays} days ago. '
+              'Starting a new one archives it to History.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                SmsActionPill(
+                  label: 'Choose date',
+                  primary: true,
+                  onTap: () => _start(context, ref),
+                ),
+                const SizedBox(width: 8),
+                SmsActionPill(
+                  label: 'Not yet',
+                  onTap: () =>
+                      ref.read(settingsProvider.notifier).dismissCyclePrompt(),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _start(BuildContext context, WidgetRef ref) async {
+    final settings = ref.read(settingsProvider);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final suggested = settings.expectedCycleRollDate;
+    final picked = await showDatePicker(
+      context: context,
+      // Defaults to the salary day, but the real credit date wins.
+      initialDate: (suggested == null || suggested.isAfter(today))
+          ? today
+          : suggested,
+      firstDate: settings.currentCycleStartDate,
+      lastDate: today,
+      helpText: 'Salary credited on',
+    );
+    if (picked == null || !context.mounted) return;
+    await ref
+        .read(settingsProvider.notifier)
+        .resetSalaryCycle(startDate: picked);
+    if (!context.mounted) return;
+    await showCycleResetRecap(context, ref);
   }
 }
 

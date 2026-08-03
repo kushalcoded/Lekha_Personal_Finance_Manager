@@ -24,6 +24,15 @@ class SettingsState {
   final bool recurringQuickGenerateEnabled;
   final bool smsAutoDetectEnabled;
   final DateTime? salaryCycleStartDate;
+
+  /// Day of the month salary usually lands (1–31), or null if not set. Only
+  /// ever used to decide WHEN TO ASK about starting a new cycle — credit
+  /// dates drift early and late, so the app never rolls a cycle on its own.
+  final int? salaryDay;
+
+  /// The expected roll date the user last dismissed, so the prompt asks once
+  /// per cycle rather than every launch.
+  final DateTime? cyclePromptDismissedFor;
   final double currentCycleBudget;
   final double currentCycleSalary;
   final List<CycleHistorySnapshot> cycleHistory;
@@ -44,6 +53,8 @@ class SettingsState {
     this.recurringQuickGenerateEnabled = true,
     this.smsAutoDetectEnabled = true,
     this.salaryCycleStartDate,
+    this.salaryDay,
+    this.cyclePromptDismissedFor,
     this.currentCycleBudget = 0.0,
     this.currentCycleSalary = 0.0,
     this.cycleHistory = const [],
@@ -56,6 +67,25 @@ class SettingsState {
     }
     final now = DateTime.now();
     return DateTime(now.year, now.month, 1);
+  }
+
+  /// The first salary day strictly after the current cycle began — i.e. when
+  /// this cycle is due to be replaced. Null when no salary day is set.
+  DateTime? get expectedCycleRollDate =>
+      salaryDay == null ? null : nextSalaryDayAfter(currentCycleStartDate, salaryDay!);
+
+  /// True once that date has arrived and the user hasn't dismissed it. The
+  /// prompt is a question, never an action: salary lands early some months
+  /// and late others, so the user confirms the real date.
+  bool cycleRollDue([DateTime? now]) {
+    final due = expectedCycleRollDate;
+    if (due == null) return false;
+    final today = now ?? DateTime.now();
+    if (DateTime(today.year, today.month, today.day).isBefore(due)) {
+      return false;
+    }
+    final dismissed = cyclePromptDismissedFor;
+    return dismissed == null || !_sameDay(dismissed, due);
   }
 
   SettingsState copyWith({
@@ -74,6 +104,8 @@ class SettingsState {
     bool? recurringQuickGenerateEnabled,
     bool? smsAutoDetectEnabled,
     DateTime? salaryCycleStartDate,
+    int? salaryDay,
+    DateTime? cyclePromptDismissedFor,
     double? currentCycleBudget,
     double? currentCycleSalary,
     List<CycleHistorySnapshot>? cycleHistory,
@@ -102,11 +134,31 @@ class SettingsState {
           recurringQuickGenerateEnabled ?? this.recurringQuickGenerateEnabled,
       smsAutoDetectEnabled: smsAutoDetectEnabled ?? this.smsAutoDetectEnabled,
       salaryCycleStartDate: salaryCycleStartDate ?? this.salaryCycleStartDate,
+      salaryDay: salaryDay ?? this.salaryDay,
+      cyclePromptDismissedFor:
+          cyclePromptDismissedFor ?? this.cyclePromptDismissedFor,
       currentCycleBudget: currentCycleBudget ?? this.currentCycleBudget,
       currentCycleSalary: currentCycleSalary ?? this.currentCycleSalary,
       cycleHistory: cycleHistory ?? this.cycleHistory,
     );
   }
+}
+
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+/// The next occurrence of [day] strictly after [from], clamped to the target
+/// month's length so a salary day of 31 still lands in February.
+DateTime nextSalaryDayAfter(DateTime from, int day) {
+  DateTime inMonth(int year, int month) {
+    final lastDayOfMonth = DateTime(year, month + 1, 0).day;
+    return DateTime(year, month, day.clamp(1, lastDayOfMonth));
+  }
+
+  final start = DateTime(from.year, from.month, from.day);
+  final thisMonth = inMonth(start.year, start.month);
+  if (thisMonth.isAfter(start)) return thisMonth;
+  return inMonth(start.year, start.month + 1);
 }
 
 class SettingsNotifier extends StateNotifier<SettingsState> {
@@ -154,6 +206,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         smsAutoDetectEnabled: raw['smsAutoDetectEnabled'] as bool? ?? true,
         salaryCycleStartDate:
             parsedCycleStart ?? DateTime(now.year, now.month, 1),
+        salaryDay: (raw['salaryDay'] as num?)?.toInt(),
+        cyclePromptDismissedFor: DateTime.tryParse(
+          raw['cyclePromptDismissedFor'] as String? ?? '',
+        ),
         currentCycleBudget: rawBudget,
         currentCycleSalary: rawSalary,
         cycleHistory: _hiveService.getCycleHistory(_userId),
@@ -179,6 +235,9 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       'recurringQuickGenerateEnabled': next.recurringQuickGenerateEnabled,
       'smsAutoDetectEnabled': next.smsAutoDetectEnabled,
       'salaryCycleStartDate': next.currentCycleStartDate.toIso8601String(),
+      'salaryDay': next.salaryDay,
+      'cyclePromptDismissedFor': next.cyclePromptDismissedFor
+          ?.toIso8601String(),
       'currentCycleBudget': next.currentCycleBudget,
       'currentCycleSalary': next.currentCycleSalary,
       'cycleHistory': next.cycleHistory.map((entry) => entry.toJson()).toList(),
@@ -251,6 +310,43 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   Future<void> resetCycleSalary() async {
     await _persist(state.copyWith(currentCycleSalary: 0.0));
+  }
+
+  /// The day salary usually arrives. Pass null to stop being asked.
+  Future<void> setSalaryDay(int? day) async {
+    await _persist(
+      SettingsState(
+        isLoading: false,
+        displayName: state.displayName,
+        currency: state.currency,
+        analyticsInsightsEnabled: state.analyticsInsightsEnabled,
+        defaultExportFormat: state.defaultExportFormat,
+        exportIncludeAnalyticsSummary: state.exportIncludeAnalyticsSummary,
+        remindersEnabled: state.remindersEnabled,
+        budgetWarningReminderEnabled: state.budgetWarningReminderEnabled,
+        overdueReceivableReminderEnabled:
+            state.overdueReceivableReminderEnabled,
+        recurringDueReminderEnabled: state.recurringDueReminderEnabled,
+        monthlyBudgetReminderEnabled: state.monthlyBudgetReminderEnabled,
+        recurringQuickGenerateEnabled: state.recurringQuickGenerateEnabled,
+        smsAutoDetectEnabled: state.smsAutoDetectEnabled,
+        salaryCycleStartDate: state.salaryCycleStartDate,
+        // copyWith can't clear a null-able field, and this one must be
+        // clearable to turn the reminder off.
+        salaryDay: day,
+        cyclePromptDismissedFor: state.cyclePromptDismissedFor,
+        currentCycleBudget: state.currentCycleBudget,
+        currentCycleSalary: state.currentCycleSalary,
+        cycleHistory: state.cycleHistory,
+      ),
+    );
+  }
+
+  /// Stop asking about this particular roll — the next one still prompts.
+  Future<void> dismissCyclePrompt() async {
+    final due = state.expectedCycleRollDate;
+    if (due == null) return;
+    await _persist(state.copyWith(cyclePromptDismissedFor: due));
   }
 
   Future<void> resetSalaryCycle({DateTime? startDate}) async {
