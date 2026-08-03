@@ -23,6 +23,7 @@ import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
 import '../ai_chat_screen.dart';
 import '../cycle_recap_dialog.dart';
+import '../expenses/utils/expense_helpers.dart';
 import '../expenses/widgets/add_expense_modal.dart';
 import '../settings/providers/settings_providers.dart';
 import '../settings/settings_screen.dart';
@@ -897,9 +898,8 @@ class _RecentCard extends StatelessWidget {
         else
           ...expenses.map((e) {
             final style = CategoryStyles.of(e.category);
-            final method = e.paymentMethod;
-            final caption =
-                '${e.category} · ${(method == null || method.isEmpty) ? _formatDate(e.date) : method}';
+            final method = expensePaymentMethod(e);
+            final caption = '${e.category} · ${method ?? _formatDate(e.date)}';
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),

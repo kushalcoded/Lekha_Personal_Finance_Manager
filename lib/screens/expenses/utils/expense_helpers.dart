@@ -124,9 +124,24 @@ String? inferPaymentMethod(String? notes) {
   return null;
 }
 
-String formatPaymentMethod(String? notes) {
-  return inferPaymentMethod(notes) ?? 'Not recorded';
+/// How an expense was paid: the field the user actually chose, falling back
+/// to whatever the note implies (records written before paymentMethod became
+/// a real field embedded it in the text). Null when neither knows.
+///
+/// Every surface must ask through here. When this rule was open-coded per
+/// screen, the details pane inferred from the note alone and reported
+/// "Not recorded" for expenses whose method was sitting right there in the
+/// field — while the list beside it showed the method correctly.
+String? expensePaymentMethod(Expense expense) {
+  final stored = expense.paymentMethod?.trim();
+  if (stored != null && stored.isNotEmpty) return stored;
+  return inferPaymentMethod(expense.description);
 }
+
+/// Display label for [expensePaymentMethod], for surfaces that always show
+/// a row and need words for "we don't know".
+String formatPaymentMethod(Expense expense) =>
+    expensePaymentMethod(expense) ?? 'Not recorded';
 
 String formatNotes(String? notes) {
   final value = notes?.trim();

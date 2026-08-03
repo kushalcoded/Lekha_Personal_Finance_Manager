@@ -87,7 +87,7 @@ class ExpenseDetailsContent extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final style = CategoryStyles.of(expense.category);
-    final paymentMethod = formatPaymentMethod(expense.description);
+    final paymentMethod = formatPaymentMethod(expense);
     final notes = formatNotes(expense.description);
 
     return SingleChildScrollView(

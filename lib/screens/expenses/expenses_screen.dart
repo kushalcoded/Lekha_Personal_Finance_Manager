@@ -490,8 +490,7 @@ class _ExpenseRowState extends State<_ExpenseRow> {
     final cs = theme.colorScheme;
     final expense = widget.expense;
     final style = CategoryStyles.of(expense.category);
-    final method =
-        expense.paymentMethod ?? inferPaymentMethod(expense.description);
+    final method = expensePaymentMethod(expense);
     final subtitle = method == null
         ? expense.category
         : '${expense.category} · $method';
