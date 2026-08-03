@@ -24,7 +24,13 @@ the web app too, and adding or dismissing a card clears it everywhere.
 Auth is a **per-user ingest token** generated in the app (Settings → Connect
 iPhone SMS) — requires being signed in.
 
-## 1. Create the tables (SQL Editor, run once)
+## 1. Create the tables (SQL Editor)
+
+Safe to re-run: the tables use `if not exists`, and each policy is dropped
+before it is recreated. (Without those drops a second run dies on
+`42710: policy ... already exists`, and because the editor runs the whole
+script as one transaction, *nothing* commits — including anything new further
+down.)
 
 ```sql
 create table if not exists public.ingest_tokens (
@@ -34,6 +40,9 @@ create table if not exists public.ingest_tokens (
 );
 
 alter table public.ingest_tokens enable row level security;
+
+drop policy if exists "Users manage their own ingest tokens"
+  on public.ingest_tokens;
 
 create policy "Users manage their own ingest tokens"
   on public.ingest_tokens
@@ -52,6 +61,9 @@ create table if not exists public.ingested_sms (
 );
 
 alter table public.ingested_sms enable row level security;
+
+drop policy if exists "Users manage their own ingested sms"
+  on public.ingested_sms;
 
 create policy "Users manage their own ingested sms"
   on public.ingested_sms
@@ -79,6 +91,9 @@ create index if not exists detected_transactions_user_status_idx
   on public.detected_transactions (user_id, status, occurred_at desc);
 
 alter table public.detected_transactions enable row level security;
+
+drop policy if exists "Users manage their own detected transactions"
+  on public.detected_transactions;
 
 create policy "Users manage their own detected transactions"
   on public.detected_transactions
