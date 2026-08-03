@@ -13,6 +13,35 @@ import '../ai_providers.dart';
 
 const _channel = MethodChannel('lekha/sms');
 
+/// When the transaction actually happened. Android hands us the SMS's own
+/// timestamp, but the iPhone path only knows when the Shortcut POSTed — the
+/// moment iOS got around to running it — so a batch delivered days late all
+/// shared one wrong time. Prefer the date stated inside the message, ignore
+/// implausible answers, and fall back to the delivery time.
+DateTime resolveTransactionTime(Object? stated, {required DateTime fallback}) {
+  final text = stated?.toString().trim() ?? '';
+  if (text.isEmpty || text.toLowerCase() == 'null') return fallback;
+  final parsed = DateTime.tryParse(text);
+  if (parsed == null) return fallback;
+  final now = DateTime.now();
+  // A bank never texts about tomorrow, and a model that guessed the year
+  // wrong should not silently backdate an expense out of the cycle.
+  if (parsed.isAfter(now.add(const Duration(days: 1)))) return fallback;
+  if (parsed.isBefore(now.subtract(const Duration(days: 400)))) return fallback;
+  // A date-only answer keeps the delivery clock time, so the row doesn't
+  // claim a precision the message never gave.
+  if (parsed.hour == 0 && parsed.minute == 0 && parsed.second == 0) {
+    return DateTime(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      fallback.hour,
+      fallback.minute,
+    );
+  }
+  return parsed;
+}
+
 /// The amount+time dedup rule: an identical amount within a short window is the
 /// same transaction — a bank + UPI double-SMS, or a re-sent/duplicate message.
 /// Checks across all stored statuses so a dismissed/added one isn't re-surfaced.
@@ -227,10 +256,11 @@ class SmsCaptureService {
       final isDebit = parsed['isDebit'] == true;
       final amount = (parsed['amount'] as num?)?.toDouble() ?? 0;
       if (!isFinancial || !isDebit || amount <= 0) return false;
+      final when = resolveTransactionTime(parsed['when'], fallback: dateTime);
       if (isDuplicateTransaction(
         hive.getPendingTransactions(),
         amount,
-        dateTime,
+        when,
       )) {
         return false;
       }
@@ -238,7 +268,7 @@ class SmsCaptureService {
         PendingTransaction(
           id: hash,
           amount: amount,
-          dateTime: dateTime,
+          dateTime: when,
           rawBody: body,
           createdAt: DateTime.now(),
         ),

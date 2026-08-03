@@ -65,7 +65,14 @@ class SupabaseSyncService {
           remote != null &&
           (remoteNewer || localEmpty) &&
           (!localDirty || localEmpty)) {
-        // PULL: adopt the cloud snapshot wholesale.
+        // PULL: adopt the cloud snapshot wholesale. If it holds fewer records
+        // than we do, stash what's here first so the data is recoverable from
+        // Settings even if the cloud copy turns out to be the wrong one.
+        if (_wouldLoseRecords(remote.snapshot, userId)) {
+          await _hiveService.saveLocalBackup(
+            _hiveService.createLocalBackupSnapshot(userId),
+          );
+        }
         await _hiveService.restoreFromBackup(remote.snapshot);
         downloads = 1;
         marker = remote.updatedAt;
@@ -76,6 +83,20 @@ class SupabaseSyncService {
         if (remote != null) {
           final merged = await _hiveService.mergeRemotePending(remote.snapshot);
           if (merged) downloads = 1;
+        }
+        // Last line of defence: an empty local side must never flatten a
+        // populated cloud. Any bug that leaves the boxes momentarily empty
+        // (a concurrent restore, a failed load) would otherwise erase every
+        // device. Deliberate "start over" still works through the sign-in
+        // reconciler's Keep-this-device, which calls pushSnapshot directly.
+        if (remote != null &&
+            _localIsEmpty(userId) &&
+            !_snapshotIsEmpty(remote.snapshot)) {
+          throw StateError(
+            'Refused to upload an empty snapshot over cloud data. Your data '
+            'is safe in the cloud — reopen the app, and use Settings → sync '
+            'if you meant to clear it.',
+          );
         }
         marker = await _uploadSnapshot(userId);
         uploads = 1;
@@ -182,6 +203,37 @@ class SupabaseSyncService {
         _hiveService.getAllReceivables(userId).isEmpty &&
         _hiveService.getAllPayables(userId).isEmpty &&
         _hiveService.getRecurringTemplates(userId).isEmpty;
+  }
+
+  /// Same question, asked of a snapshot rather than the local boxes. Public
+  /// for the guard's regression test — this is the check that stands between
+  /// a momentarily-empty device and every device's data.
+  static bool snapshotIsEmpty(Map<String, dynamic> snapshot) =>
+      _snapshotIsEmpty(snapshot);
+
+  static bool _snapshotIsEmpty(Map<String, dynamic> snapshot) {
+    int count(String key) {
+      final value = snapshot[key];
+      return value is List ? value.length : 0;
+    }
+
+    return count('expenses') == 0 &&
+        count('receivables') == 0 &&
+        count('payables') == 0 &&
+        count('recurringTemplates') == 0;
+  }
+
+  /// True when adopting [snapshot] would drop money records this device has.
+  bool _wouldLoseRecords(Map<String, dynamic> snapshot, String userId) {
+    int count(String key) {
+      final value = snapshot[key];
+      return value is List ? value.length : 0;
+    }
+
+    return count('expenses') < _hiveService.getAllExpenses(userId).length ||
+        count('receivables') <
+            _hiveService.getAllReceivables(userId).length ||
+        count('payables') < _hiveService.getAllPayables(userId).length;
   }
 }
 

@@ -186,17 +186,27 @@ class GeminiService {
   /// SMS auto-detect: pull just the debited amount out of a bank/UPI SMS.
   /// Returns `{isFinancial: bool, isDebit: bool, amount: number}`. Date/time
   /// come from the SMS timestamp, so we don't ask for them here.
-  Future<Map<String, dynamic>> parseSmsTransaction(String body) async {
+  Future<Map<String, dynamic>> parseSmsTransaction(
+    String body, {
+    String? todayIso,
+  }) async {
+    final today = todayIso ?? DateTime.now().toIso8601String().split('T').first;
     final raw = await _generateText(
       systemInstruction:
-          'You read ONE bank or UPI SMS and extract the transaction amount. '
+          'You read ONE bank or UPI SMS and extract the transaction amount '
+          'and, when the message states it, when it happened. '
           'Respond with ONLY compact JSON: '
-          '{"isFinancial":bool,"isDebit":bool,"amount":number}. '
+          '{"isFinancial":bool,"isDebit":bool,"amount":number,'
+          '"when":string|null}. '
           'isFinancial=false for OTP, promotional, balance-only, EMI-due, or '
           'delivery messages. isDebit=true only when money LEFT the account '
           '(debited / spent / paid / sent / withdrawn); false for credits, '
           'refunds, or received money. amount is the transaction amount, NOT '
-          'the available balance; use 0 if unclear.',
+          'the available balance; use 0 if unclear. '
+          '"when" is the transaction date (and time if given) as an ISO 8601 '
+          'string, resolving 2-digit years and formats like 01-08-26 or '
+          '"on 30Jul25 14:22"; today is $today. Use null when the message '
+          'does not state a date — never guess.',
       userPrompt: 'SMS: $body\nReturn only the JSON.',
     );
     return jsonDecode(_extractJson(raw)) as Map<String, dynamic>;

@@ -25,10 +25,24 @@ class SyncNotifier extends StateNotifier<SyncState> {
     return _ref.read(currentUserIdProvider);
   }
 
+  /// The sync currently running, if any. Two syncs at once is how data got
+  /// lost: one clears the boxes to restore a pull while the other snapshots
+  /// them mid-clear and uploads that empty result. Taps coalesce onto the
+  /// in-flight run instead.
+  Future<SyncResult>? _inFlight;
+
   /// Perform full sync now. [pushOnly] forces an upload (used when the local
   /// side is the fresh editor, e.g. app going to background) so a concurrent
   /// cloud change doesn't overwrite what the user just did.
-  Future<SyncResult> syncNow({bool pushOnly = false}) async {
+  Future<SyncResult> syncNow({bool pushOnly = false}) {
+    final running = _inFlight;
+    if (running != null) return running;
+    final future = _syncNow(pushOnly: pushOnly);
+    _inFlight = future;
+    return future.whenComplete(() => _inFlight = null);
+  }
+
+  Future<SyncResult> _syncNow({bool pushOnly = false}) async {
     final userId = _getUserId();
     if (userId == null || userId.isEmpty) {
       state = state.copyWith(

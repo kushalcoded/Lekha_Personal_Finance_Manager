@@ -739,6 +739,15 @@ class HiveService {
 
   // Backup foundation
   Map<String, dynamic> createLocalBackupSnapshot(String userId) {
+    // A restore clears each box before refilling it. Snapshotting during that
+    // window captures a half-empty store, and uploading THAT is how a sync
+    // race erased data. Callers must wait for the restore to finish.
+    if (_restoring) {
+      throw StateError(
+        'Cannot snapshot while a restore is in progress (data would be '
+        'incomplete). Retry the sync once it finishes.',
+      );
+    }
     final now = DateTime.now();
     final expenses = getAllExpenses(userId).map(_expenseToMap).toList();
     final receivables = getAllReceivables(
