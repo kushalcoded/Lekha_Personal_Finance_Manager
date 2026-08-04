@@ -132,15 +132,20 @@ ingest token and shows the endpoint URL. Copy both for step 4.
 ## 4. On the iPhone (Shortcuts app)
 
 1. **Automation** tab → **+** → **Message**.
-2. Condition: **Message Contains** → `debited` → and select **Run Immediately**
+2. Condition: **Message Contains** → the word your bank actually uses, `debited`
+   or `sent` (UPI apps usually say "sent") → and select **Run Immediately**
    (verify this on your iOS version; test how it behaves while locked).
 3. Add action: **Get Contents of URL**
    - URL: `https://<your-project-ref>.supabase.co/functions/v1/ingest-sms`
    - Method: **POST**, Request Body: **JSON**
      - `token` → *(paste your ingest token)*
      - `body` → the **Shortcut Input / Message** magic variable
-4. Done. Repeat the automation for other keywords your banks use
-   (`spent`, `withdrawn`, `Rs.`) — the app's parser filters false positives.
+4. Optional: add a **Show Notification** action after the URL one if you want
+   the iPhone to announce the capture. (Android posts its own notification with
+   Add/Ignore buttons; iOS can only announce — you still open Lekha to decide.)
+5. Done. One automation matches one word, so repeat it for every wording your
+   banks use (`sent`, `debited`, `spent`, `withdrawn`) — the parser treats them
+   all as debits and filters false positives.
 
 ## Notes
 

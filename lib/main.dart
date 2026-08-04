@@ -393,6 +393,10 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
         if (!await sms.hasPermission()) {
           await sms.requestPermission();
         }
+        // Hive holds the toggle but the SMS receiver can only read
+        // SharedPreferences, so re-assert it — a reinstall or a restored
+        // backup leaves the native side at its default.
+        await sms.setNotify(ref.read(settingsProvider).smsNotifyEnabled);
       }
       final count = await sms.sync(force: force);
       if (count > 0 && mounted) {

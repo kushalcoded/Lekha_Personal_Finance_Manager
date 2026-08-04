@@ -23,6 +23,11 @@ class SettingsState {
   final bool monthlyBudgetReminderEnabled;
   final bool recurringQuickGenerateEnabled;
   final bool smsAutoDetectEnabled;
+
+  /// Android only: post a notification with Add / Ignore the moment a bank SMS
+  /// lands. Off by default — switching it on is what asks for the Android 13
+  /// notification permission, which shouldn't ambush anyone at launch.
+  final bool smsNotifyEnabled;
   final DateTime? salaryCycleStartDate;
 
   /// Day of the month salary usually lands (1–31), or null if not set. Only
@@ -52,6 +57,7 @@ class SettingsState {
     this.monthlyBudgetReminderEnabled = true,
     this.recurringQuickGenerateEnabled = true,
     this.smsAutoDetectEnabled = true,
+    this.smsNotifyEnabled = false,
     this.salaryCycleStartDate,
     this.salaryDay,
     this.cyclePromptDismissedFor,
@@ -103,6 +109,7 @@ class SettingsState {
     bool? monthlyBudgetReminderEnabled,
     bool? recurringQuickGenerateEnabled,
     bool? smsAutoDetectEnabled,
+    bool? smsNotifyEnabled,
     DateTime? salaryCycleStartDate,
     int? salaryDay,
     DateTime? cyclePromptDismissedFor,
@@ -133,6 +140,7 @@ class SettingsState {
       recurringQuickGenerateEnabled:
           recurringQuickGenerateEnabled ?? this.recurringQuickGenerateEnabled,
       smsAutoDetectEnabled: smsAutoDetectEnabled ?? this.smsAutoDetectEnabled,
+      smsNotifyEnabled: smsNotifyEnabled ?? this.smsNotifyEnabled,
       salaryCycleStartDate: salaryCycleStartDate ?? this.salaryCycleStartDate,
       salaryDay: salaryDay ?? this.salaryDay,
       cyclePromptDismissedFor:
@@ -204,6 +212,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         recurringQuickGenerateEnabled:
             raw['recurringQuickGenerateEnabled'] as bool? ?? true,
         smsAutoDetectEnabled: raw['smsAutoDetectEnabled'] as bool? ?? true,
+        smsNotifyEnabled: raw['smsNotifyEnabled'] as bool? ?? false,
         salaryCycleStartDate:
             parsedCycleStart ?? DateTime(now.year, now.month, 1),
         salaryDay: (raw['salaryDay'] as num?)?.toInt(),
@@ -234,6 +243,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       'monthlyBudgetReminderEnabled': next.monthlyBudgetReminderEnabled,
       'recurringQuickGenerateEnabled': next.recurringQuickGenerateEnabled,
       'smsAutoDetectEnabled': next.smsAutoDetectEnabled,
+      'smsNotifyEnabled': next.smsNotifyEnabled,
       'salaryCycleStartDate': next.currentCycleStartDate.toIso8601String(),
       'salaryDay': next.salaryDay,
       'cyclePromptDismissedFor': next.cyclePromptDismissedFor
@@ -258,6 +268,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   Future<void> setSmsAutoDetectEnabled(bool value) async {
     await _persist(state.copyWith(smsAutoDetectEnabled: value));
+  }
+
+  Future<void> setSmsNotifyEnabled(bool value) async {
+    await _persist(state.copyWith(smsNotifyEnabled: value));
   }
 
   Future<void> setDefaultExportFormat(String value) async {
@@ -330,6 +344,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         monthlyBudgetReminderEnabled: state.monthlyBudgetReminderEnabled,
         recurringQuickGenerateEnabled: state.recurringQuickGenerateEnabled,
         smsAutoDetectEnabled: state.smsAutoDetectEnabled,
+        smsNotifyEnabled: state.smsNotifyEnabled,
         salaryCycleStartDate: state.salaryCycleStartDate,
         // copyWith can't clear a null-able field, and this one must be
         // clearable to turn the reminder off.

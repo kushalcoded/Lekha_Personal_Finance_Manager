@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -355,14 +356,31 @@ class SettingsScreen extends ConsumerWidget {
                                 onChanged: (v) async {
                                   await settingsNotifier
                                       .setSmsAutoDetectEnabled(v);
+                                  final sms = ref.read(
+                                    smsCaptureServiceProvider,
+                                  );
                                   if (v) {
-                                    await ref
-                                        .read(smsCaptureServiceProvider)
-                                        .requestPermission();
+                                    await sms.requestPermission();
+                                  } else {
+                                    // No detection, no notifications about it.
+                                    await sms.setNotify(false);
                                   }
                                 },
                               ),
                             ),
+                            if (!kIsWeb &&
+                                defaultTargetPlatform == TargetPlatform.android)
+                              _SettingRow(
+                                icon: Icons.notifications_active_rounded,
+                                title: 'Notify on detection',
+                                subtitle: 'Add or ignore from the notification',
+                                trailing: Switch(
+                                  value: settings.smsNotifyEnabled,
+                                  onChanged: settings.smsAutoDetectEnabled
+                                      ? (v) => _setSmsNotify(context, ref, v)
+                                      : null,
+                                ),
+                              ),
                             if (ref.watch(isAuthenticatedProvider))
                               _SettingRow(
                                 icon: Icons.phone_iphone_rounded,
@@ -819,6 +837,22 @@ Future<void> _showSimulateSmsDialog(BuildContext context, WidgetRef ref) async {
         added
             ? 'Detected — see the "Detected" section in Expenses.'
             : 'Not a debit, or no amount found.',
+      ),
+    ),
+  );
+}
+
+/// Store the toggle, mirror it to the native receiver, and say so when Android
+/// withholds the permission — otherwise the switch reads "on" while nothing
+/// ever arrives.
+Future<void> _setSmsNotify(BuildContext context, WidgetRef ref, bool on) async {
+  await ref.read(settingsProvider.notifier).setSmsNotifyEnabled(on);
+  final allowed = await ref.read(smsCaptureServiceProvider).setNotify(on);
+  if (!on || allowed || !context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'Allow notifications for Lekha in system settings to get these.',
       ),
     ),
   );

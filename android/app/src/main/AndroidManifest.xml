@@ -2,6 +2,9 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.RECEIVE_SMS"/>
+    <!-- Android 13+: asked for only when the detection-notification toggle is
+         switched on, never at launch. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="Lekha"
@@ -65,6 +68,12 @@
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
         </receiver>
+
+        <!-- Add / Ignore buttons on the detection notification. Not exported:
+             only our own PendingIntents may fire it. -->
+        <receiver
+            android:name=".SmsActionReceiver"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

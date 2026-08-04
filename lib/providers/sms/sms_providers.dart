@@ -5,13 +5,38 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../models/category/expense_category.dart';
+import '../../models/expense/expense_model.dart';
 import '../../models/pending/pending_transaction.dart';
+import '../../screens/expenses/utils/expense_helpers.dart';
 import '../../services/gemini_service.dart';
 import '../../services/storage/hive_service.dart';
 import '../../services/supabase/supabase_service.dart';
 import '../ai_providers.dart';
+import '../auth/auth_provider.dart';
+import '../storage/storage_providers.dart';
 
 const _channel = MethodChannel('lekha/sms');
+
+/// What the user tapped on a detection notification, keyed by SMS hash. The
+/// buttons are handled by a native receiver that can't parse or store anything,
+/// so the decision waits here until the app next drains the queue.
+///
+/// Anything malformed reads as "no decision" — a corrupt blob must not turn
+/// into a silent auto-add.
+Map<String, String> smsDecisions(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) return const {};
+    return {
+      for (final entry in decoded.entries)
+        if (entry.value == 'add' || entry.value == 'ignore')
+          entry.key.toString(): entry.value.toString(),
+    };
+  } catch (_) {
+    return const {};
+  }
+}
 
 /// When the transaction actually happened. Android hands us the SMS's own
 /// timestamp, but the iPhone path only knows when the Shortcut POSTed — the
@@ -63,8 +88,9 @@ bool isDuplicateTransaction(
 /// candidate actually reaches Gemini.
 class SmsCaptureService {
   final GeminiService _gemini;
+  final Ref _ref;
 
-  SmsCaptureService(this._gemini);
+  SmsCaptureService(this._gemini, this._ref);
 
   Future<bool> hasPermission() async {
     try {
@@ -79,6 +105,17 @@ class SmsCaptureService {
       return (await _channel.invokeMethod<bool>('requestPermission')) ?? false;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// Mirror the notification toggle to the native side — the SMS receiver runs
+  /// with the app dead and can't read Hive. Returns false when the toggle is on
+  /// but Android won't let us post, so Settings can say so instead of lying.
+  Future<bool> setNotify(bool on) async {
+    try {
+      return (await _channel.invokeMethod<bool>('setNotify', on)) ?? false;
+    } catch (_) {
+      return false; // web / iOS: no receiver to configure
     }
   }
 
@@ -230,8 +267,12 @@ class SmsCaptureService {
 
   Future<int> _syncNativeQueue() async {
     String raw;
+    var decisions = const <String, String>{};
     try {
       raw = await _channel.invokeMethod<String>('readQueue') ?? '[]';
+      decisions = smsDecisions(
+        await _channel.invokeMethod<String>('readDecisions') ?? '{}',
+      );
     } catch (_) {
       return 0;
     }
@@ -239,16 +280,44 @@ class SmsCaptureService {
     if (decoded is! List) return 0;
 
     var added = 0;
+    final handled = <String>[];
     for (final item in decoded) {
       if (item is! Map) continue;
       final hash = item['hash']?.toString() ?? '';
       final body = item['body']?.toString() ?? '';
       final ts = (item['timestamp'] as num?)?.toInt();
       if (hash.isEmpty || body.isEmpty) continue;
+      final decision = decisions[hash];
+
+      // Ignored from the notification: retire it without spending a model call.
+      if (decision == 'ignore') {
+        if (!HiveService().isSmsSeen(hash)) await HiveService().markSmsSeen(hash);
+        handled.add(hash);
+        continue;
+      }
+
       final dateTime = ts != null
           ? DateTime.fromMillisecondsSinceEpoch(ts)
           : DateTime.now();
-      if (await _ingest(hash: hash, body: body, dateTime: dateTime)) added++;
+      if (await _ingest(
+        hash: hash,
+        body: body,
+        dateTime: dateTime,
+        autoAdd: decision == 'add',
+      )) {
+        added++;
+      }
+      // Only clear once the parse actually resolved — an offline failure leaves
+      // the decision queued so the next drain still honours the tap.
+      if (decision != null && HiveService().isSmsSeen(hash)) handled.add(hash);
+    }
+
+    if (handled.isNotEmpty) {
+      try {
+        await _channel.invokeMethod<void>('clearDecisions', handled);
+      } catch (_) {
+        // Harmless: a stale decision only re-applies to an already-seen hash.
+      }
     }
     return added;
   }
@@ -379,6 +448,7 @@ class SmsCaptureService {
     required String hash,
     required String body,
     required DateTime dateTime,
+    bool autoAdd = false,
   }) async {
     final hive = HiveService();
     if (hive.isSmsSeen(hash)) return false;
@@ -397,20 +467,46 @@ class SmsCaptureService {
       )) {
         return false;
       }
-      await hive.savePendingTransaction(
-        PendingTransaction(
-          id: hash,
-          amount: amount,
-          dateTime: when,
-          rawBody: body,
-          createdAt: DateTime.now(),
-        ),
+      final pending = PendingTransaction(
+        id: hash,
+        amount: amount,
+        dateTime: when,
+        rawBody: body,
+        createdAt: DateTime.now(),
       );
+      if (autoAdd) {
+        await _bookExpense(pending);
+        return false; // handled, not waiting for review
+      }
+      await hive.savePendingTransaction(pending);
       return true;
     } catch (_) {
       // Offline / bad response: leave it unseen so the next open retries it.
       return false;
     }
+  }
+
+  /// Book a detection the user already approved from the notification shade.
+  /// The shade can't ask for a category, so it lands in the protected default
+  /// and keeps its SMS trail — enough to find and re-file later.
+  Future<void> _bookExpense(PendingTransaction txn) async {
+    final expense = Expense(
+      id: const Uuid().v4(),
+      userId: _ref.read(currentUserIdProvider) ?? localUserId,
+      amount: txn.amount,
+      category: kProtectedCategoryName,
+      description: smsSenderLabel(txn.rawBody),
+      paymentMethod: inferPaymentMethod(txn.rawBody),
+      date: txn.dateTime,
+      createdAt: DateTime.now(),
+    );
+    await _ref.read(expensesProvider.notifier).addExpense(expense);
+    await HiveService().savePendingTransaction(
+      txn.copyWith(
+        status: PendingStatus.added,
+        linkedExpenseId: expense.id,
+      ),
+    );
   }
 }
 
@@ -423,7 +519,7 @@ final iphoneSmsHealthProvider = FutureProvider<DateTime?>((ref) async {
 });
 
 final smsCaptureServiceProvider = Provider<SmsCaptureService>((ref) {
-  return SmsCaptureService(ref.read(geminiServiceProvider));
+  return SmsCaptureService(ref.read(geminiServiceProvider), ref);
 });
 
 /// The pending (undecided) detected transactions, newest first.

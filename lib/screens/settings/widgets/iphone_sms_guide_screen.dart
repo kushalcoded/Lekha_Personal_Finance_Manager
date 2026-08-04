@@ -94,7 +94,8 @@ class _IphoneSmsGuideScreenState extends ConsumerState<IphoneSmsGuideScreen> {
                     title: 'Create the trigger',
                     body:
                         'Go to the Automation tab → tap + → choose Message.\n'
-                        '• "Message Contains": type debited\n'
+                        '• "Message Contains": type the word your bank uses — '
+                        'debited or sent (check a real SMS first)\n'
                         '• Select Run Immediately (not "Run After '
                         'Confirmation")\n'
                         '• Tap Next.',
@@ -137,10 +138,20 @@ class _IphoneSmsGuideScreenState extends ConsumerState<IphoneSmsGuideScreen> {
                   ),
                   _Step(
                     number: 7,
+                    title: 'Optional: get a heads-up',
+                    body:
+                        'Add a "Show Notification" action after the URL one so '
+                        'the iPhone tells you an SMS was captured. Android '
+                        'shows Add/Ignore buttons on its own notification; '
+                        'iOS can only announce it, so you still open Lekha to '
+                        'decide.',
+                  ),
+                  _Step(
+                    number: 8,
                     title: 'Test it',
                     body:
                         'Tap Done, then have someone text you a message '
-                        'containing the word "debited" (or wait for a real '
+                        'containing that word (or wait for a real '
                         'bank SMS). Open Lekha → Expenses: a Detected card '
                         'appears within seconds. The status box above turns '
                         'green once the first SMS lands.',
@@ -160,9 +171,10 @@ class _IphoneSmsGuideScreenState extends ConsumerState<IphoneSmsGuideScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '• Banks word SMS differently — repeat steps 2–7 '
-                          'for "spent" and "withdrawn" if some spends are '
-                          'missed. Lekha filters out non-bank messages.\n'
+                          '• One automation matches one word. Repeat steps 2–7 '
+                          'for every wording your banks use — "sent", '
+                          '"debited", "spent", "withdrawn". Lekha treats them '
+                          'all as spends and filters out non-bank messages.\n'
                           '• iOS sometimes switches automations off after '
                           'updates. If the status above looks stale, open '
                           'Shortcuts and check the automation is still on.',

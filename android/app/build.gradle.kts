@@ -38,6 +38,13 @@ android {
     }
 }
 
+dependencies {
+    // NotificationCompat, for the SMS detection notification the receiver posts
+    // while the app is dead. Pulled in transitively by the embedding too, but
+    // pinned here so a Flutter bump can't silently drop it.
+    implementation("androidx.core:core-ktx:1.13.1")
+}
+
 flutter {
     source = "../.."
 }
