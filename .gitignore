@@ -44,3 +44,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Project notes for Claude, deliberately local-only
+MEMORY.md
