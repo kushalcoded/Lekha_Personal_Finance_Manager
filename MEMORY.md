@@ -4,7 +4,7 @@ Personal finance app (expenses, debts/splits, SMS auto-detect, AI assistant).
 Ships as an **Android APK** and a **PWA at lekhamoney.app**. Single-user in
 practice, open source, one maintainer.
 
-Current version: **1.1.1+5**. Published releases: v1.0.0, v1.0.2, v1.1.0.
+Current version: **1.1.2+6**. Published releases: v1.0.0, v1.0.2, v1.1.0.
 
 ---
 
