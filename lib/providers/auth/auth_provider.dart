@@ -73,7 +73,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     // on startup and every subsequent sign-in/out (incl. Google OAuth, whose
     // session only arrives after the redirect deep-link).
     try {
-      _sub = _authService.onAuthChange.listen(_onAuthChange);
+      _sub = _authService.onAuthChange.listen(
+        _onAuthChange,
+        onError: _onAuthError,
+      );
       // Belt & braces: if no initial event lands (shouldn't happen), don't
       // leave the app stuck on the boot loader.
       Future.delayed(const Duration(seconds: 4), () {
@@ -106,6 +109,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
       userEmail: session.user.email,
       needsReconcile: fresh,
       resolved: true,
+    );
+  }
+
+  /// A Google sign-in that comes back to the app but fails to become a session
+  /// reports here, not on [_onAuthChange] — the redirect handler exchanges the
+  /// code off-screen and puts any failure on the stream's error channel. With
+  /// no handler it was swallowed, so a broken sign-in looked identical to one
+  /// the user never finished: back on the login screen, nothing said.
+  void _onAuthError(Object error) {
+    if (!mounted) return;
+    state = state.copyWith(
+      isLoading: false,
+      resolved: true,
+      errorMessage: error is sb.AuthException
+          ? 'Sign-in failed: ${error.message}'
+          : 'Sign-in failed: $error',
     );
   }
 
