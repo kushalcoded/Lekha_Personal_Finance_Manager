@@ -67,6 +67,7 @@ final authStateProvider = StateNotifierProvider<AuthNotifier, AuthState>(
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService _authService = AuthService();
   StreamSubscription<sb.AuthState>? _sub;
+  Timer? _resolveFallback;
 
   AuthNotifier() : super(const AuthState()) {
     // Supabase's stream is the source of truth: it emits the restored session
@@ -78,8 +79,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         onError: _onAuthError,
       );
       // Belt & braces: if no initial event lands (shouldn't happen), don't
-      // leave the app stuck on the boot loader.
-      Future.delayed(const Duration(seconds: 4), () {
+      // leave the app stuck on the boot loader. A Timer rather than
+      // Future.delayed because this one has to be cancellable — an
+      // uncancelled Future outlives the widget tree in tests and fails them.
+      _resolveFallback = Timer(const Duration(seconds: 4), () {
         if (mounted && !state.resolved) {
           state = state.copyWith(resolved: true);
         }
@@ -202,6 +205,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   @override
   void dispose() {
+    _resolveFallback?.cancel();
     _sub?.cancel();
     super.dispose();
   }

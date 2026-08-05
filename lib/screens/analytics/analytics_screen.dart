@@ -193,7 +193,10 @@ class AnalyticsScreen extends ConsumerWidget {
                                   const SizedBox(width: 24),
                                   Expanded(
                                     flex: 6,
-                                    child: CategoryLegend(items: categoryStats),
+                                    child: CategoryLegend(
+                                      items: categoryStats,
+                                      height: 340,
+                                    ),
                                   ),
                                 ],
                               )
