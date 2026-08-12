@@ -78,19 +78,18 @@ void main() {
     test('the expense\'s own method is added back to the picker', () {
       // Otherwise opening an old expense silently retags it with whatever
       // happened to be selected instead.
-      final methods = methodsIncluding(
-        const ['Cash', 'GPay'],
-        expense(10, method: 'Amex'),
-      );
+      final methods = methodsIncluding(const ['Cash', 'GPay'], 'Amex');
       expect(methods, contains('Amex'));
     });
 
     test('no duplicate when it is already offered', () {
-      final methods = methodsIncluding(
-        const ['Cash', 'GPay'],
-        expense(10, method: 'gpay'),
-      );
+      final methods = methodsIncluding(const ['Cash', 'GPay'], 'gpay');
       expect(methods.length, 2);
+    });
+
+    test('a record with no method leaves the list alone', () {
+      expect(methodsIncluding(const ['Cash'], null), ['Cash']);
+      expect(methodsIncluding(const ['Cash'], '  '), ['Cash']);
     });
   });
 }

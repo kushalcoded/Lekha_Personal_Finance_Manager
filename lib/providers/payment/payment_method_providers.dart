@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../models/expense/expense_model.dart';
 import '../../services/storage/hive_service.dart';
 import '../auth/auth_provider.dart';
 import '../storage/storage_providers.dart';
@@ -115,17 +114,29 @@ class PaymentMethodsNotifier extends StateNotifier<List<String>> {
     _ref.invalidate(defaultPaymentMethodProvider);
   }
 
+  /// Carry every record using the old label across to the new one. Recurring
+  /// templates keep their own copy of the method, so missing them here would
+  /// leave future generated expenses tagged with a name that no longer exists.
   Future<void> _migrate(String from, String to) async {
-    final expenses = _hive.getAllExpenses(_userId);
-    for (final expense in expenses) {
+    final userId = _userId;
+
+    for (final expense in _hive.getAllExpenses(userId)) {
       if (expense.paymentMethod != from) continue;
       await _hive.updateExpense(
         expense.id,
         expense.copyWith(paymentMethod: to, updatedAt: DateTime.now()),
       );
     }
-    final userId = _userId;
+    for (final template in _hive.getRecurringTemplates(userId)) {
+      if (template.paymentMethod != from) continue;
+      await _hive.updateRecurringTemplate(
+        template.id,
+        template.copyWith(paymentMethod: to),
+      );
+    }
+
     _ref.read(expensesProvider.notifier).fetchExpenses(userId);
+    _ref.read(recurringTemplatesProvider.notifier).fetchTemplates(userId);
   }
 }
 
@@ -148,14 +159,15 @@ String? resolveAutoPaymentMethod(String? preferred, String? inferred) {
   return inferred;
 }
 
-/// Convenience for surfaces that hold an [Expense] and want the picker list to
-/// include whatever that expense already carries, even if the method was since
-/// deleted — otherwise editing an old expense silently changes its method.
-List<String> methodsIncluding(List<String> methods, Expense? expense) {
-  final current = expense?.paymentMethod?.trim();
-  if (current == null || current.isEmpty) return methods;
-  if (methods.any((m) => m.toLowerCase() == current.toLowerCase())) {
+/// The picker list, guaranteed to contain whatever the record being edited
+/// already carries — even if that method has since been deleted. Without this,
+/// opening an old expense or recurring template shows nothing selected and
+/// saving silently retags it.
+List<String> methodsIncluding(List<String> methods, String? current) {
+  final trimmed = current?.trim();
+  if (trimmed == null || trimmed.isEmpty) return methods;
+  if (methods.any((m) => m.toLowerCase() == trimmed.toLowerCase())) {
     return methods;
   }
-  return [...methods, current];
+  return [...methods, trimmed];
 }

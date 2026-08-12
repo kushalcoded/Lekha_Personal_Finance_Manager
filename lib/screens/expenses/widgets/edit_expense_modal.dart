@@ -487,7 +487,7 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
             PaymentMethodSelector(
               methods: methodsIncluding(
                 ref.watch(paymentMethodsProvider),
-                widget.expense,
+                _selectedPaymentMethod,
               ),
               selectedMethod: _selectedPaymentMethod,
               onSelected: (value) {

@@ -28,8 +28,15 @@ class ManageCategoriesScreen extends ConsumerWidget {
       body: SlidableAutoCloseBehavior(
         child: ListView.builder(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-          itemCount: categories.length,
-          itemBuilder: (context, index) {
+          itemCount: categories.length + 1,
+          itemBuilder: (context, rawIndex) {
+            if (rawIndex == 0) {
+              return _OrphanBanner(
+                names: ref.watch(orphanCategoriesProvider),
+                onRestore: () => _restoreOrphans(context, ref),
+              );
+            }
+            final index = rawIndex - 1;
             final category = categories[index];
             final isProtected = category.name == kProtectedCategoryName;
             final count = ref
@@ -126,10 +133,91 @@ class ManageCategoriesScreen extends ConsumerWidget {
     await ref.read(categoriesProvider.notifier).deleteCategory(name);
   }
 
+  /// Put back categories the records still reference. Restoring by name is all
+  /// that's needed — expenses store the category as a plain string, so nothing
+  /// has to be migrated for them to re-associate.
+  Future<void> _restoreOrphans(BuildContext context, WidgetRef ref) async {
+    final names = ref.read(orphanCategoriesProvider);
+    final notifier = ref.read(categoriesProvider.notifier);
+    for (final name in names) {
+      await notifier.addCategory(
+        name: name,
+        iconKey: 'category',
+        // The colour they have been rendering with all along, so restoring
+        // doesn't look like a change.
+        colorHex: CategoryStyles.fallbackHexFor(name),
+      );
+    }
+    if (!context.mounted) return;
+    _snack(
+      context,
+      names.length == 1
+          ? 'Restored ${names.first}.'
+          : 'Restored ${names.length} categories.',
+    );
+  }
+
   void _snack(BuildContext context, String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+/// Shown only when records reference categories that are no longer in the list.
+///
+/// That can't happen through normal use — deleting a category moves its records
+/// to Miscellaneous first — so this is the visible trace of the settings bug
+/// that wiped custom categories. Nothing is changed until it's tapped.
+class _OrphanBanner extends StatelessWidget {
+  final List<String> names;
+  final VoidCallback onRestore;
+
+  const _OrphanBanner({required this.names, required this.onRestore});
+
+  @override
+  Widget build(BuildContext context) {
+    if (names.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: GlassCard(
+        radius: 12,
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              names.length == 1
+                  ? 'A category is missing from this list'
+                  : '${names.length} categories are missing from this list',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Your records still use ${names.join(', ')}. Restoring puts '
+              'them back exactly as they were — nothing is moved or renamed.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: onRestore,
+                child: Text(names.length == 1 ? 'Restore' : 'Restore all'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

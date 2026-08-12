@@ -293,7 +293,10 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
             ),
             const SizedBox(height: 16),
             PaymentMethodSelector(
-              methods: ref.watch(paymentMethodsProvider),
+              methods: methodsIncluding(
+                ref.watch(paymentMethodsProvider),
+                _selectedPaymentMethod,
+              ),
               selectedMethod: _selectedPaymentMethod,
               onSelected: (value) {
                 _markInteracted();

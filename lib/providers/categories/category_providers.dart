@@ -16,6 +16,56 @@ final categoriesProvider =
       return CategoriesNotifier(ref);
     });
 
+/// Category names your records still use that are no longer in the list.
+///
+/// This is the fingerprint of data loss, not of ordinary use: deleting a
+/// category reassigns its records to Miscellaneous first, so an intentional
+/// delete leaves nothing behind carrying the old name. A name that survives in
+/// records while missing from the list can only have disappeared without that
+/// migration — which is exactly what the settings-wipe bug did.
+///
+/// Comparison is case-insensitive and keeps the first spelling seen, so
+/// "gifts" on an expense doesn't report "Gifts" as missing.
+List<String> missingCategoryNames(
+  Iterable<String> configured,
+  Iterable<String> used,
+) {
+  final known = configured
+      .map((name) => name.trim().toLowerCase())
+      .where((name) => name.isNotEmpty)
+      .toSet();
+
+  final missing = <String, String>{};
+  for (final raw in used) {
+    final name = raw.trim();
+    if (name.isEmpty) continue;
+    final key = name.toLowerCase();
+    if (known.contains(key)) continue;
+    missing.putIfAbsent(key, () => name);
+  }
+
+  final names = missing.values.toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  return names;
+}
+
+/// Categories the user's records reference but that no longer exist, so
+/// Manage Categories can offer to restore them.
+final orphanCategoriesProvider = Provider<List<String>>((ref) {
+  final configured = ref.watch(categoriesProvider).map((c) => c.name);
+  // Re-runs after a restore, and after any expense edit.
+  ref.watch(expensesProvider);
+  final hive = ref.read(hiveServiceProvider);
+  final userId = ref.watch(currentUserIdProvider) ?? localUserId;
+
+  // The same three record types usageCount consults.
+  return missingCategoryNames(configured, [
+    ...hive.getAllExpenses(userId).map((e) => e.category),
+    ...hive.getAllPayables(userId).map((p) => p.category),
+    ...hive.getRecurringTemplates(userId).map((t) => t.category),
+  ]);
+});
+
 class CategoriesNotifier extends StateNotifier<List<ExpenseCategory>> {
   final Ref _ref;
 
