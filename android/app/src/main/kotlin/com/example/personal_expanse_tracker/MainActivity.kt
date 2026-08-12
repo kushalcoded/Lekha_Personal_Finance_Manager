@@ -2,13 +2,18 @@ package com.example.personal_expanse_tracker
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONObject
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     /** Held while the POST_NOTIFICATIONS dialog is up, so Dart learns the answer. */
@@ -16,6 +21,25 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, UPDATE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "canInstall" -> result.success(canInstallPackages())
+                    "requestInstallPermission" -> {
+                        requestInstallPermission()
+                        result.success(null)
+                    }
+                    "installApk" -> {
+                        val path = call.arguments as? String
+                        if (path == null) {
+                            result.error("no_path", "APK path missing", null)
+                        } else {
+                            installApk(path, result)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -110,8 +134,58 @@ class MainActivity : FlutterActivity() {
         prefs().edit().putString(SmsReceiver.KEY_DECISIONS, decisions.toString()).apply()
     }
 
+    /**
+     * Android 8+ grants "install unknown apps" per source. Until Lekha holds it
+     * the install intent is dropped with no error and no dialog, so the update
+     * flow has to check first rather than launch into silence.
+     */
+    private fun canInstallPackages(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
+        return packageManager.canRequestPackageInstalls()
+    }
+
+    private fun requestInstallPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName")
+            )
+        )
+    }
+
+    /**
+     * Hand the downloaded APK to the system installer. Shared through a
+     * FileProvider because a file:// URI to another app throws on API 24+.
+     */
+    private fun installApk(path: String, result: MethodChannel.Result) {
+        val file = File(path)
+        if (!file.exists()) {
+            result.error("missing", "APK not found at $path", null)
+            return
+        }
+        try {
+            val uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.provider",
+                file
+            )
+            startActivity(
+                Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+            result.success(null)
+        } catch (e: Exception) {
+            result.error("install_failed", e.message, null)
+        }
+    }
+
     companion object {
         private const val CHANNEL = "lekha/sms"
+        private const val UPDATE_CHANNEL = "lekha/update"
         private const val NOTIFY_REQUEST = 4243
     }
 }

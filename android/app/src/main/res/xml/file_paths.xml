@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the cache dir is exposed: the downloaded update APK lives there and
+     nothing else needs sharing out of this app. -->
+<paths>
+    <cache-path name="updates" path="." />
+</paths>

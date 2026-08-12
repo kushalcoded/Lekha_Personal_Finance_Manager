@@ -5,6 +5,9 @@
     <!-- Android 13+: asked for only when the detection-notification toggle is
          switched on, never at launch. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Lekha installs its own updates, so it never has to send you to a
+         browser. Android still asks you to allow this app as a source, once. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
     <application
         android:label="Lekha"
@@ -74,6 +77,20 @@
         <receiver
             android:name=".SmsActionReceiver"
             android:exported="false" />
+
+        <!-- Lets the system installer read the update APK we downloaded; a
+             file:// URI handed to another app throws on API 24+. The authority
+             is built from applicationId, and must not collide with the one
+             share_plus merges in. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
@@ -88,6 +105,12 @@
         <!-- Required for speech_to_text to find a recognizer on Android 11+ -->
         <intent>
             <action android:name="android.speech.RecognitionService"/>
+        </intent>
+        <!-- Keeps the package installer resolvable on Android 11+ so the
+             update hand-off isn't filtered out by package visibility. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="application/vnd.android.package-archive"/>
         </intent>
     </queries>
 </manifest>

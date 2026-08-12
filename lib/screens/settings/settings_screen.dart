@@ -16,6 +16,7 @@ import 'providers/settings_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
 import '../../widgets/common/glass.dart';
+import '../../widgets/common/update_flow.dart';
 import '../cycle_recap_dialog.dart';
 import '../dashboard/widgets/budget_settings_modal.dart';
 import 'widgets/export_modal.dart';
@@ -80,7 +81,9 @@ class SettingsScreen extends ConsumerWidget {
 
     final remindersOn = settings.remindersEnabled;
     final appVersion = ref.watch(appVersionProvider).valueOrNull;
-    final updateVersion = ref.watch(updateAvailableProvider).valueOrNull;
+    final updateCheck = ref.watch(updateAvailableProvider);
+    final updateVersion = updateCheck.valueOrNull;
+    final updateCheckFailed = updateCheck.hasError;
 
     // Desktop: settings groups pair up two per row inside a capped column,
     // equalized via IntrinsicHeight (safe: no LayoutBuilder in the rows).
@@ -449,15 +452,20 @@ class SettingsScreen extends ConsumerWidget {
                               _SettingRow(
                                 icon: Icons.system_update_rounded,
                                 title: 'App version',
+                                // Distinguishes "checked, you're current" from
+                                // "couldn't reach GitHub" — the old row claimed
+                                // up to date when the check had failed.
                                 subtitle: updateVersion != null
-                                    ? 'Update available — v$updateVersion'
+                                    ? 'Update available — v${updateVersion.version}'
+                                    : updateCheckFailed
+                                    ? 'v${appVersion ?? '…'} · couldn\'t check'
                                     : 'v${appVersion ?? '…'} · up to date',
                                 trailing: updateVersion != null
                                     ? _PillButton(
                                         label: 'Update',
-                                        onTap: () => launchUrl(
-                                          Uri.parse(kReleasesLatestUrl),
-                                          mode: LaunchMode.externalApplication,
+                                        onTap: () => runAppUpdate(
+                                          context,
+                                          updateVersion,
                                         ),
                                       )
                                     : null,

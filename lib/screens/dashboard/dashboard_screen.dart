@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../providers/update_providers.dart';
+import '../../widgets/common/update_flow.dart';
+import '../../services/storage/hive_service.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/category_styles.dart';
@@ -128,6 +132,7 @@ class DashboardScreen extends ConsumerWidget {
                     children: [
                       header,
                       const SizedBox(height: 18),
+                      const _UpdatePrompt(),
                       const _CycleRollPrompt(),
                       if (isWide)
                         // Desktop: hero + recent on the left, totals and
@@ -466,6 +471,81 @@ class _AiSummaryRow extends StatelessWidget {
 /// nothing else moves it. Deliberately a question with an editable date:
 /// salary lands early some months and late others, so the app must never
 /// pick the date itself.
+/// Tells the user a newer build exists, once per version.
+///
+/// Sideloaded apps have nothing to nag them, so an update used to be found only
+/// by wandering into Settings. Dismissing records the version, so this stays
+/// quiet until there's a genuinely newer one — and the Settings row remains the
+/// way back to it.
+class _UpdatePrompt extends ConsumerStatefulWidget {
+  const _UpdatePrompt();
+
+  @override
+  ConsumerState<_UpdatePrompt> createState() => _UpdatePromptState();
+}
+
+class _UpdatePromptState extends ConsumerState<_UpdatePrompt> {
+  static const _key = 'updatePromptDismissedFor';
+
+  String? _dismissedFor() {
+    try {
+      return Hive.box(kLocalPrefsBox).get(_key)?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _dismiss(String version) {
+    try {
+      Hive.box(kLocalPrefsBox).put(_key, version);
+    } catch (_) {
+      // Preference only — worst case it asks once more.
+    }
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final release = ref.watch(updateAvailableProvider).valueOrNull;
+    if (!shouldPromptForUpdate(release, _dismissedFor())) {
+      return const SizedBox.shrink();
+    }
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: GlassCard(
+        radius: 12,
+        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+        child: Row(
+          children: [
+            Icon(Icons.system_update_rounded, size: 18, color: cs.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Lekha v${release!.version} is available',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => _dismiss(release.version),
+              child: const Text('Later'),
+            ),
+            FilledButton(
+              onPressed: () => runAppUpdate(context, release),
+              child: const Text('Update'),
+            ),
+            const SizedBox(width: 4),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CycleRollPrompt extends ConsumerWidget {
   const _CycleRollPrompt();
 
