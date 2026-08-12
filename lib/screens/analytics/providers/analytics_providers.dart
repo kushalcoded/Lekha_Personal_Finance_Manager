@@ -1,9 +1,37 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/budget/budget_providers.dart';
 import '../../../providers/cycle/cycle_providers.dart';
+import '../../../providers/storage/storage_providers.dart';
+import '../../../services/storage/hive_service.dart';
+import '../../expenses/utils/expense_helpers.dart';
 import '../models/analytics_models.dart';
+
+/// What span of money the Insights screen is describing. The user picks this
+/// once, at the top, and every scoped panel obeys it — the old design hid a
+/// 7D/30D/12M selector inside one section's header while it silently drove the
+/// summary cards, the pie and the payment panel three sections away.
+enum AnalyticsScope {
+  /// The salary cycle, matching the dashboard exactly.
+  cycle,
+  days30,
+  months12;
+
+  String get label => switch (this) {
+    AnalyticsScope.cycle => 'This cycle',
+    AnalyticsScope.days30 => 'Last 30 days',
+    AnalyticsScope.months12 => '12M',
+  };
+
+  /// Narrow screens can't fit the full labels side by side.
+  String get shortLabel => switch (this) {
+    AnalyticsScope.cycle => 'Cycle',
+    AnalyticsScope.days30 => '30 days',
+    AnalyticsScope.months12 => '12M',
+  };
+}
 
 /// Analytics state
 class AnalyticsState {
@@ -11,7 +39,6 @@ class AnalyticsState {
   final Map<String, double> monthlyTrend;
   final double totalSpent;
   final double averageDaily;
-  final String selectedPeriod; // 'week', 'month', 'year'
   final bool isLoading;
   final String? error;
 
@@ -20,7 +47,6 @@ class AnalyticsState {
     this.monthlyTrend = const {},
     this.totalSpent = 0.0,
     this.averageDaily = 0.0,
-    this.selectedPeriod = 'month',
     this.isLoading = false,
     this.error,
   });
@@ -30,7 +56,6 @@ class AnalyticsState {
     Map<String, double>? monthlyTrend,
     double? totalSpent,
     double? averageDaily,
-    String? selectedPeriod,
     bool? isLoading,
     String? error,
   }) {
@@ -39,7 +64,6 @@ class AnalyticsState {
       monthlyTrend: monthlyTrend ?? this.monthlyTrend,
       totalSpent: totalSpent ?? this.totalSpent,
       averageDaily: averageDaily ?? this.averageDaily,
-      selectedPeriod: selectedPeriod ?? this.selectedPeriod,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
     );
@@ -67,16 +91,44 @@ class AnalyticsNotifier extends StateNotifier<AnalyticsState> {
     }
   }
 
-  /// Change period
-  void setPeriod(String period) {
-    state = state.copyWith(selectedPeriod: period);
+}
+
+/// The chosen scope, remembered across launches like the last open tab.
+final analyticsScopeProvider =
+    StateNotifierProvider<AnalyticsScopeNotifier, AnalyticsScope>(
+      (ref) => AnalyticsScopeNotifier(),
+    );
+
+class AnalyticsScopeNotifier extends StateNotifier<AnalyticsScope> {
+  AnalyticsScopeNotifier() : super(_restore());
+
+  static const _key = 'analyticsScope';
+
+  static AnalyticsScope _restore() {
+    try {
+      final saved = Hive.box(kLocalPrefsBox).get(_key)?.toString();
+      return AnalyticsScope.values.firstWhere(
+        (scope) => scope.name == saved,
+        orElse: () => AnalyticsScope.cycle,
+      );
+    } catch (_) {
+      return AnalyticsScope.cycle; // box not open (tests, early startup)
+    }
+  }
+
+  void setScope(AnalyticsScope scope) {
+    state = scope;
+    try {
+      Hive.box(kLocalPrefsBox).put(_key, scope.name);
+    } catch (_) {
+      // Preference only — losing it costs a tap, not data.
+    }
   }
 }
 
-final analyticsPeriodProvider = Provider<String>((ref) {
-  return ref.watch(analyticsProvider).selectedPeriod;
-});
-
+/// Cycle-only expenses. Kept for the panels that are cycle-bound whatever the
+/// scope says — a budget is defined per cycle, so Budget Health must not drift
+/// when you glance at 12M.
 final analyticsExpensesProvider = Provider.family<List<Expense>, String>((
   ref,
   userId,
@@ -85,25 +137,42 @@ final analyticsExpensesProvider = Provider.family<List<Expense>, String>((
   return expenses.where((expense) => expense.userId == userId).toList();
 });
 
-final analyticsPeriodExpensesProvider = Provider.family<List<Expense>, String>((
+/// Every expense for this user, ignoring the cycle. The scoped windows that
+/// reach back further than the current cycle need this — reading the cycle list
+/// is what left the 6-month chart with five permanently empty bars.
+final allUserExpensesProvider = Provider.family<List<Expense>, String>((
   ref,
   userId,
 ) {
-  final expenses = ref.watch(analyticsExpensesProvider(userId));
-  final period = ref.watch(analyticsPeriodProvider);
-  final now = _startOfDay(DateTime.now());
-  final start = _startOfDay(_periodStart(now, period));
-  return expenses
-      .where(
-        (expense) =>
-            !expense.date.isBefore(start) && !expense.date.isAfter(now),
-      )
+  return ref
+      .watch(expensesProvider)
+      .expenses
+      .where((expense) => expense.userId == userId)
       .toList();
+});
+
+/// The expenses the scoped panels describe.
+///
+/// Every scope is a LOWER BOUND ONLY. An upper bound is what made this screen
+/// lie: it used to clamp to the start of today, so anything added today was
+/// invisible until tomorrow — the dashboard counted it, Insights didn't, and
+/// the two totals disagreed by exactly that amount.
+final analyticsScopedExpensesProvider = Provider.family<List<Expense>, String>((
+  ref,
+  userId,
+) {
+  final scope = ref.watch(analyticsScopeProvider);
+  if (scope == AnalyticsScope.cycle) {
+    return ref.watch(analyticsExpensesProvider(userId));
+  }
+  final expenses = ref.watch(allUserExpensesProvider(userId));
+  final start = analyticsScopeStart(scope, DateTime.now());
+  return expenses.where((expense) => !expense.date.isBefore(start)).toList();
 });
 
 final analyticsCategoryStatsProvider =
     Provider.family<List<CategoryStat>, String>((ref, userId) {
-      final expenses = ref.watch(analyticsPeriodExpensesProvider(userId));
+      final expenses = ref.watch(analyticsScopedExpensesProvider(userId));
       final totals = <String, double>{};
       for (final expense in expenses) {
         totals[expense.category] =
@@ -130,12 +199,11 @@ final analyticsSummaryProvider = Provider.family<AnalyticsSummary, String>((
   ref,
   userId,
 ) {
-  final expenses = ref.watch(analyticsPeriodExpensesProvider(userId));
+  final expenses = ref.watch(analyticsScopedExpensesProvider(userId));
   final totalSpent = expenses.fold(0.0, (sum, expense) => sum + expense.amount);
-  final period = ref.watch(analyticsPeriodProvider);
-  final now = _startOfDay(DateTime.now());
-  final start = _startOfDay(_periodStart(now, period));
-  final days = now.difference(start).inDays + 1;
+  // Days actually elapsed in the scope, not the scope's nominal length: on day
+  // 6 of a cycle the average must divide by 6, not by 30.
+  final days = ref.watch(analyticsScopeDaysProvider);
   final averageDaily = days > 0 ? totalSpent / days : 0.0;
   final categoryStats = ref.watch(analyticsCategoryStatsProvider(userId));
   final topCategory = categoryStats.isNotEmpty ? categoryStats.first : null;
@@ -146,9 +214,12 @@ final analyticsSummaryProvider = Provider.family<AnalyticsSummary, String>((
   );
 });
 
+/// Six months of real history, deliberately ignoring the scope selector — this
+/// is context for whatever else you're looking at. It used to read the cycle
+/// list, which meant five of its six bars could only ever be zero.
 final analyticsMonthlyTotalsProvider =
     Provider.family<List<MonthlyTotal>, String>((ref, userId) {
-      final expenses = ref.watch(analyticsExpensesProvider(userId));
+      final expenses = ref.watch(allUserExpensesProvider(userId));
       final now = DateTime.now();
       final anchor = DateTime(now.year, now.month, 1);
       final months = List.generate(6, (index) {
@@ -166,13 +237,15 @@ final analyticsTrendProvider = Provider.family<List<TrendPoint>, String>((
   ref,
   userId,
 ) {
-  final expenses = ref.watch(analyticsPeriodExpensesProvider(userId));
-  final period = ref.watch(analyticsPeriodProvider);
+  final expenses = ref.watch(analyticsScopedExpensesProvider(userId));
+  final scope = ref.watch(analyticsScopeProvider);
   final now = _startOfDay(DateTime.now());
 
-  if (period == 'week') {
-    final start = now.subtract(const Duration(days: 6));
-    return List.generate(7, (index) {
+  if (scope == AnalyticsScope.cycle) {
+    // Day by day since the cycle began — short enough to read individually.
+    final days = ref.watch(analyticsScopeDaysProvider);
+    final start = now.subtract(Duration(days: days - 1));
+    return List.generate(days, (index) {
       final dayStart = start.add(Duration(days: index));
       final dayEnd = dayStart.add(const Duration(days: 1));
       return TrendPoint(
@@ -182,7 +255,7 @@ final analyticsTrendProvider = Provider.family<List<TrendPoint>, String>((
     });
   }
 
-  if (period == 'year') {
+  if (scope == AnalyticsScope.months12) {
     final anchor = DateTime(now.year, now.month, 1);
     return List.generate(12, (index) {
       final monthStart = _shiftMonth(anchor, index - 11);
@@ -205,39 +278,38 @@ final analyticsTrendProvider = Provider.family<List<TrendPoint>, String>((
   });
 });
 
+/// Spend grouped by however it was actually paid.
+///
+/// Groups by the values present in the data rather than a hardcoded list, so a
+/// method the user invented still shows up. Resolution goes through
+/// [expensePaymentMethod] like every other surface — the private copy this used
+/// to keep skipped its `trim()` guard, so a blank method became its own bucket
+/// that counted toward the denominator while never being drawn, quietly
+/// shrinking every percentage on screen.
 final analyticsPaymentMethodStatsProvider =
     Provider.family<List<PaymentMethodStat>, String>((ref, userId) {
-      final expenses = ref.watch(analyticsPeriodExpensesProvider(userId));
-      const methods = [
-        'GPay',
-        'PhonePe',
-        'Paytm',
-        'Cash',
-        'Card',
-        'Bank Transfer',
-      ];
-      final totals = {for (final method in methods) method: 0.0};
+      final expenses = ref.watch(analyticsScopedExpensesProvider(userId));
+      final totals = <String, double>{};
 
       for (final expense in expenses) {
-        final method =
-            expense.paymentMethod ?? _inferPaymentMethod(expense.description);
-        if (method != null) {
-          totals[method] = (totals[method] ?? 0) + expense.amount;
-        }
+        final method = expensePaymentMethod(expense);
+        if (method == null) continue; // genuinely unknown — not a bucket
+        totals[method] = (totals[method] ?? 0) + expense.amount;
       }
 
       final matchedTotal = totals.values.fold(0.0, (sum, value) => sum + value);
-      return methods
-          .map(
-            (method) => PaymentMethodStat(
-              method: method,
-              amount: totals[method] ?? 0.0,
-              share: matchedTotal > 0
-                  ? (totals[method] ?? 0.0) / matchedTotal
-                  : 0.0,
-            ),
-          )
-          .toList();
+      final stats =
+          totals.entries
+              .map(
+                (entry) => PaymentMethodStat(
+                  method: entry.key,
+                  amount: entry.value,
+                  share: matchedTotal > 0 ? entry.value / matchedTotal : 0.0,
+                ),
+              )
+              .toList()
+            ..sort((a, b) => b.amount.compareTo(a.amount));
+      return stats;
     });
 
 final analyticsBudgetInsightProvider = Provider.family<BudgetInsight, String>((
@@ -309,16 +381,31 @@ DateTime _startOfDay(DateTime date) {
   return DateTime(date.year, date.month, date.day);
 }
 
-DateTime _periodStart(DateTime now, String period) {
-  switch (period) {
-    case 'week':
-      return now.subtract(const Duration(days: 6));
-    case 'year':
-      return now.subtract(const Duration(days: 364));
-    default:
-      return now.subtract(const Duration(days: 29));
-  }
+/// First day included by a rolling scope. Cycle scope has no formula — its
+/// start comes from settings — so callers handle it separately.
+DateTime analyticsScopeStart(AnalyticsScope scope, DateTime now) {
+  final today = _startOfDay(now);
+  return switch (scope) {
+    AnalyticsScope.cycle => today,
+    AnalyticsScope.days30 => today.subtract(const Duration(days: 29)),
+    AnalyticsScope.months12 => today.subtract(const Duration(days: 364)),
+  };
 }
+
+/// Days elapsed in the active scope, counting today. Drives Average Daily and
+/// the cycle trend chart.
+final analyticsScopeDaysProvider = Provider<int>((ref) {
+  final scope = ref.watch(analyticsScopeProvider);
+  final today = _startOfDay(DateTime.now());
+  final start = scope == AnalyticsScope.cycle
+      ? _startOfDay(ref.watch(cycleStartProvider))
+      : analyticsScopeStart(scope, today);
+  // A cycle start in the future (someone reset it forward) would otherwise
+  // yield zero or negative days and blow up the average.
+  return today.difference(start).inDays + 1 < 1
+      ? 1
+      : today.difference(start).inDays + 1;
+});
 
 DateTime _shiftMonth(DateTime date, int months) {
   return DateTime(date.year, date.month + months, 1);
@@ -333,28 +420,3 @@ double _sumForRange(List<Expense> expenses, DateTime start, DateTime end) {
       .fold(0.0, (sum, expense) => sum + expense.amount);
 }
 
-String? _inferPaymentMethod(String? description) {
-  if (description == null || description.trim().isEmpty) {
-    return null;
-  }
-  final text = description.toLowerCase();
-  if (text.contains('gpay')) {
-    return 'GPay';
-  }
-  if (text.contains('phonepe')) {
-    return 'PhonePe';
-  }
-  if (text.contains('paytm')) {
-    return 'Paytm';
-  }
-  if (text.contains('bank') || text.contains('transfer')) {
-    return 'Bank Transfer';
-  }
-  if (text.contains('card')) {
-    return 'Card';
-  }
-  if (text.contains('cash')) {
-    return 'Cash';
-  }
-  return null;
-}

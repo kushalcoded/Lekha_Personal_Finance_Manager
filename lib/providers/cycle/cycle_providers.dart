@@ -11,7 +11,13 @@ import '../storage/storage_providers.dart';
 /// backups intentionally keep using the full [expensesProvider] list.
 final cycleExpensesProvider = Provider<List<Expense>>((ref) {
   final expenses = ref.watch(expensesProvider).expenses;
-  final start = ref.watch(settingsProvider).currentCycleStartDate;
-  final cycleStart = DateTime(start.year, start.month, start.day);
+  final cycleStart = ref.watch(cycleStartProvider);
   return expenses.where((e) => !e.date.isBefore(cycleStart)).toList();
+});
+
+/// Midnight on the first day of the current cycle — the single lower bound
+/// every cycle-scoped figure shares.
+final cycleStartProvider = Provider<DateTime>((ref) {
+  final start = ref.watch(settingsProvider).currentCycleStartDate;
+  return DateTime(start.year, start.month, start.day);
 });

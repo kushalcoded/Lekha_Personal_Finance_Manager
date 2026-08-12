@@ -230,7 +230,14 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   Future<void> _persist(SettingsState next) async {
     state = next.copyWith(error: null);
+    // Overlay onto whatever is already stored instead of replacing it. Other
+    // features keep their own keys in this same map — custom categories,
+    // payment methods, export history — and none of them are represented on
+    // SettingsState. Writing a fresh literal deleted them: flipping any toggle
+    // used to wipe every custom category back to the defaults.
+    final stored = _hiveService.getSettings(_userId);
     await _hiveService.saveSettings(_userId, {
+      ...stored,
       'displayName': next.displayName,
       'currency': next.currency,
       'analyticsInsightsEnabled': next.analyticsInsightsEnabled,

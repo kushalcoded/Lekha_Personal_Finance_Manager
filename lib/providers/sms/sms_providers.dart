@@ -14,6 +14,7 @@ import '../../services/storage/hive_service.dart';
 import '../../services/supabase/supabase_service.dart';
 import '../ai_providers.dart';
 import '../auth/auth_provider.dart';
+import '../payment/payment_method_providers.dart';
 import '../storage/storage_providers.dart';
 
 const _channel = MethodChannel('lekha/sms');
@@ -489,6 +490,10 @@ class SmsCaptureService {
   /// Book a detection the user already approved from the notification shade.
   /// The shade can't ask for a category, so it lands in the protected default
   /// and keeps its SMS trail — enough to find and re-file later.
+  ///
+  /// The payment method prefers the user's chosen default over sniffing the
+  /// SMS: inference reads the sender name, so a card spend from a bank whose
+  /// name contains "Bank" was being filed as a bank transfer.
   Future<void> _bookExpense(PendingTransaction txn) async {
     final expense = Expense(
       id: const Uuid().v4(),
@@ -496,7 +501,10 @@ class SmsCaptureService {
       amount: txn.amount,
       category: kProtectedCategoryName,
       description: smsSenderLabel(txn.rawBody),
-      paymentMethod: inferPaymentMethod(txn.rawBody),
+      paymentMethod: resolveAutoPaymentMethod(
+        _ref.read(defaultPaymentMethodProvider),
+        inferPaymentMethod(txn.rawBody),
+      ),
       date: txn.dateTime,
       createdAt: DateTime.now(),
     );

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../models/expense/expense_model.dart';
+import '../../providers/cycle/cycle_providers.dart';
 import '../../providers/storage/storage_providers.dart';
 import '../../screens/settings/providers/settings_providers.dart';
 
@@ -71,10 +71,14 @@ final budgetMetricsProvider = Provider.family<BudgetMetrics, String>((
 ) {
   final budget = ref.watch(monthlyBudgetProvider(userId)).amount;
   final salary = ref.watch(cycleSalaryProvider(userId)).amount;
-  final expenses = ref.watch(expensesProvider).expenses;
-  final now = DateTime.now();
-  final cycleStart = ref.watch(settingsProvider).currentCycleStartDate;
-  final spent = _sumForRange(expenses, userId, cycleStart, now);
+  // One definition of "spent this cycle", shared with the dashboard's category
+  // bars and the Insights cycle total. This used to stop at DateTime.now(),
+  // which meant an expense dated later today was counted by the bars beside it
+  // but not by this hero figure — two numbers, same money.
+  final spent = ref
+      .watch(cycleExpensesProvider)
+      .where((expense) => expense.userId == userId)
+      .fold(0.0, (sum, expense) => sum + expense.amount);
   final hasBudget = budget > 0;
   final hasSalary = salary > 0;
   final remaining = hasBudget ? budget - spent : 0.0;
@@ -205,22 +209,6 @@ final budgetIntelligenceProvider = Provider.family<BudgetIntelligence, String>((
     insights: insights,
   );
 });
-
-double _sumForRange(
-  List<Expense> expenses,
-  String userId,
-  DateTime start,
-  DateTime end,
-) {
-  return expenses
-      .where(
-        (expense) =>
-            expense.userId == userId &&
-            !expense.date.isBefore(start) &&
-            expense.date.isBefore(end),
-      )
-      .fold(0.0, (sum, expense) => sum + expense.amount);
-}
 
 int _budgetHealthScore({
   required bool hasBudget,

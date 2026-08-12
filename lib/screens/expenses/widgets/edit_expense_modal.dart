@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/expense/expense_model.dart';
+import '../../../providers/payment/payment_method_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../../../widgets/common/form_bits.dart';
@@ -86,15 +87,6 @@ class EditExpenseForm extends ConsumerStatefulWidget {
 class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
   late final TextEditingController _amountController;
   late final TextEditingController _notesController;
-
-  static const List<String> _paymentMethods = [
-    'Cash',
-    'GPay',
-    'PhonePe',
-    'Paytm',
-    'Bank Transfer',
-    'Card',
-  ];
 
   String? _selectedCategory;
   String? _selectedPaymentMethod;
@@ -483,7 +475,7 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
             ],
             const SizedBox(height: 16),
             CategorySelector(
-              categories: ref.watch(expenseCategoriesProvider),
+              categories: ref.watch(orderedCategoriesProvider).all,
               selectedCategory: _selectedCategory,
               onSelected: (value) {
                 _markInteracted();
@@ -493,7 +485,10 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
             ),
             const SizedBox(height: 16),
             PaymentMethodSelector(
-              methods: _paymentMethods,
+              methods: methodsIncluding(
+                ref.watch(paymentMethodsProvider),
+                widget.expense,
+              ),
               selectedMethod: _selectedPaymentMethod,
               onSelected: (value) {
                 _markInteracted();

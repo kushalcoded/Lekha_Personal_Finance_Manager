@@ -8,6 +8,7 @@ import '../../providers/auth/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/ai_text.dart';
 import '../../widgets/common/glass.dart';
+import '../../widgets/common/segmented_scope.dart';
 import '../../utils/formatters/formatters.dart';
 import '../../navigation/floating_glass_nav.dart';
 import '../history_screen.dart';
@@ -47,7 +48,8 @@ class AnalyticsScreen extends ConsumerWidget {
     final topCreditors = ref.watch(topCreditorsBalanceProvider(userId));
     final debtTrend = ref.watch(debtTrendProvider(userId));
     final settlementTotals = ref.watch(monthlySettlementTotalsProvider(userId));
-    final period = ref.watch(analyticsPeriodProvider);
+    final scope = ref.watch(analyticsScopeProvider);
+    final scopeDays = ref.watch(analyticsScopeDaysProvider);
     final aiSummary = ref.watch(analyticsAiSummaryProvider(userId));
 
     final topCategoryStyle = summary.topCategory != null
@@ -57,12 +59,12 @@ class AnalyticsScreen extends ConsumerWidget {
       AnalyticsSummaryCard(
         label: 'Total Spend',
         value: AppFormatters.formatCurrency(summary.totalSpent),
-        subLabel: _periodLabel(period),
+        subLabel: scope.label,
       ),
       AnalyticsSummaryCard(
         label: 'Average Daily',
         value: AppFormatters.formatCurrency(summary.averageDaily),
-        subLabel: 'Rolling ${_periodLabel(period)}',
+        subLabel: scopeDays == 1 ? 'Day 1' : 'Over $scopeDays days',
       ),
       AnalyticsSummaryCard(
         label: 'Top Category',
@@ -134,6 +136,19 @@ class AnalyticsScreen extends ConsumerWidget {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Sits above everything it governs. The old 7D/30D/12M chips
+                  // lived inside the Spending Trends header while quietly
+                  // driving the summary cards, the pie and the payment panel.
+                  SegmentedScope<AnalyticsScope>(
+                    values: AnalyticsScope.values,
+                    selected: scope,
+                    onChanged: (value) => ref
+                        .read(analyticsScopeProvider.notifier)
+                        .setScope(value),
+                    label: (value) => value.label,
+                    shortLabel: (value) => value.shortLabel,
+                  ),
+                  const SizedBox(height: 14),
                   // Mockup: AI card leads directly under the screen title.
                   _AiInsightCard(summary: aiSummary),
                   GridView.builder(
@@ -160,7 +175,9 @@ class AnalyticsScreen extends ConsumerWidget {
                     AnalyticsSection(
                       stretch: isWide,
                       title: 'Monthly Spending Overview',
-                      subtitle: 'Last 6 months of outflow',
+                      // Says "always" because it deliberately ignores the
+                      // scope tabs — it's the context around them.
+                      subtitle: 'Last 6 months, always',
                       child: ChartCard(
                         title: 'Monthly Spending',
                         subtitle: 'Totals by month',
@@ -215,19 +232,13 @@ class AnalyticsScreen extends ConsumerWidget {
                     AnalyticsSection(
                       stretch: isWide,
                       title: 'Spending Trends',
-                      subtitle: 'Recent movement across the period',
-                      trailing: _PeriodSelector(
-                        period: period,
-                        onChanged: (value) => ref
-                            .read(analyticsProvider.notifier)
-                            .setPeriod(value),
-                      ),
+                      subtitle: 'Movement across ${scope.label.toLowerCase()}',
                       child: ChartCard(
                         title: 'Trend Line',
                         subtitle: 'Daily or weekly totals',
                         child: SpendingTrendLineChart(
                           points: trendPoints,
-                          period: period,
+                          period: _trendGrain(scope),
                         ),
                       ),
                     ),
@@ -390,16 +401,10 @@ class _MiniMetric extends StatelessWidget {
   }
 }
 
-String _periodLabel(String period) {
-  switch (period) {
-    case 'week':
-      return 'Last 7 days';
-    case 'year':
-      return 'Last 12 months';
-    default:
-      return 'Last 30 days';
-  }
-}
+/// How the trend chart labels its x-axis: dated points for the short scopes,
+/// month names for the long one.
+String _trendGrain(AnalyticsScope scope) =>
+    scope == AnalyticsScope.months12 ? 'year' : 'month';
 
 class _AiInsightCard extends StatelessWidget {
   final AsyncValue<String?> summary;
@@ -471,40 +476,3 @@ class _AiInsightCard extends StatelessWidget {
   }
 }
 
-class _PeriodSelector extends StatelessWidget {
-  final String period;
-  final ValueChanged<String> onChanged;
-
-  const _PeriodSelector({required this.period, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    const periods = ['week', 'month', 'year'];
-    const labels = {'week': '7D', 'month': '30D', 'year': '12M'};
-
-    return Wrap(
-      spacing: 6,
-      children: periods.map((value) {
-        final isSelected = period == value;
-        return ChoiceChip(
-          label: Text(labels[value] ?? value),
-          selected: isSelected,
-          onSelected: (_) => onChanged(value),
-          labelStyle: theme.textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: isSelected ? colorScheme.primary : colorScheme.onSurface,
-          ),
-          selectedColor: colorScheme.primary.withValues(alpha: 0.18),
-          backgroundColor: colorScheme.surface,
-          side: BorderSide(
-            color: isSelected
-                ? colorScheme.primary
-                : colorScheme.outline.withValues(alpha: 0.3),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}

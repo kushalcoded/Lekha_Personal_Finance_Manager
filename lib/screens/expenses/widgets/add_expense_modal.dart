@@ -10,6 +10,7 @@ import '../../../models/expense/expense_model.dart';
 import '../../../providers/ai_providers.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/cycle/cycle_providers.dart';
+import '../../../providers/payment/payment_method_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../../settings/providers/settings_providers.dart';
@@ -115,15 +116,6 @@ class AddExpenseForm extends ConsumerStatefulWidget {
 }
 
 class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
-  static const List<String> _paymentMethods = [
-    'Cash',
-    'GPay',
-    'PhonePe',
-    'Paytm',
-    'Bank Transfer',
-    'Card',
-  ];
-
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
   final _nlController = TextEditingController();
@@ -148,6 +140,9 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       _showValidation = true;
     }
     if (widget.initialDate != null) _selectedDate = widget.initialDate!;
+    // Most spends go the same way every time; preselecting the user's default
+    // takes a tap out of the common case. They can still change it.
+    _selectedPaymentMethod = ref.read(defaultPaymentMethodProvider);
     // Opened from the home-screen widget's mic button: start dictation.
     if (widget.autoStartVoice && ref.read(geminiConfiguredProvider)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -176,7 +171,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
           .parseExpenseFromText(
             text: text,
             categories: ref.read(expenseCategoriesProvider),
-            paymentMethods: _paymentMethods,
+            paymentMethods: ref.read(paymentMethodsProvider),
             todayIso: DateTime.now().toIso8601String().split('T').first,
           );
       _applyParsed(result);
@@ -215,7 +210,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       if (note.isNotEmpty) _notesController.text = note;
       final parsedDate = DateTime.tryParse(dateStr);
       if (parsedDate != null) _selectedDate = parsedDate;
-      final methodMatch = pick(_paymentMethods, method);
+      final methodMatch = pick(ref.read(paymentMethodsProvider), method);
       if (methodMatch.isNotEmpty) _selectedPaymentMethod = methodMatch;
       _showValidation = true;
     });
@@ -587,6 +582,28 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
 
   /// Mockup amount entry: naked over a hairline underline — muted ₹, the
   /// figure in Space Grotesk, calculator total ('450+89') live at the right.
+  Widget _categoryPills(List<String> names) {
+    if (names.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: names.map((c) {
+        final style = CategoryStyles.of(c);
+        return ChoicePill(
+          label: c,
+          dotColor: style.color,
+          selected: _selectedCategory == c,
+          // Mockup: a chosen category wears its own tint.
+          selectedColor: style.color,
+          onTap: () {
+            _markInteracted();
+            setState(() => _selectedCategory = c);
+          },
+        );
+      }).toList(),
+    );
+  }
+
   Widget _amountBox(ThemeData theme, ColorScheme cs) {
     final err = _showValidation && !_isAmountValid;
     return Container(
@@ -729,7 +746,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final aiConfigured = ref.watch(geminiConfiguredProvider);
-    final categories = ref.watch(expenseCategoriesProvider);
+    final ordered = ref.watch(orderedCategoriesProvider);
     final inlineWarning = _inlineWarning();
 
     return CallbackShortcuts(
@@ -826,24 +843,20 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                 ],
               ),
               const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: categories.map((c) {
-                  final style = CategoryStyles.of(c);
-                  return ChoicePill(
-                    label: c,
-                    dotColor: style.color,
-                    selected: _selectedCategory == c,
-                    // Mockup: a chosen category wears its own tint.
-                    selectedColor: style.color,
-                    onTap: () {
-                      _markInteracted();
-                      setState(() => _selectedCategory = c);
-                    },
-                  );
-                }).toList(),
-              ),
+              _categoryPills(ordered.frequent),
+              if (ordered.frequent.isNotEmpty && ordered.rest.isNotEmpty) ...[
+                // Separates "what you actually use" from the A–Z remainder, so
+                // the pills above read as deliberately placed rather than
+                // arbitrarily first.
+                const SizedBox(height: 12),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: cs.outline.withValues(alpha: 0.14),
+                ),
+                const SizedBox(height: 12),
+              ],
+              _categoryPills(ordered.rest),
               if (_showValidation && _selectedCategory == null) ...[
                 const SizedBox(height: 6),
                 Text(
@@ -857,7 +870,8 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _paymentMethods
+                children: ref
+                    .watch(paymentMethodsProvider)
                     .map(
                       (m) => ChoicePill(
                         label: m,

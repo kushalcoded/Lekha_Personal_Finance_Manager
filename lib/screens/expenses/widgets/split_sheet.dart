@@ -90,6 +90,46 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
     });
   }
 
+  /// Pin someone to the front of the suggestions, or stop offering them.
+  /// Hiding is undoable from Settings → People, which the sheet says so nobody
+  /// thinks they've deleted a person's history.
+  Future<void> _openPersonMenu(String name, bool isPinned) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(
+                isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+              ),
+              title: Text(isPinned ? 'Unpin $name' : 'Pin $name to the front'),
+              onTap: () => Navigator.of(sheetContext).pop('pin'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.visibility_off_rounded),
+              title: Text('Hide $name'),
+              subtitle: const Text('Undo in Settings → People'),
+              onTap: () => Navigator.of(sheetContext).pop('hide'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    final notifier = ref.read(peoplePrefsProvider.notifier);
+    if (action == 'pin') {
+      await notifier.togglePin(name);
+    } else {
+      await notifier.toggleHide(name);
+    }
+  }
+
   Map<String, double> get _exactAmounts => {
     for (final e in _exactControllers.entries)
       e.key: parseAmountExpression(e.value.text.trim()) ?? 0,
@@ -99,10 +139,11 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final prefs = ref.watch(peoplePrefsProvider);
     final known = ref
         .watch(knownPeopleProvider)
         .where((n) => !_people.any((p) => p.toLowerCase() == n.toLowerCase()))
-        .take(6)
+        .take(8)
         .toList();
 
     final result = computeSplit(
@@ -176,11 +217,19 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
               runSpacing: 8,
               children: known
                   .map(
-                    (n) => ChoicePill(
-                      label: n,
-                      icon: Icons.add_rounded,
-                      selected: false,
-                      onTap: () => _addPerson(n),
+                    (n) => GestureDetector(
+                      // Long-press rather than a visible control: the pills are
+                      // a fast path, and hanging an X off each one would make
+                      // the row read as a list to manage instead of tap.
+                      onLongPress: () => _openPersonMenu(n, prefs.isPinned(n)),
+                      child: ChoicePill(
+                        label: n,
+                        icon: prefs.isPinned(n)
+                            ? Icons.push_pin_rounded
+                            : Icons.add_rounded,
+                        selected: false,
+                        onTap: () => _addPerson(n),
+                      ),
                     ),
                   )
                   .toList(),

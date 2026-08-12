@@ -21,6 +21,9 @@ import '../dashboard/widgets/budget_settings_modal.dart';
 import 'widgets/export_modal.dart';
 import 'widgets/iphone_sms_guide_screen.dart';
 import 'widgets/manage_categories_screen.dart';
+import 'widgets/manage_payment_methods_screen.dart';
+import 'widgets/manage_people_screen.dart';
+import '../../providers/payment/payment_method_providers.dart';
 
 /// Latest Android APK lives on the GitHub release page.
 const _androidAppUrl =
@@ -264,6 +267,29 @@ class SettingsScreen extends ConsumerWidget {
                                 MaterialPageRoute<void>(
                                   builder: (_) =>
                                       const ManageCategoriesScreen(),
+                                ),
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.group_rounded,
+                              title: 'People',
+                              subtitle: 'Pin or hide split suggestions',
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const ManagePeopleScreen(),
+                                ),
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.account_balance_wallet_rounded,
+                              title: 'Payment methods',
+                              subtitle: _defaultMethodSubtitle(
+                                ref.watch(defaultPaymentMethodProvider),
+                              ),
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      const ManagePaymentMethodsScreen(),
                                 ),
                               ),
                             ),
@@ -841,6 +867,10 @@ Future<void> _showSimulateSmsDialog(BuildContext context, WidgetRef ref) async {
     ),
   );
 }
+
+String _defaultMethodSubtitle(String? method) => method == null
+    ? 'Edit the list, pick a default'
+    : 'Default: $method';
 
 /// Store the toggle, mirror it to the native receiver, and say so when Android
 /// withholds the permission — otherwise the switch reads "on" while nothing

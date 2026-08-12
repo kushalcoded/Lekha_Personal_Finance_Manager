@@ -167,7 +167,7 @@ class _PayableFormState extends ConsumerState<PayableForm> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final categories = ref.watch(expenseCategoriesProvider);
+    final categories = ref.watch(orderedCategoriesProvider).all;
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),

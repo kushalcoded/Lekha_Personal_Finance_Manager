@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../models/recurring/recurring_expense_template.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/payment/payment_method_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
 import 'amount_input.dart';
 import 'category_selector.dart';
@@ -90,15 +91,6 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
     'Entertainment',
     'Investment',
     'Miscellaneous',
-  ];
-
-  static const _paymentMethods = <String>[
-    'Cash',
-    'GPay',
-    'PhonePe',
-    'Paytm',
-    'Bank Transfer',
-    'Card',
   ];
 
   final _amountController = TextEditingController();
@@ -301,7 +293,7 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
             ),
             const SizedBox(height: 16),
             PaymentMethodSelector(
-              methods: _paymentMethods,
+              methods: ref.watch(paymentMethodsProvider),
               selectedMethod: _selectedPaymentMethod,
               onSelected: (value) {
                 _markInteracted();

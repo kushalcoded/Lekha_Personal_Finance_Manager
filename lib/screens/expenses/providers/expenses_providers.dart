@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/categories/category_providers.dart';
 import '../../../providers/cycle/cycle_providers.dart';
+import '../../../providers/storage/storage_providers.dart';
 import '../../settings/providers/settings_providers.dart';
 import '../models/expense_view_models.dart';
 
@@ -268,6 +269,66 @@ final expenseStatsProvider = Provider<ExpenseStats>((ref) {
 /// so the add/edit/filter/export/payable flows all stay in sync.
 final expenseCategoriesProvider = Provider<List<String>>((ref) {
   return ref.watch(categoriesProvider).map((c) => c.name).toList();
+});
+
+/// Categories split into the handful you actually reach for and the rest.
+class OrderedCategories {
+  /// Most-used, most-used first.
+  final List<String> frequent;
+
+  /// Everything else, alphabetical.
+  final List<String> rest;
+
+  const OrderedCategories({required this.frequent, required this.rest});
+
+  List<String> get all => [...frequent, ...rest];
+}
+
+/// How many categories get pinned to the front.
+const kFrequentCategoryCount = 5;
+
+/// Order categories so the common ones are under your thumb and the rest are
+/// findable.
+///
+/// Insertion order — what this used to be — meant hunting through the whole
+/// wrap every time. Frequency alone would be worse: positions would drift
+/// constantly. So: a small pinned group by use, then strict alphabetical, which
+/// lets you know where a category is before you look for it.
+///
+/// Ties break alphabetically so the order is stable rather than dependent on
+/// map iteration.
+OrderedCategories orderCategories(
+  List<String> categories,
+  Map<String, int> counts, {
+  int frequentCount = kFrequentCategoryCount,
+}) {
+  final used = categories.where((c) => (counts[c] ?? 0) > 0).toList()
+    ..sort((a, b) {
+      final byCount = (counts[b] ?? 0).compareTo(counts[a] ?? 0);
+      return byCount != 0 ? byCount : a.toLowerCase().compareTo(b.toLowerCase());
+    });
+
+  final frequent = used.take(frequentCount).toList();
+  final rest = categories.where((c) => !frequent.contains(c)).toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+  return OrderedCategories(frequent: frequent, rest: rest);
+}
+
+/// The window that decides "frequent". Deliberately spans cycles: starting a
+/// new salary cycle must not reshuffle the pills you just learned the position
+/// of.
+const kCategoryUsageWindow = Duration(days: 90);
+
+final orderedCategoriesProvider = Provider<OrderedCategories>((ref) {
+  final categories = ref.watch(expenseCategoriesProvider);
+  final since = DateTime.now().subtract(kCategoryUsageWindow);
+  final counts = <String, int>{};
+  for (final expense in ref.watch(expensesProvider).expenses) {
+    if (expense.date.isBefore(since)) continue;
+    counts[expense.category] = (counts[expense.category] ?? 0) + 1;
+  }
+  return orderCategories(categories, counts);
 });
 
 /// Provider for total expenses by category

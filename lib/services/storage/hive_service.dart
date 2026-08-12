@@ -514,6 +514,25 @@ class HiveService {
     await saveSettings(userId, settings);
   }
 
+  /// Payment methods the user can pick from. Empty means "never customised" —
+  /// the notifier seeds the defaults. Stored beside categories in the settings
+  /// map, so it rides the backup snapshot without touching the sync code.
+  List<String> getPaymentMethods(String userId) {
+    final raw = getSettings(userId)['paymentMethods'];
+    if (raw is! List) return [];
+    return raw
+        .map((value) => value.toString().trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> savePaymentMethods(String userId, List<String> methods) async {
+    if (!_initialized) throw Exception('HiveService not initialized');
+    final settings = getSettings(userId);
+    settings['paymentMethods'] = methods;
+    await saveSettings(userId, settings);
+  }
+
   List<CycleHistorySnapshot> getCycleHistory(String userId) {
     final settings = getSettings(userId);
     final raw = settings['cycleHistory'];

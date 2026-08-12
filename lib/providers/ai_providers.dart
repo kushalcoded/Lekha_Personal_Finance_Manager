@@ -89,9 +89,11 @@ final analyticsAiSummaryProvider = FutureProvider.family<String?, String>((
   }
   final summary = ref.watch(analyticsSummaryProvider(userId));
   final budgetInsight = ref.watch(analyticsBudgetInsightProvider(userId));
-  final period = ref.watch(analyticsPeriodProvider);
+  // The model must name the same window the cards show, or its "this month"
+  // contradicts a screen reading "This cycle".
+  final scope = ref.watch(analyticsScopeProvider);
   return service.summarizeAnalytics(
-    period: period,
+    period: scope.label,
     totalSpent: summary.totalSpent,
     averageDaily: summary.averageDaily,
     topCategory: summary.topCategory?.category,
