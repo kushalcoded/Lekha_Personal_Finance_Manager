@@ -189,7 +189,7 @@ class AnalyticsScreen extends ConsumerWidget {
                         title: 'Monthly Spending Overview',
                         // Says "always" because it deliberately ignores the
                         // scope tabs — it's the context around them.
-                        subtitle: 'Last 6 months, always',
+                        subtitle: 'Last 6 months · every cycle',
                         child: ChartCard(
                           title: 'Monthly Spending',
                           subtitle: 'Totals by month',

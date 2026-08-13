@@ -48,6 +48,10 @@ class FloatingGlassNav extends ConsumerWidget {
           Container(
             width: double.infinity,
             height: barHeight,
+            // Horizontal only, so the bar's height is untouched: keeps the end
+            // tabs' pills clear of the 24px rounded corners they used to run
+            // into.
+            padding: const EdgeInsets.symmetric(horizontal: 6),
             decoration: BoxDecoration(
               color: const Color(0xFF131318),
               borderRadius: BorderRadius.circular(24),
@@ -492,16 +496,23 @@ class _NavButton extends StatelessWidget {
     return InkResponse(
       onTap: onTap,
       radius: 34,
-      child: Center(
+      child: Padding(
+        // Horizontal only: the vertical breathing room lives inside the pill,
+        // so the button still fits the icon rail's fixed-height rows.
+        padding: const EdgeInsets.symmetric(horizontal: 6),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          // Fills the tab's slot rather than hugging the label. Sizing to the
+          // text made every pill a different width — "Expenses" wide, "Home"
+          // narrow — so the row of tabs read as misaligned.
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 6),
           decoration: BoxDecoration(
             color: isActive
                 ? colorScheme.primary.withValues(alpha: 0.12)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

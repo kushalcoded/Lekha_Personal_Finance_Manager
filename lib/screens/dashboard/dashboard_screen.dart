@@ -17,6 +17,7 @@ import '../../providers/auth/auth_provider.dart';
 import '../../providers/budget/budget_providers.dart';
 import '../../providers/cycle/cycle_providers.dart';
 import '../../providers/debt/debt_providers.dart';
+import '../receivables/providers/receivables_providers.dart';
 import '../../providers/storage/storage_providers.dart'
     show totalPayablesProvider;
 import '../../providers/sync/sync_providers.dart';
@@ -47,7 +48,12 @@ class DashboardScreen extends ConsumerWidget {
     final monthlySpend = ref.watch(monthlySpendProvider(userId));
     final receivablesTotal = ref.watch(receivablesTotalProvider(userId));
     final payablesTotal = ref.watch(totalPayablesProvider(userId));
-    final overdueDebtCount = ref.watch(overdueDebtCountProvider(userId));
+    final overdueReceivableCount = ref.watch(
+      receivablesStatsProvider(userId),
+    ).overdueCount;
+    final overduePayableCount = ref.watch(
+      overduePayablesCountProvider(userId),
+    );
     final budgetMetrics = ref.watch(budgetMetricsProvider(userId));
     final settings = ref.watch(settingsProvider);
 
@@ -89,7 +95,13 @@ class DashboardScreen extends ConsumerWidget {
             value: AppFormatters.formatCurrency(receivablesTotal),
             valueColor: calm.positive,
             dotColor: calm.positive,
-            sub: 'Receivables',
+            // Each tile counts only its own side. The overdue figure used to
+            // be receivables + payables combined and was printed under "You
+            // owe", so a ₹0 payables tile read "2 overdue" when the two
+            // overdue items were people owing the user.
+            sub: overdueReceivableCount > 0
+                ? '$overdueReceivableCount overdue'
+                : 'Receivables',
           ),
         ),
         const SizedBox(width: 12),
@@ -99,8 +111,8 @@ class DashboardScreen extends ConsumerWidget {
             value: AppFormatters.formatCurrency(payablesTotal),
             valueColor: colorScheme.error,
             dotColor: colorScheme.error,
-            sub: overdueDebtCount > 0
-                ? '$overdueDebtCount overdue'
+            sub: overduePayableCount > 0
+                ? '$overduePayableCount overdue'
                 : 'Payables',
           ),
         ),
@@ -212,13 +224,20 @@ class _Header extends StatelessWidget {
     return Row(
       children: [
         // Mockup greeting: one quiet line — the money hero below is the star.
+        // The weekday is dropped before the name is: squeezed between the
+        // cycle chip and three icon buttons, this used to ellipsize down to
+        // "Hi ..." and greet nobody.
         Expanded(
-          child: Text(
-            '${DateFormat('EEEE').format(DateTime.now())} · Hi $name',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: cs.onSurfaceVariant,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Text(
+              constraints.maxWidth < 150
+                  ? 'Hi $name'
+                  : '${DateFormat('EEEE').format(DateTime.now())} · Hi $name',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ),
         ),
