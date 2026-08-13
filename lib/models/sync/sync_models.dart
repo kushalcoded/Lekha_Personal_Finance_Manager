@@ -119,8 +119,11 @@ class SyncState {
   Map<String, dynamic> toJson() {
     return {
       'isSyncing': isSyncing,
-      'lastSyncedAt': lastSyncedAt?.toIso8601String(),
-      'lastAttemptAt': lastAttemptAt?.toIso8601String(),
+      // UTC so the string is unambiguous. Older values were written as naive
+      // local time; DateTime.parse still reads those as local, which is the
+      // instant that was meant, so both shapes compare correctly.
+      'lastSyncedAt': lastSyncedAt?.toUtc().toIso8601String(),
+      'lastAttemptAt': lastAttemptAt?.toUtc().toIso8601String(),
       'uploadCount': uploadCount,
       'downloadCount': downloadCount,
       'pendingCount': pendingCount,

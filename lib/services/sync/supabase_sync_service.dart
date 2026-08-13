@@ -47,15 +47,14 @@ class SupabaseSyncService {
       final remote = await _fetchRemoteSnapshot(userId);
       final lastSynced = initial.lastSyncedAt;
       final remoteNewer =
-          remote != null &&
-          (lastSynced == null || remote.updatedAt.isAfter(lastSynced));
+          remote != null && remoteIsNewer(remote.updatedAt, lastSynced);
       final localEmpty = _localIsEmpty(userId);
       // Unsynced local edits (e.g. an expense added seconds ago, still inside
       // the push debounce) must never be overwritten by a pull — push wins.
       final mutatedAt = _hiveService.lastLocalMutationAt;
       final localDirty =
           mutatedAt != null &&
-          (lastSynced == null || mutatedAt.isAfter(lastSynced));
+          (lastSynced == null || mutatedAt.toUtc().isAfter(lastSynced.toUtc()));
 
       var uploads = 0;
       var downloads = 0;
@@ -100,6 +99,9 @@ class SupabaseSyncService {
         }
         marker = await _uploadSnapshot(userId);
         uploads = 1;
+        // Everything local now exists in the cloud, so a later pull is safe.
+        // Leaving the marker set would block every future pull.
+        await _hiveService.clearLocalMutationMarker();
       }
 
       final completedAt = DateTime.now();
@@ -153,7 +155,11 @@ class SupabaseSyncService {
 
   Future<DateTime> _uploadSnapshot(String userId) async {
     final snapshot = _hiveService.createLocalBackupSnapshot(userId);
-    final now = DateTime.now();
+    // UTC, so the ISO string carries a 'Z'. Sending local wall time with no
+    // offset into a timestamptz column made Postgres read it as UTC, so every
+    // snapshot came back one UTC offset in the future — the remote always
+    // looked newer, and every cold start pulled and overwrote local data.
+    final now = DateTime.now().toUtc();
     await _client.from(_table).upsert({
       'user_id': userId,
       'snapshot': snapshot,
@@ -193,9 +199,22 @@ class SupabaseSyncService {
     final snap = row['snapshot'];
     if (snap is! Map) return null;
     final updatedAt =
-        DateTime.tryParse(row['updated_at']?.toString() ?? '') ??
-        DateTime.fromMillisecondsSinceEpoch(0);
+        DateTime.tryParse(row['updated_at']?.toString() ?? '')?.toUtc() ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
     return _RemoteSnapshot(Map<String, dynamic>.from(snap), updatedAt);
+  }
+
+  /// Whether the cloud snapshot post-dates what this device last synced.
+  ///
+  /// Compares instants, never wall-clock strings. Both sides are normalised to
+  /// UTC because they arrive in different shapes: the remote is timezone-aware
+  /// from Postgres, while a `lastSyncedAt` written by an older build is a naive
+  /// local string. Dart parses that as local time, which is the instant that
+  /// was meant — so converting is safe, and forcing UTC on it would shift every
+  /// stored value by the device's offset.
+  static bool remoteIsNewer(DateTime remoteUpdatedAt, DateTime? lastSynced) {
+    if (lastSynced == null) return true;
+    return remoteUpdatedAt.toUtc().isAfter(lastSynced.toUtc());
   }
 
   bool _localIsEmpty(String userId) {

@@ -28,7 +28,7 @@ void main() {
 
   test('saving a detected SMS leaves the account clean', () async {
     final hive = HiveService();
-    hive.lastLocalMutationAt = null;
+    await hive.clearLocalMutationMarker();
 
     await hive.savePendingTransaction(
       PendingTransaction(
@@ -49,7 +49,7 @@ void main() {
 
   test('deciding on a detection also leaves it clean', () async {
     final hive = HiveService();
-    hive.lastLocalMutationAt = null;
+    await hive.clearLocalMutationMarker();
 
     await hive.savePendingTransaction(
       PendingTransaction(
@@ -67,7 +67,9 @@ void main() {
 
   test('an actual expense still marks the account dirty', () async {
     final hive = HiveService();
-    hive.lastLocalMutationAt = null;
+    // The marker is persisted now, so it's cleared through the same call a
+    // completed push uses rather than by assignment.
+    await hive.clearLocalMutationMarker();
 
     await hive.addExpense(
       Expense(

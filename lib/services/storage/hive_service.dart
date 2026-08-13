@@ -45,12 +45,38 @@ class HiveService {
   /// When the last local mutation happened. Sync compares this against its
   /// last-synced marker so a pull can never overwrite edits that haven't been
   /// pushed yet (e.g. an expense added seconds ago, still in the debounce).
-  DateTime? lastLocalMutationAt;
+  ///
+  /// Persisted, not just in memory: it used to reset to null on every launch,
+  /// so a cold start always looked "clean" and let a pull overwrite work that
+  /// had never been pushed — the app forgot changes made just before it closed.
+  DateTime? get lastLocalMutationAt {
+    if (_memoryMutationAt != null) return _memoryMutationAt;
+    if (!_initialized) return null;
+    final raw = _syncStateBox.get(_mutationKey)?['at'];
+    return raw is String ? DateTime.tryParse(raw)?.toUtc() : null;
+  }
+
+  DateTime? _memoryMutationAt;
+  static const _mutationKey = '__lastLocalMutationAt';
+
+  /// Called once a push succeeds: everything local is now in the cloud, so a
+  /// later pull is safe again. Without this the device would never pull.
+  Future<void> clearLocalMutationMarker() async {
+    _memoryMutationAt = null;
+    if (!_initialized) return;
+    await _syncStateBox.delete(_mutationKey);
+  }
 
   void _notifyChanged() {
     // A restore IS the newest data — pushing it straight back up is noise.
     if (_restoring) return;
-    lastLocalMutationAt = DateTime.now();
+    final now = DateTime.now().toUtc();
+    _memoryMutationAt = now;
+    if (_initialized) {
+      // Fire-and-forget: the in-memory value already answers this session, and
+      // blocking every write on a disk round-trip isn't worth it.
+      _syncStateBox.put(_mutationKey, {'at': now.toIso8601String()});
+    }
     onDataChanged?.call();
   }
 

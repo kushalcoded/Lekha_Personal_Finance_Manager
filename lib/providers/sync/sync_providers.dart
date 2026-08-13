@@ -7,6 +7,8 @@ import '../../services/storage/hive_service.dart';
 import '../../services/sync/supabase_sync_service.dart';
 import '../auth/auth_provider.dart';
 import '../sms/sms_providers.dart';
+import '../payment/payment_method_providers.dart';
+import '../people/people_providers.dart';
 import '../storage/storage_providers.dart';
 
 class SyncNotifier extends StateNotifier<SyncState> {
@@ -188,6 +190,13 @@ class SyncNotifier extends StateNotifier<SyncState> {
       _ref.read(settingsProvider.notifier).loadSettings(),
     ]);
     _ref.read(pendingTransactionsProvider.notifier).refresh();
+    // A restore replaces the settings map wholesale, and these read straight
+    // out of it. Without this the screen keeps showing the pre-pull payment
+    // methods and default for the rest of the session — the change only
+    // surfaced on the next launch, which is what made it look like a save bug.
+    _ref.invalidate(paymentMethodsProvider);
+    _ref.invalidate(defaultPaymentMethodProvider);
+    _ref.invalidate(peoplePrefsProvider);
   }
 }
 

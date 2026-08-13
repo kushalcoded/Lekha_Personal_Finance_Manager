@@ -17,6 +17,8 @@ import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
 import '../../widgets/common/glass.dart';
 import '../../widgets/common/update_flow.dart';
+import '../../utils/web_reload/web_reload_stub.dart'
+    if (dart.library.js_interop) '../../utils/web_reload/web_reload_web.dart';
 import '../cycle_recap_dialog.dart';
 import '../dashboard/widgets/budget_settings_modal.dart';
 import 'widgets/export_modal.dart';
@@ -448,7 +450,21 @@ class SettingsScreen extends ConsumerWidget {
                               subtitle: 'Paste a bank SMS to test detection',
                               onTap: () => _showSimulateSmsDialog(context, ref),
                             ),
-                            if (!kIsWeb)
+                            if (kIsWeb)
+                              // Web had no version anywhere, so "is my browser
+                              // running the latest build?" was unanswerable —
+                              // a stale cached PWA looked identical to a
+                              // feature that never shipped.
+                              _SettingRow(
+                                icon: Icons.public_rounded,
+                                title: 'App version',
+                                subtitle: 'v${appVersion ?? '…'} · web',
+                                trailing: _PillButton(
+                                  label: 'Reload',
+                                  onTap: () => reloadForUpdate(),
+                                ),
+                              )
+                            else
                               _SettingRow(
                                 icon: Icons.system_update_rounded,
                                 title: 'App version',

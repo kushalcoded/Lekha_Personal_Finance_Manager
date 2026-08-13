@@ -75,6 +75,9 @@ class PaymentMethodsNotifier extends StateNotifier<List<String>> {
     final next = [...state]..[index] = trimmed;
     await _persist(next);
     await _migrate(from, trimmed);
+    // The default is stored by name, so renaming the starred method would
+    // otherwise leave it pointing at a method that no longer exists.
+    if (defaultFor(_userId) == from) await setDefault(trimmed);
     return true;
   }
 
