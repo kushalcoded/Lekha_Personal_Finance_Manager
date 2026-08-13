@@ -304,24 +304,29 @@ class GeminiService {
       throw Exception('Sign in to use AI features');
     }
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/functions/v1/gemini-proxy'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-        'apikey': dotenv.env['SUPABASE_ANON_KEY'] ?? '',
-      },
-      body: jsonEncode({
-        // Every feature shares this: without it Gemini writes bare numbers
-        // and Llama guesses dollars.
-        'system':
-            '$systemInstruction\n'
-            'All monetary amounts are in $currency. Always write amounts '
-            'with the matching currency symbol.',
-        'prompt': userPrompt,
-        'temperature': temperature,
-      }),
-    );
+    // One request is three hops (gateway → usage RPC → model), and there was no
+    // deadline at all: a hung socket blocked the SMS drain indefinitely, and it
+    // runs on a 5s poll. Better to fail and retry than to stall.
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/functions/v1/gemini-proxy'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+            'apikey': dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+          },
+          body: jsonEncode({
+            // Every feature shares this: without it Gemini writes bare numbers
+            // and Llama guesses dollars.
+            'system':
+                '$systemInstruction\n'
+                'All monetary amounts are in $currency. Always write amounts '
+                'with the matching currency symbol.',
+            'prompt': userPrompt,
+            'temperature': temperature,
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
 
     if (response.statusCode >= 400) {
       throw Exception('AI request failed: ${response.statusCode}');

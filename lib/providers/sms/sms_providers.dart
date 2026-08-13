@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -66,6 +67,65 @@ DateTime resolveTransactionTime(Object? stated, {required DateTime fallback}) {
     );
   }
   return parsed;
+}
+
+/// Words that make a message a spend. Deliberately narrower than the native
+/// receiver's gate, which also lets `txn`/`transaction` through — fine for
+/// deciding what to queue, too vague to book money on without the model.
+const _debitWords = [
+  'debited',
+  'debit',
+  'spent',
+  'withdrawn',
+  'deducted',
+  'paid',
+  'sent',
+  'purchase',
+];
+
+/// Anything here means it isn't a spend, whatever else the text says.
+const _notASpendWords = [
+  'credited',
+  'received',
+  'refund',
+  'reversal',
+  'reversed',
+  'otp',
+  'one time password',
+];
+
+final _amountPattern = RegExp(
+  r'(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)',
+  caseSensitive: false,
+);
+
+/// The amount a bank SMS is about, read without touching the network — or null
+/// when the message doesn't clearly say, in which case the caller falls back to
+/// the model.
+///
+/// Being wrong here is worse than being slow, so every uncertain case returns
+/// null rather than guessing. The two failure modes worth naming: reading the
+/// *available balance* as the spend, and treating a credit as a debit.
+double? quickParseSms(String body) {
+  final text = body.toLowerCase();
+  if (_notASpendWords.any(text.contains)) return null;
+  if (!_debitWords.any(text.contains)) return null;
+
+  final match = _amountPattern.firstMatch(body);
+  if (match == null) return null;
+
+  // Indian bank templates lead with the transaction amount and trail with the
+  // balance, so the FIRST match is the one meant. If a balance word sits just
+  // before it, this message doesn't follow that shape — hand it to the model.
+  final lead = text.substring(
+    match.start - 24 < 0 ? 0 : match.start - 24,
+    match.start,
+  );
+  if (lead.contains('bal') || lead.contains('avl')) return null;
+
+  final amount = double.tryParse(match.group(1)!.replaceAll(',', ''));
+  if (amount == null || amount <= 0) return null;
+  return amount;
 }
 
 /// The amount+time dedup rule: an identical amount within a short window is the
@@ -141,19 +201,27 @@ class SmsCaptureService {
         _lastCloudAt == null ||
         now.difference(_lastCloudAt!) >= _cloudInterval;
 
+    // The local queue goes first. It needs no network, so nothing the user is
+    // waiting to see should sit behind two Supabase round trips — which is
+    // exactly what happened on resume, when the throttle is skipped and the
+    // user is most likely watching the screen.
+    if (!kIsWeb) added += await _syncNativeQueue();
+
     if (cloudDue) {
       _lastCloudAt = now;
       // Server-parsed detections need no local AI, so they are pulled even
       // when this device has none configured.
       added += await _pullDetected();
       await _pushDetected();
+      if (_gemini.isConfigured) {
+        // Fallback drain: rows the server couldn't parse are still 'new'.
+        added += await _syncCloudQueue();
+      }
     }
-    if (!_gemini.isConfigured) return added;
-    if (!kIsWeb) added += await _syncNativeQueue();
-    if (cloudDue) {
-      // Fallback drain: rows the server couldn't parse are still 'new'.
-      added += await _syncCloudQueue();
-    }
+
+    // Confirm anything the local read guessed at. Deliberately not awaited:
+    // the cards are already on screen, and this must not delay the next poll.
+    unawaited(verifyProvisional());
     return added;
   }
 
@@ -167,7 +235,9 @@ class SmsCaptureService {
       if (client.auth.currentUser == null) return 0;
       rows = await client
           .from('detected_transactions')
-          .select('id, amount, occurred_at, raw_body, status, linked_expense_id')
+          .select(
+            'id, amount, occurred_at, raw_body, status, linked_expense_id',
+          )
           .order('occurred_at', ascending: false)
           .limit(100);
     } catch (_) {
@@ -292,7 +362,7 @@ class SmsCaptureService {
 
       // Ignored from the notification: retire it without spending a model call.
       if (decision == 'ignore') {
-        if (!HiveService().isSmsSeen(hash)) await HiveService().markSmsSeen(hash);
+        await HiveService().markSmsSeen(hash);
         handled.add(hash);
         continue;
       }
@@ -453,6 +523,39 @@ class SmsCaptureService {
   }) async {
     final hive = HiveService();
     if (hive.isSmsSeen(hash)) return false;
+
+    // Read it locally first. A card the user can act on costs nothing and no
+    // network, and the model confirms it a moment later. Not used for autoAdd:
+    // booking an expense straight from a regex would put a possibly-wrong
+    // amount somewhere corrections are no longer allowed to reach.
+    if (!autoAdd) {
+      final quick = quickParseSms(body);
+      if (quick != null) {
+        await hive.markSmsSeen(hash);
+        if (isDuplicateTransaction(
+          hive.getPendingTransactions(),
+          quick,
+          dateTime,
+        )) {
+          return false;
+        }
+        await hive.savePendingTransaction(
+          PendingTransaction(
+            id: hash,
+            amount: quick,
+            dateTime: dateTime,
+            rawBody: body,
+            createdAt: DateTime.now(),
+            provisional: true,
+          ),
+        );
+        return true;
+      }
+    }
+
+    // Nothing the regex would commit to — the model is the only way through,
+    // so without it this one waits for the next drain.
+    if (!_gemini.isConfigured) return false;
     try {
       final parsed = await _gemini.parseSmsTransaction(body);
       await hive.markSmsSeen(hash); // got a response — don't re-parse this one
@@ -461,11 +564,7 @@ class SmsCaptureService {
       final amount = (parsed['amount'] as num?)?.toDouble() ?? 0;
       if (!isFinancial || !isDebit || amount <= 0) return false;
       final when = resolveTransactionTime(parsed['when'], fallback: dateTime);
-      if (isDuplicateTransaction(
-        hive.getPendingTransactions(),
-        amount,
-        when,
-      )) {
+      if (isDuplicateTransaction(hive.getPendingTransactions(), amount, when)) {
         return false;
       }
       final pending = PendingTransaction(
@@ -484,6 +583,73 @@ class SmsCaptureService {
     } catch (_) {
       // Offline / bad response: leave it unseen so the next open retries it.
       return false;
+    }
+  }
+
+  /// How many rows are verified at once. Enough to clear a burst quickly
+  /// without opening a dozen sockets on a phone radio.
+  static const _verifyBatch = 4;
+  bool _verifying = false;
+
+  /// Second-guess the local read. Cards created by [quickParseSms] are already
+  /// on screen; this corrects the amount or date the model disagrees with, and
+  /// removes rows it says were never a spend.
+  ///
+  /// Only ever touches rows that are still pending — once the user has added or
+  /// dismissed one, their decision stands and nothing here may change it.
+  Future<void> verifyProvisional() async {
+    if (_verifying || !_gemini.isConfigured) return;
+    _verifying = true;
+    try {
+      final rows = HiveService()
+          .getPendingTransactions()
+          .where((t) => t.provisional && t.status == PendingStatus.pending)
+          .toList();
+      for (var i = 0; i < rows.length; i += _verifyBatch) {
+        final batch = rows.skip(i).take(_verifyBatch).map(_verifyOne);
+        await Future.wait(batch);
+      }
+    } finally {
+      _verifying = false;
+    }
+  }
+
+  Future<void> _verifyOne(PendingTransaction txn) async {
+    final hive = HiveService();
+    try {
+      final parsed = await _gemini.parseSmsTransaction(txn.rawBody);
+
+      // Re-read: the user may have decided on this card while we were waiting.
+      final matches = hive.getPendingTransactions().where(
+        (t) => t.id == txn.id,
+      );
+      if (matches.isEmpty) return;
+      final current = matches.first;
+      if (current.status != PendingStatus.pending) return;
+
+      final isFinancial = parsed['isFinancial'] == true;
+      final isDebit = parsed['isDebit'] == true;
+      final amount = (parsed['amount'] as num?)?.toDouble() ?? 0;
+      if (!isFinancial || !isDebit || amount <= 0) {
+        // Not a spend after all — vanish, rather than leave the user to
+        // dismiss something the app already knows is wrong.
+        await hive.deletePendingTransaction(txn.id);
+        return;
+      }
+
+      await hive.savePendingTransaction(
+        current.copyWith(
+          amount: amount,
+          dateTime: resolveTransactionTime(
+            parsed['when'],
+            fallback: current.dateTime,
+          ),
+          provisional: false,
+        ),
+      );
+    } catch (_) {
+      // Offline or a bad response: the card stays as it is, still provisional,
+      // and the next sync tries again.
     }
   }
 
@@ -510,10 +676,7 @@ class SmsCaptureService {
     );
     await _ref.read(expensesProvider.notifier).addExpense(expense);
     await HiveService().savePendingTransaction(
-      txn.copyWith(
-        status: PendingStatus.added,
-        linkedExpenseId: expense.id,
-      ),
+      txn.copyWith(status: PendingStatus.added, linkedExpenseId: expense.id),
     );
   }
 }

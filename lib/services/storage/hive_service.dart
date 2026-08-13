@@ -733,6 +733,17 @@ class HiveService {
     // Only real money edits (addExpense and friends) may set that flag.
   }
 
+  /// Drop a detection entirely. Used when the model confirms that a locally
+  /// read card wasn't a spend at all — the row should vanish as though it had
+  /// never been detected, not linger as something to dismiss by hand. The SMS
+  /// stays in the seen-set, so it is never re-detected.
+  ///
+  /// Like [savePendingTransaction], this must not mark the account dirty.
+  Future<void> deletePendingTransaction(String id) async {
+    if (!_initialized) throw Exception('HiveService not initialized');
+    await _pendingBox.delete(id);
+  }
+
   /// Fold another device's detected-SMS state into this one before a push.
   /// Whole-snapshot last-write-wins would otherwise drop pending items this
   /// device never pulled (phone detects an SMS while you're active on web →

@@ -13,6 +13,11 @@ class PendingTransaction {
   final String? linkedExpenseId;
   final DateTime createdAt;
 
+  /// Read locally by regex and shown immediately, with the model's verdict
+  /// still outstanding. Cleared once AI has confirmed or corrected the row —
+  /// the card is real either way, this only marks it as not yet double-checked.
+  final bool provisional;
+
   const PendingTransaction({
     required this.id,
     required this.amount,
@@ -21,20 +26,25 @@ class PendingTransaction {
     this.status = PendingStatus.pending,
     this.linkedExpenseId,
     required this.createdAt,
+    this.provisional = false,
   });
 
   PendingTransaction copyWith({
+    double? amount,
+    DateTime? dateTime,
     PendingStatus? status,
     String? linkedExpenseId,
+    bool? provisional,
   }) {
     return PendingTransaction(
       id: id,
-      amount: amount,
-      dateTime: dateTime,
+      amount: amount ?? this.amount,
+      dateTime: dateTime ?? this.dateTime,
       rawBody: rawBody,
       status: status ?? this.status,
       linkedExpenseId: linkedExpenseId ?? this.linkedExpenseId,
       createdAt: createdAt,
+      provisional: provisional ?? this.provisional,
     );
   }
 
@@ -46,6 +56,7 @@ class PendingTransaction {
     'status': status.name,
     'linkedExpenseId': linkedExpenseId,
     'createdAt': createdAt.toIso8601String(),
+    'provisional': provisional,
   };
 
   factory PendingTransaction.fromJson(Map<dynamic, dynamic> json) {
@@ -60,6 +71,9 @@ class PendingTransaction {
       ),
       linkedExpenseId: json['linkedExpenseId'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      // Absent on rows written before local-first parsing — those were all
+      // AI-parsed, so they're already confirmed.
+      provisional: json['provisional'] as bool? ?? false,
     );
   }
 }

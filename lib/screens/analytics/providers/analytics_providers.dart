@@ -381,6 +381,15 @@ DateTime _startOfDay(DateTime date) {
   return DateTime(date.year, date.month, date.day);
 }
 
+/// The scope a swipe lands on. Stops at the ends rather than wrapping: coming
+/// back round to "this cycle" after 12M would feel like a glitch, not a move.
+AnalyticsScope adjacentScope(AnalyticsScope from, {required bool forward}) {
+  final order = AnalyticsScope.values;
+  final next = order.indexOf(from) + (forward ? 1 : -1);
+  if (next < 0 || next >= order.length) return from;
+  return order[next];
+}
+
 /// First day included by a rolling scope. Cycle scope has no formula — its
 /// start comes from settings — so callers handle it separately.
 DateTime analyticsScopeStart(AnalyticsScope scope, DateTime now) {
