@@ -15,6 +15,7 @@ import '../../providers/ai_providers.dart';
 import '../../providers/sms/sms_providers.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/budget/budget_providers.dart';
+import '../../providers/clock_provider.dart';
 import '../../providers/cycle/cycle_providers.dart';
 import '../../providers/debt/debt_providers.dart';
 import '../receivables/providers/receivables_providers.dart';
@@ -48,12 +49,10 @@ class DashboardScreen extends ConsumerWidget {
     final monthlySpend = ref.watch(monthlySpendProvider(userId));
     final receivablesTotal = ref.watch(receivablesTotalProvider(userId));
     final payablesTotal = ref.watch(totalPayablesProvider(userId));
-    final overdueReceivableCount = ref.watch(
-      receivablesStatsProvider(userId),
-    ).overdueCount;
-    final overduePayableCount = ref.watch(
-      overduePayablesCountProvider(userId),
-    );
+    final overdueReceivableCount = ref
+        .watch(receivablesStatsProvider(userId))
+        .overdueCount;
+    final overduePayableCount = ref.watch(overduePayablesCountProvider(userId));
     final budgetMetrics = ref.watch(budgetMetricsProvider(userId));
     final settings = ref.watch(settingsProvider);
 
@@ -74,6 +73,7 @@ class DashboardScreen extends ConsumerWidget {
 
     final header = _Header(
       cycleDay: cycleDay,
+      weekday: DateFormat('EEEE').format(ref.watch(nowProvider)()),
       name: ref.watch(
         settingsProvider.select(
           (s) => s.displayName.isEmpty ? 'there' : s.displayName,
@@ -205,12 +205,14 @@ class DashboardScreen extends ConsumerWidget {
 /// Greeting + cycle-day chip + sync + AI-chat button + avatar (→ Settings).
 class _Header extends StatelessWidget {
   final int cycleDay;
+  final String weekday;
   final String name;
   final bool isSyncing;
   final VoidCallback onSync;
 
   const _Header({
     required this.cycleDay,
+    required this.weekday,
     required this.name,
     required this.isSyncing,
     required this.onSync,
@@ -230,9 +232,7 @@ class _Header extends StatelessWidget {
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) => Text(
-              constraints.maxWidth < 150
-                  ? 'Hi $name'
-                  : '${DateFormat('EEEE').format(DateTime.now())} · Hi $name',
+              constraints.maxWidth < 150 ? 'Hi $name' : '$weekday · Hi $name',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodySmall?.copyWith(

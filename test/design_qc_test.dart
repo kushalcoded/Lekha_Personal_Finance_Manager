@@ -28,6 +28,7 @@ import 'package:personal_expanse_tracker/screens/dashboard/dashboard_screen.dart
 import 'package:personal_expanse_tracker/screens/debts/debts_screen.dart';
 import 'package:personal_expanse_tracker/screens/debts/person_ledger_screen.dart';
 import 'package:personal_expanse_tracker/screens/expenses/expenses_screen.dart';
+import 'package:personal_expanse_tracker/providers/clock_provider.dart';
 import 'package:personal_expanse_tracker/screens/expenses/widgets/add_expense_modal.dart';
 import 'package:personal_expanse_tracker/screens/settings/settings_screen.dart';
 import 'package:personal_expanse_tracker/services/storage/hive_service.dart';
@@ -80,6 +81,13 @@ Future<void> _loadFonts() async {
   }
 }
 
+/// The one instant the harness pins: only the dashboard's weekday reads it, so
+/// nothing here depends on the app agreeing about what day it is. Seeded data
+/// stays relative to the real clock — the app's cycle, day headers and charts
+/// all compute against `DateTime.now()`, and freezing the data instead of the
+/// app just put every expense outside the current cycle.
+final _qcNow = DateTime(2026, 1, 15, 10, 30);
+
 Future<void> _seed() async {
   final hive = HiveService();
   final now = DateTime.now();
@@ -90,11 +98,11 @@ Future<void> _seed() async {
     'displayName': 'Kushal',
     'currentCycleBudget': 20000.0,
     'currentCycleSalary': 40000.0,
-    'currentCycleStartDate': DateTime(
-      now.year,
-      now.month,
-      1,
-    ).toIso8601String(),
+    // A fixed offset, not the 1st of the month: the chip prints the day number,
+    // which counted up by one every day and re-shot six goldens with it. The
+    // stored key is salaryCycleStartDate — `currentCycleStartDate` is a getter,
+    // so seeding that name did nothing at all.
+    'salaryCycleStartDate': day(12).toIso8601String(),
   });
 
   final expenses = [
@@ -165,22 +173,25 @@ Future<void> _seed() async {
     ),
   );
 
+  // Detected cards print an absolute timestamp, so these two are the one thing
+  // seeded at a fixed instant — a relative one re-shot every screen that shows
+  // a detection, which is most of them.
   await hive.savePendingTransaction(
     PendingTransaction(
       id: 'pending_0',
       amount: 450,
-      dateTime: now.subtract(const Duration(hours: 3)),
+      dateTime: _qcNow,
       rawBody: 'HDFC Bank: Rs.450 debited via UPI',
-      createdAt: now,
+      createdAt: _qcNow,
     ),
   );
   await hive.savePendingTransaction(
     PendingTransaction(
       id: 'pending_1',
       amount: 2000,
-      dateTime: now.subtract(const Duration(hours: 5)),
+      dateTime: _qcNow.subtract(const Duration(hours: 2)),
       rawBody: 'SBI: Rs.2000 withdrawn at ATM',
-      createdAt: now,
+      createdAt: _qcNow,
     ),
   );
 }
@@ -195,12 +206,13 @@ void main() {
     final dir = await Directory.systemTemp.createTemp('lekha_qc');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      const MethodChannel('plugins.flutter.io/path_provider'),
-      (call) async => dir.path,
-    );
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (call) async => dir.path,
+        );
     SharedPreferences.setMockInitialValues({});
     dotenv.testLoad(
-      fileInput: 'SUPABASE_URL=http://localhost:54321\n'
+      fileInput:
+          'SUPABASE_URL=http://localhost:54321\n'
           'SUPABASE_ANON_KEY=qc-anon-key',
     );
     await SupabaseService.initialize();
@@ -228,6 +240,7 @@ void main() {
       overrides: [
         currentUserIdProvider.overrideWithValue(_userId),
         geminiConfiguredProvider.overrideWithValue(false),
+        nowProvider.overrideWithValue(() => _qcNow),
       ],
     );
     addTearDown(container.dispose);
@@ -300,7 +313,8 @@ void main() {
   );
   testWidgets(
     'tablet shell (icon rail)',
-    (t) => shoot(t, 'tablet_shell', const AppShell(), size: const Size(1100, 800)),
+    (t) =>
+        shoot(t, 'tablet_shell', const AppShell(), size: const Size(1100, 800)),
   );
   testWidgets(
     'mobile shell (bottom nav)',
@@ -329,17 +343,12 @@ void main() {
   );
   testWidgets(
     'desktop dashboard',
-    (t) => shoot(
-      t,
-      'desktop_dashboard',
-      const DashboardScreen(),
-      size: _desktop,
-    ),
+    (t) =>
+        shoot(t, 'desktop_dashboard', const DashboardScreen(), size: _desktop),
   );
   testWidgets(
     'desktop expenses',
-    (t) =>
-        shoot(t, 'desktop_expenses', const ExpensesScreen(), size: _desktop),
+    (t) => shoot(t, 'desktop_expenses', const ExpensesScreen(), size: _desktop),
   );
   testWidgets(
     'desktop debts',
