@@ -15,6 +15,11 @@
 migrate_working_dir/
 # Golden diffs written by `flutter test --tags design` on a failure.
 test/failures/
+# Release signing. Losing the keystore strands every install — back it up
+# off this machine, never commit it.
+android/key.properties
+*.jks
+*.keystore
 
 # IntelliJ related
 *.iml

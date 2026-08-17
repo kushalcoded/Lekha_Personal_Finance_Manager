@@ -1,9 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Release signing, read from android/key.properties — gitignored, and the one
+// file that must be backed up somewhere other than this machine. Android
+// refuses to update an app signed with a different key, so if it is lost every
+// install in the world can only move forward by uninstalling first, which
+// wipes local data. See android/key.properties.example.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val hasReleaseKey = keystoreProperties.getProperty("storeFile") != null
 
 android {
     namespace = "com.example.personal_expanse_tracker"
@@ -29,11 +42,25 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Debug keys keep `flutter run --release` working on a fresh
+            // checkout; anything published must carry the real key, or the
+            // in-app updater hands users an APK Android will not install.
+            signingConfig = signingConfigs.getByName(
+                if (hasReleaseKey) "release" else "debug"
+            )
         }
     }
 }

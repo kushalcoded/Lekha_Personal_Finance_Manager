@@ -1,0 +1,15 @@
+# Copy to android/key.properties (gitignored) to sign release builds.
+#
+# Create the keystore once, then back the .jks up somewhere that is not this
+# machine — a lost key means no future build can update an existing install:
+#
+#   keytool -genkey -v -keystore lekha-release.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias lekha
+#
+# storeFile takes an absolute path. Without this file the release build falls
+# back to the debug key, which is fine locally and wrong for anything you ship.
+
+storeFile=C:/Users/you/keys/lekha-release.jks
+storePassword=
+keyAlias=lekha
+keyPassword=
