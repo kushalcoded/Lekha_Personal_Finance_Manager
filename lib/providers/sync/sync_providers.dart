@@ -6,6 +6,7 @@ import '../../services/connectivity/connectivity_service.dart';
 import '../../services/storage/hive_service.dart';
 import '../../services/sync/supabase_sync_service.dart';
 import '../auth/auth_provider.dart';
+import '../budget/category_budget_providers.dart';
 import '../sms/sms_providers.dart';
 import '../payment/payment_method_providers.dart';
 import '../people/people_providers.dart';
@@ -197,6 +198,7 @@ class SyncNotifier extends StateNotifier<SyncState> {
     _ref.invalidate(paymentMethodsProvider);
     _ref.invalidate(defaultPaymentMethodProvider);
     _ref.invalidate(peoplePrefsProvider);
+    _ref.invalidate(categoryBudgetsProvider);
   }
 }
 

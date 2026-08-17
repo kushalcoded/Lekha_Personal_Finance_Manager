@@ -9,6 +9,7 @@ import '../../../core/constants/category_styles.dart';
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/ai_providers.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/budget/category_budget_providers.dart';
 import '../../../providers/cycle/cycle_providers.dart';
 import '../../../providers/payment/payment_method_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
@@ -316,6 +317,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       category: category,
       date: date,
       cycleExpenses: cycleExpenses,
+      categoryBudgets: ref.read(categoryBudgetsProvider),
     );
     if (warning.kind == ExpenseWarningKind.none) return true;
 
@@ -324,11 +326,13 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          warning.kind == ExpenseWarningKind.duplicate
-              ? 'Possible duplicate'
-              : 'Unusually high',
-        ),
+        title: Text(switch (warning.kind) {
+          ExpenseWarningKind.duplicate => 'Possible duplicate',
+          ExpenseWarningKind.anomaly => 'Unusually high',
+          ExpenseWarningKind.overBudget =>
+            'Over the ${warning.category} budget',
+          ExpenseWarningKind.none => '',
+        }),
         content: Text(message),
         actions: [
           TextButton(
@@ -346,13 +350,26 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
   }
 
   Future<String> _warningMessage(ExpenseWarning warning) async {
-    final local = warning.kind == ExpenseWarningKind.duplicate
-        ? 'This looks like a duplicate of a ${warning.category} expense you '
-              'already added today.'
-        : 'This ${warning.category} expense is much higher than your usual '
-              'spend this cycle.';
+    final local = switch (warning.kind) {
+      ExpenseWarningKind.duplicate =>
+        'This looks like a duplicate of a ${warning.category} expense you '
+            'already added today.',
+      ExpenseWarningKind.anomaly =>
+        'This ${warning.category} expense is much higher than your usual '
+            'spend this cycle.',
+      ExpenseWarningKind.overBudget =>
+        'This takes ${warning.category} to '
+            '${AppFormatters.formatCurrency(warning.spentAfter)} against a '
+            '${AppFormatters.formatCurrency(warning.budget)} budget.',
+      ExpenseWarningKind.none => '',
+    };
     final service = ref.read(geminiServiceProvider);
-    if (!service.isConfigured) return local;
+    // The model is told about spend habits, not about a limit the user set —
+    // it would talk around the number instead of stating it.
+    if (!service.isConfigured ||
+        warning.kind == ExpenseWarningKind.overBudget) {
+      return local;
+    }
     try {
       return await service.explainSpendingWarning(
         kind: warning.kind.name,
@@ -466,6 +483,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       category: _selectedCategory!,
       date: _selectedDate,
       cycleExpenses: cycleExpenses,
+      categoryBudgets: ref.read(categoryBudgetsProvider),
     );
     return switch (warning.kind) {
       ExpenseWarningKind.duplicate =>
@@ -474,6 +492,10 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       ExpenseWarningKind.anomaly =>
         'This ${warning.category} expense is much higher than your usual spend '
             'this cycle.',
+      ExpenseWarningKind.overBudget =>
+        'This takes ${warning.category} to '
+            '${AppFormatters.formatCurrency(warning.spentAfter)} against a '
+            '${AppFormatters.formatCurrency(warning.budget)} budget.',
       ExpenseWarningKind.none => null,
     };
   }
@@ -607,6 +629,60 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
           onTap: () => _chose(() => _selectedCategory = c),
         );
       }).toList(),
+    );
+  }
+
+  /// Where the chosen category stands this cycle. Only drawn for categories
+  /// the user actually capped — the point is a nudge before the money is gone,
+  /// not a progress bar on everything.
+  Widget _categoryBudgetLine(ThemeData theme, ColorScheme cs) {
+    final category = _selectedCategory;
+    if (category == null) return const SizedBox.shrink();
+    final status = ref.watch(categoryBudgetStatusProvider(category));
+    if (!status.isCapped) return const SizedBox.shrink();
+
+    final over = status.isOver;
+    final tail = over
+        ? '${AppFormatters.formatCurrency(-status.remaining)} over'
+        : '${AppFormatters.formatCurrency(status.remaining)} left';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${AppFormatters.formatCurrency(status.spent)} of '
+                  '${AppFormatters.formatCurrency(status.limit)} this cycle',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Text(
+                tail,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: over ? cs.error : cs.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: status.fraction,
+              minHeight: 4,
+              backgroundColor: Colors.white.withValues(alpha: 0.07),
+              color: over ? cs.error : cs.primary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -885,6 +961,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                         ),
                       ),
                     ],
+                    _categoryBudgetLine(theme, cs),
                     const SizedBox(height: 18),
                     const FieldLabel('Paid via'),
                     const SizedBox(height: 10),

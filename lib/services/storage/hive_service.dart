@@ -559,6 +559,35 @@ class HiveService {
     await saveSettings(userId, settings);
   }
 
+  /// Per-category spending limits for a cycle, category → amount. Only the
+  /// categories the user actually capped are present; the rest are unlimited.
+  /// Same settings map as categories and payment methods, so it rides the
+  /// backup snapshot for free.
+  Map<String, double> getCategoryBudgets(String userId) {
+    final raw = getSettings(userId)['categoryBudgets'];
+    if (raw is! Map) return {};
+    final budgets = <String, double>{};
+    raw.forEach((key, value) {
+      final amount = (value as num?)?.toDouble() ?? 0;
+      if (amount > 0) budgets[key.toString()] = amount;
+    });
+    return budgets;
+  }
+
+  Future<void> saveCategoryBudgets(
+    String userId,
+    Map<String, double> budgets,
+  ) async {
+    if (!_initialized) throw Exception('HiveService not initialized');
+    final settings = getSettings(userId);
+    // Drop the zeroes rather than storing "no limit" as a number.
+    settings['categoryBudgets'] = {
+      for (final entry in budgets.entries)
+        if (entry.value > 0) entry.key: entry.value,
+    };
+    await saveSettings(userId, settings);
+  }
+
   List<CycleHistorySnapshot> getCycleHistory(String userId) {
     final settings = getSettings(userId);
     final raw = settings['cycleHistory'];

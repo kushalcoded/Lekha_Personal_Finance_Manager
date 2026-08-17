@@ -1,6 +1,6 @@
 import '../../../models/expense/expense_model.dart';
 
-enum ExpenseWarningKind { none, duplicate, anomaly }
+enum ExpenseWarningKind { none, duplicate, anomaly, overBudget }
 
 class ExpenseWarning {
   final ExpenseWarningKind kind;
@@ -8,12 +8,47 @@ class ExpenseWarning {
   final double amount;
   final double typical; // category median (anomaly only)
 
+  /// The category's limit for the cycle, and what this expense would take the
+  /// total to — both zero unless [kind] is [ExpenseWarningKind.overBudget].
+  final double budget;
+  final double spentAfter;
+
   const ExpenseWarning({
     required this.kind,
     required this.category,
     required this.amount,
     this.typical = 0,
+    this.budget = 0,
+    this.spentAfter = 0,
   });
+}
+
+/// What a category has left this cycle. [limit] of 0 means uncapped.
+class CategoryBudgetStatus {
+  final double limit;
+  final double spent;
+
+  const CategoryBudgetStatus({required this.limit, required this.spent});
+
+  bool get isCapped => limit > 0;
+  double get remaining => limit - spent;
+  bool get isOver => isCapped && spent > limit;
+
+  /// Clamped so a wildly overspent category doesn't draw a bar past the card.
+  double get fraction => isCapped ? (spent / limit).clamp(0.0, 1.0) : 0;
+}
+
+/// Spend so far in [category] this cycle, against its limit.
+CategoryBudgetStatus categoryBudgetStatus({
+  required String category,
+  required Map<String, double> budgets,
+  required List<Expense> cycleExpenses,
+}) {
+  var spent = 0.0;
+  for (final e in cycleExpenses) {
+    if (e.category == category) spent += e.amount;
+  }
+  return CategoryBudgetStatus(limit: budgets[category] ?? 0, spent: spent);
 }
 
 /// Feature 5: flag a candidate expense as a likely duplicate (same category,
@@ -24,6 +59,7 @@ ExpenseWarning detectExpenseWarning({
   required String category,
   required DateTime date,
   required List<Expense> cycleExpenses,
+  Map<String, double> categoryBudgets = const {},
 }) {
   final sameDayDuplicate = cycleExpenses.any(
     (e) =>
@@ -58,6 +94,24 @@ ExpenseWarning detectExpenseWarning({
         typical: median,
       );
     }
+  }
+
+  // Last, deliberately: a duplicate or a mistyped amount is a mistake, and
+  // saying so beats telling someone they've overspent on a number they never
+  // meant to enter.
+  final status = categoryBudgetStatus(
+    category: category,
+    budgets: categoryBudgets,
+    cycleExpenses: cycleExpenses,
+  );
+  if (status.isCapped && status.spent + amount > status.limit) {
+    return ExpenseWarning(
+      kind: ExpenseWarningKind.overBudget,
+      category: category,
+      amount: amount,
+      budget: status.limit,
+      spentAfter: status.spent + amount,
+    );
   }
 
   return ExpenseWarning(

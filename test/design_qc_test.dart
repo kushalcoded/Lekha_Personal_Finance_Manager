@@ -31,6 +31,7 @@ import 'package:personal_expanse_tracker/screens/expenses/expenses_screen.dart';
 import 'package:personal_expanse_tracker/providers/clock_provider.dart';
 import 'package:personal_expanse_tracker/screens/expenses/widgets/add_expense_modal.dart';
 import 'package:personal_expanse_tracker/screens/settings/settings_screen.dart';
+import 'package:personal_expanse_tracker/screens/settings/widgets/manage_category_budgets_screen.dart';
 import 'package:personal_expanse_tracker/services/storage/hive_service.dart';
 import 'package:personal_expanse_tracker/services/supabase/supabase_service.dart';
 import 'package:personal_expanse_tracker/theme/app_theme.dart';
@@ -103,6 +104,9 @@ Future<void> _seed() async {
     // stored key is salaryCycleStartDate — `currentCycleStartDate` is a getter,
     // so seeding that name did nothing at all.
     'salaryCycleStartDate': day(12).toIso8601String(),
+    // One capped category, so the budget bar and the "no limit" rows both get
+    // rendered somewhere.
+    'categoryBudgets': {'Food': 1000.0},
   });
 
   final expenses = [
@@ -227,6 +231,9 @@ void main() {
     Size size = _phone,
     double textScale = 1.0,
     Duration settle = const Duration(milliseconds: 400),
+    // Runs against the built screen before the shot — for surfaces that only
+    // appear once something is selected.
+    Future<void> Function(WidgetTester)? act,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
@@ -266,6 +273,10 @@ void main() {
     );
     await tester.pump();
     await tester.pump(settle);
+    if (act != null) {
+      await act(tester);
+      await tester.pump(settle);
+    }
     await expectLater(
       find.byType(MaterialApp),
       matchesGoldenFile('goldens/$name.png'),
@@ -303,6 +314,27 @@ void main() {
         backgroundColor: Color(0xFF131318),
         body: SafeArea(child: AddExpenseForm(isDialog: false)),
       ),
+    ),
+  );
+  // Food is capped in the seed, so picking it draws the budget line.
+  testWidgets(
+    'add expense sheet with a capped category',
+    (t) => shoot(
+      t,
+      'mobile_add_expense_budget',
+      const Scaffold(
+        backgroundColor: Color(0xFF131318),
+        body: SafeArea(child: AddExpenseForm(isDialog: false)),
+      ),
+      act: (t) => t.tap(find.text('Food')),
+    ),
+  );
+  testWidgets(
+    'category budgets',
+    (t) => shoot(
+      t,
+      'mobile_category_budgets',
+      const ManageCategoryBudgetsScreen(),
     ),
   );
 

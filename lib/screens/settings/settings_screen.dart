@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../navigation/floating_glass_nav.dart' show kWideBreakpoint;
 import '../../providers/ai_providers.dart';
 import '../../providers/auth/auth_provider.dart';
+import '../../providers/budget/category_budget_providers.dart';
 import '../../providers/sms/sms_providers.dart';
 import '../../providers/sync/sync_providers.dart';
 import '../../providers/update_providers.dart';
@@ -24,6 +25,7 @@ import '../dashboard/widgets/budget_settings_modal.dart';
 import 'widgets/export_modal.dart';
 import 'widgets/iphone_sms_guide_screen.dart';
 import 'widgets/manage_categories_screen.dart';
+import 'widgets/manage_category_budgets_screen.dart';
 import 'widgets/manage_payment_methods_screen.dart';
 import 'widgets/manage_people_screen.dart';
 import '../../providers/payment/payment_method_providers.dart';
@@ -274,6 +276,19 @@ class SettingsScreen extends ConsumerWidget {
                                 value: settings.errorReportsEnabled,
                                 onChanged:
                                     settingsNotifier.setErrorReportsEnabled,
+                              ),
+                            ),
+                            _SettingRow(
+                              icon: Icons.savings_outlined,
+                              title: 'Category budgets',
+                              subtitle: _categoryBudgetsSubtitle(
+                                ref.watch(categoryBudgetsProvider),
+                              ),
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      const ManageCategoryBudgetsScreen(),
+                                ),
                               ),
                             ),
                             _SettingRow(
@@ -925,6 +940,14 @@ Future<void> _setSmsNotify(BuildContext context, WidgetRef ref, bool on) async {
       ),
     ),
   );
+}
+
+String _categoryBudgetsSubtitle(Map<String, double> budgets) {
+  if (budgets.isEmpty) return 'Cap the categories that get away from you';
+  final total = budgets.values.fold<double>(0, (sum, v) => sum + v);
+  final count = budgets.length;
+  return '$count ${count == 1 ? 'category' : 'categories'} capped · '
+      '${AppFormatters.formatCurrency(total)} a cycle';
 }
 
 String _formatCycleDate(DateTime date) {
