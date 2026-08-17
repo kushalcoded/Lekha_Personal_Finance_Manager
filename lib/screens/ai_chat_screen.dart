@@ -220,6 +220,9 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                           controller: _controller,
                           minLines: 1,
                           maxLines: 4,
+                          // Enter sends; without this a multiline field treats
+                          // it as a newline and onSubmitted never fires.
+                          textInputAction: TextInputAction.send,
                           onSubmitted: (_) => _send(configured, chat.isLoading),
                           decoration: InputDecoration(
                             hintText: 'Ask anything…',
