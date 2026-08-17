@@ -143,6 +143,15 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
     }
   }
 
+  /// Picking a pill means the typing is over, so drop the keyboard. The pill's
+  /// own InkWell swallows the sheet's tap-to-dismiss, and this can't live in
+  /// [_markInteracted] — the amount field calls that on every keystroke.
+  void _chose(VoidCallback change) {
+    FocusScope.of(context).unfocus();
+    _markInteracted();
+    setState(change);
+  }
+
   double get _total =>
       parseAmountExpression(_amountController.text.trim()) ?? 0;
 
@@ -369,167 +378,190 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
     final colorScheme = theme.colorScheme;
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(20, widget.isDialog ? 20 : 12, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!widget.isDialog)
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: colorScheme.outline.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
+      // Save sits outside the scroll view: the sheet is already lifted by the
+      // keyboard inset, so a pinned footer lands right above the keys.
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                widget.isDialog ? 20 : 12,
+                20,
+                8,
               ),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Edit Expense',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Update the details of this transaction',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded),
-                  tooltip: 'Close',
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isTwoColumn = constraints.maxWidth >= 520;
-                final amountField = AmountInput(
-                  controller: _amountController,
-                  onChanged: (_) {
-                    _markInteracted();
-                    if (_split.isActive) _splitDirty = true;
-                    setState(() {});
-                  },
-                  showError: _showValidation && !_isAmountValid,
-                );
-                final dateField = ExpenseDatePicker(
-                  selectedDate: _selectedDate,
-                  onChanged: (date) {
-                    _markInteracted();
-                    setState(() => _selectedDate = date);
-                  },
-                );
-
-                if (isTwoColumn) {
-                  return Row(
-                    children: [
-                      Expanded(child: amountField),
-                      const SizedBox(width: 12),
-                      Expanded(child: dateField),
-                    ],
-                  );
-                }
-
-                return Column(
-                  children: [
-                    amountField,
-                    const SizedBox(height: 12),
-                    dateField,
-                  ],
-                );
-              },
-            ),
-            // Moving a date before the cycle start hides the expense from the
-            // list, which reads as "my edit deleted it".
-            if (OutOfCycleNote.applies(
-              _selectedDate,
-              ref.watch(
-                settingsProvider.select((s) => s.currentCycleStartDate),
-              ),
-            )) ...[
-              const SizedBox(height: 10),
-              OutOfCycleNote(
-                date: _selectedDate,
-                onUseToday: () {
-                  _markInteracted();
-                  setState(() => _selectedDate = DateTime.now());
-                },
-              ),
-            ],
-            const SizedBox(height: 16),
-            CategorySelector(
-              categories: ref.watch(orderedCategoriesProvider).all,
-              selectedCategory: _selectedCategory,
-              onSelected: (value) {
-                _markInteracted();
-                setState(() => _selectedCategory = value);
-              },
-              showError: _showValidation && _selectedCategory == null,
-            ),
-            const SizedBox(height: 16),
-            PaymentMethodSelector(
-              methods: methodsIncluding(
-                ref.watch(paymentMethodsProvider),
-                _selectedPaymentMethod,
-              ),
-              selectedMethod: _selectedPaymentMethod,
-              onSelected: (value) {
-                _markInteracted();
-                setState(() => _selectedPaymentMethod = value);
-              },
-              showError: false,
-            ),
-            const SizedBox(height: 16),
-            _splitSection(),
-            const SizedBox(height: 16),
-            ExpenseNotesField(
-              controller: _notesController,
-              onChanged: (_) => _markInteracted(),
-            ),
-            const SizedBox(height: 20),
-            if (widget.isDialog)
-              Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SaveExpenseButton(
-                      label: 'Save Changes',
-                      onPressed: _handleSave,
-                      isEnabled: _isFormValid,
+                  if (!widget.isDialog)
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.outline.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
                     ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Edit Expense',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Update the details of this transaction',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                        tooltip: 'Close',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isTwoColumn = constraints.maxWidth >= 520;
+                      final amountField = AmountInput(
+                        controller: _amountController,
+                        onChanged: (_) {
+                          _markInteracted();
+                          if (_split.isActive) _splitDirty = true;
+                          setState(() {});
+                        },
+                        showError: _showValidation && !_isAmountValid,
+                      );
+                      final dateField = ExpenseDatePicker(
+                        selectedDate: _selectedDate,
+                        onChanged: (date) {
+                          _markInteracted();
+                          setState(() => _selectedDate = date);
+                        },
+                      );
+
+                      if (isTwoColumn) {
+                        return Row(
+                          children: [
+                            Expanded(child: amountField),
+                            const SizedBox(width: 12),
+                            Expanded(child: dateField),
+                          ],
+                        );
+                      }
+
+                      return Column(
+                        children: [
+                          amountField,
+                          const SizedBox(height: 12),
+                          dateField,
+                        ],
+                      );
+                    },
+                  ),
+                  // Moving a date before the cycle start hides the expense from the
+                  // list, which reads as "my edit deleted it".
+                  if (OutOfCycleNote.applies(
+                    _selectedDate,
+                    ref.watch(
+                      settingsProvider.select((s) => s.currentCycleStartDate),
+                    ),
+                  )) ...[
+                    const SizedBox(height: 10),
+                    OutOfCycleNote(
+                      date: _selectedDate,
+                      onUseToday: () {
+                        _markInteracted();
+                        setState(() => _selectedDate = DateTime.now());
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  CategorySelector(
+                    categories: ref.watch(orderedCategoriesProvider).all,
+                    selectedCategory: _selectedCategory,
+                    onSelected: (value) =>
+                        _chose(() => _selectedCategory = value),
+                    showError: _showValidation && _selectedCategory == null,
+                  ),
+                  const SizedBox(height: 16),
+                  PaymentMethodSelector(
+                    methods: methodsIncluding(
+                      ref.watch(paymentMethodsProvider),
+                      _selectedPaymentMethod,
+                    ),
+                    selectedMethod: _selectedPaymentMethod,
+                    onSelected: (value) =>
+                        _chose(() => _selectedPaymentMethod = value),
+                    showError: false,
+                  ),
+                  const SizedBox(height: 16),
+                  _splitSection(),
+                  const SizedBox(height: 16),
+                  ExpenseNotesField(
+                    controller: _notesController,
+                    onChanged: (_) => _markInteracted(),
                   ),
                 ],
-              )
-            else
-              SaveExpenseButton(
-                label: 'Save Changes',
-                onPressed: _handleSave,
-                isEnabled: _isFormValid,
               ),
-          ],
+            ),
+          ),
+          _footer(colorScheme),
+        ],
+      ),
+    );
+  }
+
+  Widget _footer(ColorScheme cs) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      decoration: BoxDecoration(
+        // Opaque, or the form scrolls through it.
+        color: cs.surface,
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
         ),
       ),
+      child: widget.isDialog
+          ? Row(
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SaveExpenseButton(
+                    label: 'Save Changes',
+                    onPressed: _handleSave,
+                    isEnabled: _isFormValid,
+                  ),
+                ),
+              ],
+            )
+          : SaveExpenseButton(
+              label: 'Save Changes',
+              onPressed: _handleSave,
+              isEnabled: _isFormValid,
+            ),
     );
   }
 }

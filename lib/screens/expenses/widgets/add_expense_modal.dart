@@ -262,6 +262,15 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     }
   }
 
+  /// Picking a pill means the typing is over, so drop the keyboard. The pill's
+  /// own InkWell swallows the sheet's tap-to-dismiss, and this can't live in
+  /// [_markInteracted] — the amount field calls that on every keystroke.
+  void _chose(VoidCallback change) {
+    FocusScope.of(context).unfocus();
+    _markInteracted();
+    setState(change);
+  }
+
   /// Feature 1: ask Gemini to pick a category from the notes/amount.
   Future<void> _suggestCategory() async {
     final categories = ref.read(expenseCategoriesProvider);
@@ -595,10 +604,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
           selected: _selectedCategory == c,
           // Mockup: a chosen category wears its own tint.
           selectedColor: style.color,
-          onTap: () {
-            _markInteracted();
-            setState(() => _selectedCategory = c);
-          },
+          onTap: () => _chose(() => _selectedCategory = c),
         );
       }).toList(),
     );
@@ -761,209 +767,240 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       },
       child: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(20, widget.isDialog ? 20 : 12, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!widget.isDialog)
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
+        // The save button sits outside the scroll view: the sheet is already
+        // lifted by the keyboard inset, so a pinned footer lands right above
+        // the keys instead of below them.
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  widget.isDialog ? 20 : 12,
+                  20,
+                  8,
                 ),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Add expense',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontFamily: 'Space Grotesk',
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: -0.3,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (!widget.isDialog)
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
                       ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Add expense',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontFamily: 'Space Grotesk',
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                        InkResponse(
+                          onTap: () => Navigator.of(context).pop(),
+                          radius: 22,
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  InkResponse(
-                    onTap: () => Navigator.of(context).pop(),
-                    radius: 22,
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: cs.onSurfaceVariant,
+                    const SizedBox(height: 18),
+                    if (widget.sourceLabel != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A1A21),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.07),
+                          ),
+                        ),
+                        child: Text(
+                          widget.sourceLabel!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                    if (aiConfigured) ...[
+                      _nlQuickAdd(cs),
+                      const SizedBox(height: 18),
+                    ],
+                    // Mockup order: amount → category → paid via → date·split →
+                    // notes → save.
+                    const FieldLabel('Amount'),
+                    const SizedBox(height: 4),
+                    _amountBox(theme, cs),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        const FieldLabel('Category'),
+                        const Spacer(),
+                        if (aiConfigured) _suggestLink(cs),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              if (widget.sourceLabel != null) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A21),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.07),
+                    const SizedBox(height: 10),
+                    _categoryPills(ordered.frequent),
+                    if (ordered.frequent.isNotEmpty &&
+                        ordered.rest.isNotEmpty) ...[
+                      // Separates "what you actually use" from the A–Z remainder, so
+                      // the pills above read as deliberately placed rather than
+                      // arbitrarily first.
+                      const SizedBox(height: 12),
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: cs.outline.withValues(alpha: 0.14),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    _categoryPills(ordered.rest),
+                    if (_showValidation && _selectedCategory == null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Select a category',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.error,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    const FieldLabel('Paid via'),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: ref
+                          .watch(paymentMethodsProvider)
+                          .map(
+                            (m) => ChoicePill(
+                              label: m,
+                              selected: _selectedPaymentMethod == m,
+                              onTap: () =>
+                                  _chose(() => _selectedPaymentMethod = m),
+                            ),
+                          )
+                          .toList(),
                     ),
-                  ),
-                  child: Text(
-                    widget.sourceLabel!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
+                    if (_showValidation && _selectedPaymentMethod == null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Select a payment method',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.error,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _MiniTile(
+                            label: 'Date',
+                            value: _formatShortDate(_selectedDate),
+                            onTap: _pickDate,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _MiniTile(
+                            label: 'Split',
+                            value: _split.isActive
+                                ? '${_split.people.length + 1} people · '
+                                      'your ${AppFormatters.formatCurrency(_splitResult.myShare)}'
+                                : 'Just me',
+                            muted: !_split.isActive,
+                            onTap: _openSplit,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-              ],
-              if (aiConfigured) ...[
-                _nlQuickAdd(cs),
-                const SizedBox(height: 18),
-              ],
-              // Mockup order: amount → category → paid via → date·split →
-              // notes → save.
-              const FieldLabel('Amount'),
-              const SizedBox(height: 4),
-              _amountBox(theme, cs),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  const FieldLabel('Category'),
-                  const Spacer(),
-                  if (aiConfigured) _suggestLink(cs),
-                ],
-              ),
-              const SizedBox(height: 10),
-              _categoryPills(ordered.frequent),
-              if (ordered.frequent.isNotEmpty && ordered.rest.isNotEmpty) ...[
-                // Separates "what you actually use" from the A–Z remainder, so
-                // the pills above read as deliberately placed rather than
-                // arbitrarily first.
-                const SizedBox(height: 12),
-                Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: cs.outline.withValues(alpha: 0.14),
-                ),
-                const SizedBox(height: 12),
-              ],
-              _categoryPills(ordered.rest),
-              if (_showValidation && _selectedCategory == null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Select a category',
-                  style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
-                ),
-              ],
-              const SizedBox(height: 18),
-              const FieldLabel('Paid via'),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: ref
-                    .watch(paymentMethodsProvider)
-                    .map(
-                      (m) => ChoicePill(
-                        label: m,
-                        selected: _selectedPaymentMethod == m,
-                        onTap: () {
+                    if (_outOfCycle(ref)) ...[
+                      const SizedBox(height: 10),
+                      OutOfCycleNote(
+                        date: _selectedDate,
+                        onUseToday: () {
                           _markInteracted();
-                          setState(() => _selectedPaymentMethod = m);
+                          setState(() => _selectedDate = DateTime.now());
                         },
                       ),
-                    )
-                    .toList(),
-              ),
-              if (_showValidation && _selectedPaymentMethod == null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Select a payment method',
-                  style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
-                ),
-              ],
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: _MiniTile(
-                      label: 'Date',
-                      value: _formatShortDate(_selectedDate),
-                      onTap: _pickDate,
+                    ],
+                    const SizedBox(height: 18),
+                    const FieldLabel('Note'),
+                    const SizedBox(height: 8),
+                    ExpenseNotesField(
+                      controller: _notesController,
+                      onChanged: (_) => _markInteracted(),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _MiniTile(
-                      label: 'Split',
-                      value: _split.isActive
-                          ? '${_split.people.length + 1} people · '
-                                'your ${AppFormatters.formatCurrency(_splitResult.myShare)}'
-                          : 'Just me',
-                      muted: !_split.isActive,
-                      onTap: _openSplit,
-                    ),
-                  ),
-                ],
-              ),
-              if (_outOfCycle(ref)) ...[
-                const SizedBox(height: 10),
-                OutOfCycleNote(
-                  date: _selectedDate,
-                  onUseToday: () {
-                    _markInteracted();
-                    setState(() => _selectedDate = DateTime.now());
-                  },
-                ),
-              ],
-              const SizedBox(height: 18),
-              const FieldLabel('Note'),
-              const SizedBox(height: 8),
-              ExpenseNotesField(
-                controller: _notesController,
-                onChanged: (_) => _markInteracted(),
-              ),
-              if (inlineWarning != null) ...[
-                const SizedBox(height: 16),
-                _WarnBanner(text: inlineWarning),
-              ],
-              const SizedBox(height: 22),
-              if (widget.isDialog)
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GradientButton(
-                        label: 'Add expense',
-                        enabled: _isFormValid,
-                        onPressed: _handleSave,
-                      ),
-                    ),
+                    if (inlineWarning != null) ...[
+                      const SizedBox(height: 16),
+                      _WarnBanner(text: inlineWarning),
+                    ],
                   ],
-                )
-              else
-                GradientButton(
-                  label: 'Add expense',
-                  enabled: _isFormValid,
-                  onPressed: _handleSave,
                 ),
-            ],
-          ),
+              ),
+            ),
+            _footer(cs),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _footer(ColorScheme cs) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+      decoration: BoxDecoration(
+        // Opaque, or the form scrolls through it.
+        color: cs.surface,
+        border: Border(
+          top: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+        ),
+      ),
+      child: widget.isDialog
+          ? Row(
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GradientButton(
+                    label: 'Add expense',
+                    enabled: _isFormValid,
+                    onPressed: _handleSave,
+                  ),
+                ),
+              ],
+            )
+          : GradientButton(
+              label: 'Add expense',
+              enabled: _isFormValid,
+              onPressed: _handleSave,
+            ),
     );
   }
 }

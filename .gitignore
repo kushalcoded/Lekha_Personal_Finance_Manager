@@ -13,6 +13,8 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+# Golden diffs written by `flutter test --tags design` on a failure.
+test/failures/
 
 # IntelliJ related
 *.iml
