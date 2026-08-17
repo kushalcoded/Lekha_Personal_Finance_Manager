@@ -1,10 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/ai_providers.dart';
 import '../widgets/common/ai_text.dart';
 import '../widgets/common/form_bits.dart';
 import '../widgets/common/glass.dart';
+
+/// Shift+Enter in the composer: a newline at the caret, replacing any
+/// selection. [TextEditingValue.replaced] leaves the caret before the newline
+/// when a range was selected, so the collapsed selection is set here.
+TextEditingValue withNewline(TextEditingValue value) {
+  if (!value.selection.isValid) {
+    return TextEditingValue(
+      text: '${value.text}\n',
+      selection: TextSelection.collapsed(offset: value.text.length + 1),
+    );
+  }
+  final start = value.selection.start;
+  return TextEditingValue(
+    text: value.text.replaceRange(start, value.selection.end, '\n'),
+    selection: TextSelection.collapsed(offset: start + 1),
+  );
+}
 
 class AiChatScreen extends ConsumerStatefulWidget {
   const AiChatScreen({super.key});
@@ -223,7 +241,15 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                           // Enter sends; without this a multiline field treats
                           // it as a newline and onSubmitted never fires.
                           textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _send(configured, chat.isLoading),
+                          // The default would drop focus on every Enter.
+                          onEditingComplete: _controller.clearComposing,
+                          onSubmitted: (_) {
+                            if (HardwareKeyboard.instance.isShiftPressed) {
+                              _controller.value = withNewline(_controller.value);
+                            } else {
+                              _send(configured, chat.isLoading);
+                            }
+                          },
                           decoration: InputDecoration(
                             hintText: 'Ask anything…',
                             border: OutlineInputBorder(
