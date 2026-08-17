@@ -314,7 +314,11 @@ class SmsCaptureService {
               'user_id': user.id,
               'amount': t.amount,
               'occurred_at': t.dateTime.toIso8601String(),
-              'raw_body': t.rawBody,
+              // The message itself never leaves the device that received it —
+              // only "HDFC Bank · UPI". Other devices show that on the card,
+              // and nobody's bank texts sit in the shared database. The label
+              // is idempotent, so pulling and re-pushing a row keeps it.
+              'raw_body': smsSenderLabel(t.rawBody),
               'status': t.status.name,
               'linked_expense_id': t.linkedExpenseId,
               'updated_at': DateTime.now().toIso8601String(),

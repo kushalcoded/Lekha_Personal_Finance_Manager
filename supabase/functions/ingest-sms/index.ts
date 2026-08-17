@@ -101,6 +101,32 @@ async function askGroq(system: string, prompt: string): Promise<string | null> {
   }
 }
 
+/**
+ * "HDFC Bank · UPI" from a bank SMS — mirrors smsSenderLabel in the app.
+ * Once a message is parsed nothing needs its text again, and storing other
+ * people's bank SMS is not something this project wants to be doing. The
+ * unparsed copy in `ingested_sms` is the one exception: the app's own drain
+ * is the fallback and still needs the words.
+ */
+function senderLabel(body: string): string {
+  const head = body.split(/[:\-—]/)[0].trim();
+  const words = head.split(/\s+/).filter(Boolean);
+  const name = (words.length > 3 || !head ? words.slice(0, 2).join(" ") : head) ||
+    "Bank SMS";
+  const channels: [string, string][] = [
+    ["upi", "UPI"],
+    ["atm", "ATM"],
+    ["imps", "IMPS"],
+    ["neft", "NEFT"],
+    ["debit card", "Card"],
+    ["credit card", "Card"],
+    ["autopay", "Autopay"],
+  ];
+  const lower = body.toLowerCase();
+  const hit = channels.find(([key]) => lower.includes(key));
+  return hit ? `${name} · ${hit[1]}` : name;
+}
+
 /** Models like to wrap JSON in prose or fences. */
 function extractJson(raw: string): string {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -185,7 +211,8 @@ serve(async (req) => {
       .from("ingested_sms")
       .insert({
         user_id: match.user_id,
-        body,
+        // Kept whole only while the app still has to parse it.
+        body: parsed ? senderLabel(body) : body,
         received_at: receivedAt,
         // 'done' only when we actually parsed it; otherwise the app's drain
         // remains the safety net.
@@ -210,7 +237,7 @@ serve(async (req) => {
             user_id: match.user_id,
             amount,
             occurred_at: occurredAt(parsed["when"], receivedAt),
-            raw_body: body,
+            raw_body: senderLabel(body),
             status: "pending",
           }, { onConflict: "id" });
         if (detectErr) throw detectErr;

@@ -67,12 +67,20 @@ ExpenseWarning detectExpenseWarning({
   );
 }
 
+final _labelPattern = RegExp(
+  r'^[^:\-—]{1,40} · (UPI|ATM|IMPS|NEFT|Card|Autopay)$',
+);
+
 /// Short "who and how" line for a detected SMS — "HDFC Bank · UPI" — built
 /// from the sender words at the start of the body plus the channel keyword.
 /// Falls back to a generic label so a row is never blank.
 String smsSenderLabel(String rawBody) {
   final body = rawBody.trim();
   if (body.isEmpty) return 'Bank SMS';
+  // Rows pulled from other devices carry a label, not a message — only the
+  // label is ever uploaded. Labelling one again appended the channel a second
+  // time, so a card read "SBI · ATM · ATM" after two syncs.
+  if (_labelPattern.hasMatch(body)) return body;
 
   // Sender sits before the first ':' / '-' in nearly every bank template.
   var head = body.split(RegExp(r'[:\-—]')).first.trim();

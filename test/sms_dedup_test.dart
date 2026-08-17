@@ -55,5 +55,20 @@ void main() {
       expect(smsSenderLabel('Rs 300 spent on your debit card'), 'Rs 300 · Card');
       expect(smsSenderLabel('   '), 'Bank SMS');
     });
+
+    // Only the label is uploaded, so a device that pulls a row and pushes it
+    // back re-labels a label. That has to be a no-op or the card would erode
+    // a word at a time on every sync.
+    test('a label survives being labelled again', () {
+      for (final body in [
+        'HDFC Bank: Rs.450 debited via UPI',
+        'SBI - Rs.2000 withdrawn at ATM',
+        'Rs 300 spent on your debit card',
+        '   ',
+      ]) {
+        final once = smsSenderLabel(body);
+        expect(smsSenderLabel(once), once, reason: body);
+      }
+    });
   });
 }
