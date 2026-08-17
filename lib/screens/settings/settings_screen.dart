@@ -265,6 +265,18 @@ class SettingsScreen extends ConsumerWidget {
                               ),
                             ),
                             _SettingRow(
+                              icon: Icons.bug_report_outlined,
+                              title: 'Send crash reports',
+                              subtitle:
+                                  'The error and app version — no '
+                                  'expenses, no message text',
+                              trailing: Switch(
+                                value: settings.errorReportsEnabled,
+                                onChanged:
+                                    settingsNotifier.setErrorReportsEnabled,
+                              ),
+                            ),
+                            _SettingRow(
                               icon: Icons.category_rounded,
                               title: 'Categories',
                               subtitle: 'Add, rename, restyle, or delete',
@@ -421,9 +433,10 @@ class SettingsScreen extends ConsumerWidget {
                                 ),
                                 // Silence is the only symptom when iOS turns
                                 // the automation off, so say it here.
-                                subtitleColor: _iphoneSmsStale(
-                                  ref.watch(iphoneSmsHealthProvider),
-                                )
+                                subtitleColor:
+                                    _iphoneSmsStale(
+                                      ref.watch(iphoneSmsHealthProvider),
+                                    )
                                     ? CalmColors.of(context).warning
                                     : null,
                                 onTap: () => Navigator.of(context).push(
@@ -578,9 +591,9 @@ class SettingsScreen extends ConsumerWidget {
     // able to start on the day the money actually arrived — not just today.
     final start = await _pickCycleStart(context, ref);
     if (start == null || !context.mounted) return;
-    await ref.read(settingsProvider.notifier).resetSalaryCycle(
-      startDate: start,
-    );
+    await ref
+        .read(settingsProvider.notifier)
+        .resetSalaryCycle(startDate: start);
     if (!context.mounted) return;
     await showCycleResetRecap(context, ref);
   }
@@ -614,7 +627,10 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  static Future<void> _pickSalaryDay(BuildContext context, WidgetRef ref) async {
+  static Future<void> _pickSalaryDay(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
     final current = ref.read(settingsProvider).salaryDay;
     final picked = await showDialog<int>(
       context: context,
@@ -892,9 +908,8 @@ Future<void> _showSimulateSmsDialog(BuildContext context, WidgetRef ref) async {
   );
 }
 
-String _defaultMethodSubtitle(String? method) => method == null
-    ? 'Edit the list, pick a default'
-    : 'Default: $method';
+String _defaultMethodSubtitle(String? method) =>
+    method == null ? 'Edit the list, pick a default' : 'Default: $method';
 
 /// Store the toggle, mirror it to the native receiver, and say so when Android
 /// withholds the permission — otherwise the switch reads "on" while nothing

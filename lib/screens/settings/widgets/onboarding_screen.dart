@@ -88,6 +88,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             color: colorScheme.onSurfaceVariant,
                           ),
                         ),
+                        // Said once, on the way in, rather than buried in
+                        // Settings for someone to discover later.
+                        if (index == _pages.length - 1) ...[
+                          const SizedBox(height: 24),
+                          Text(
+                            'Lekha sends a crash report when something breaks — '
+                            'the error and app version, never your expenses. '
+                            'Switch it off any time in Settings.',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   );

@@ -19,6 +19,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/settings/widgets/onboarding_screen.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
+import 'services/errors/error_reporter.dart';
 import 'services/storage/hive_service.dart';
 import 'services/supabase/supabase_service.dart';
 import 'utils/url_cleanup/url_cleanup_stub.dart'
@@ -43,6 +44,10 @@ void main() async {
   // Web: drop consumed OAuth params from the URL so a reload doesn't re-try a
   // dead ?code= and wreck session restore ("logged out on refresh").
   stripAuthParamsFromUrl();
+
+  // After Supabase, since a report needs its client. Settings flips this off
+  // again once they load, if that's what the user chose.
+  await ErrorReporter.install();
 
   runApp(const ProviderScope(child: MyApp()));
 }

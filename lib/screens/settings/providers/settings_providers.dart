@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/history/cycle_history_snapshot.dart';
+import '../../../services/errors/error_reporter.dart';
 import '../../../services/storage/hive_service.dart';
 import '../../../services/supabase/supabase_service.dart';
 import '../../../providers/storage/storage_providers.dart';
@@ -28,6 +29,11 @@ class SettingsState {
   /// lands. Off by default — switching it on is what asks for the Android 13
   /// notification permission, which shouldn't ambush anyone at launch.
   final bool smsNotifyEnabled;
+
+  /// Send a crash report when the app throws. No money data, no message text —
+  /// the error, where it came from, and the app version. On by default because
+  /// a bug nobody can reproduce is a bug nobody can fix.
+  final bool errorReportsEnabled;
   final DateTime? salaryCycleStartDate;
 
   /// Day of the month salary usually lands (1–31), or null if not set. Only
@@ -58,6 +64,7 @@ class SettingsState {
     this.recurringQuickGenerateEnabled = true,
     this.smsAutoDetectEnabled = true,
     this.smsNotifyEnabled = false,
+    this.errorReportsEnabled = true,
     this.salaryCycleStartDate,
     this.salaryDay,
     this.cyclePromptDismissedFor,
@@ -77,8 +84,9 @@ class SettingsState {
 
   /// The first salary day strictly after the current cycle began — i.e. when
   /// this cycle is due to be replaced. Null when no salary day is set.
-  DateTime? get expectedCycleRollDate =>
-      salaryDay == null ? null : nextSalaryDayAfter(currentCycleStartDate, salaryDay!);
+  DateTime? get expectedCycleRollDate => salaryDay == null
+      ? null
+      : nextSalaryDayAfter(currentCycleStartDate, salaryDay!);
 
   /// True once that date has arrived and the user hasn't dismissed it. The
   /// prompt is a question, never an action: salary lands early some months
@@ -110,6 +118,7 @@ class SettingsState {
     bool? recurringQuickGenerateEnabled,
     bool? smsAutoDetectEnabled,
     bool? smsNotifyEnabled,
+    bool? errorReportsEnabled,
     DateTime? salaryCycleStartDate,
     int? salaryDay,
     DateTime? cyclePromptDismissedFor,
@@ -141,6 +150,7 @@ class SettingsState {
           recurringQuickGenerateEnabled ?? this.recurringQuickGenerateEnabled,
       smsAutoDetectEnabled: smsAutoDetectEnabled ?? this.smsAutoDetectEnabled,
       smsNotifyEnabled: smsNotifyEnabled ?? this.smsNotifyEnabled,
+      errorReportsEnabled: errorReportsEnabled ?? this.errorReportsEnabled,
       salaryCycleStartDate: salaryCycleStartDate ?? this.salaryCycleStartDate,
       salaryDay: salaryDay ?? this.salaryDay,
       cyclePromptDismissedFor:
@@ -213,6 +223,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
             raw['recurringQuickGenerateEnabled'] as bool? ?? true,
         smsAutoDetectEnabled: raw['smsAutoDetectEnabled'] as bool? ?? true,
         smsNotifyEnabled: raw['smsNotifyEnabled'] as bool? ?? false,
+        errorReportsEnabled: raw['errorReportsEnabled'] as bool? ?? true,
         salaryCycleStartDate:
             parsedCycleStart ?? DateTime(now.year, now.month, 1),
         salaryDay: (raw['salaryDay'] as num?)?.toInt(),
@@ -223,6 +234,9 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         currentCycleSalary: rawSalary,
         cycleHistory: _hiveService.getCycleHistory(_userId),
       );
+      // The reporter is installed before the first frame, long before this
+      // runs, so it starts enabled and learns the stored answer here.
+      ErrorReporter.enabled = state.errorReportsEnabled;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -251,6 +265,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       'recurringQuickGenerateEnabled': next.recurringQuickGenerateEnabled,
       'smsAutoDetectEnabled': next.smsAutoDetectEnabled,
       'smsNotifyEnabled': next.smsNotifyEnabled,
+      'errorReportsEnabled': next.errorReportsEnabled,
       'salaryCycleStartDate': next.currentCycleStartDate.toIso8601String(),
       'salaryDay': next.salaryDay,
       'cyclePromptDismissedFor': next.cyclePromptDismissedFor
@@ -279,6 +294,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   Future<void> setSmsNotifyEnabled(bool value) async {
     await _persist(state.copyWith(smsNotifyEnabled: value));
+  }
+
+  Future<void> setErrorReportsEnabled(bool value) async {
+    ErrorReporter.enabled = value;
+    await _persist(state.copyWith(errorReportsEnabled: value));
   }
 
   Future<void> setDefaultExportFormat(String value) async {
@@ -352,6 +372,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         recurringQuickGenerateEnabled: state.recurringQuickGenerateEnabled,
         smsAutoDetectEnabled: state.smsAutoDetectEnabled,
         smsNotifyEnabled: state.smsNotifyEnabled,
+        errorReportsEnabled: state.errorReportsEnabled,
         salaryCycleStartDate: state.salaryCycleStartDate,
         // copyWith can't clear a null-able field, and this one must be
         // clearable to turn the reminder off.
