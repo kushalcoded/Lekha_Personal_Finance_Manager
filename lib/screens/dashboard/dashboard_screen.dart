@@ -10,6 +10,7 @@ import '../../core/constants/category_styles.dart';
 import '../../core/navigation/navigation_models.dart';
 import '../../core/navigation/navigation_provider.dart';
 import '../../models/expense/expense_model.dart';
+import '../../models/reminder/reminder_model.dart';
 import '../../navigation/floating_glass_nav.dart';
 import '../../providers/ai_providers.dart';
 import '../../providers/sms/sms_providers.dart';
@@ -31,6 +32,7 @@ import '../ai_chat_screen.dart';
 import '../cycle_recap_dialog.dart';
 import '../expenses/utils/expense_helpers.dart';
 import '../expenses/widgets/add_expense_modal.dart';
+import '../settings/providers/reminder_providers.dart';
 import '../settings/providers/settings_providers.dart';
 import '../settings/settings_screen.dart';
 import 'providers/dashboard_providers.dart';
@@ -146,6 +148,7 @@ class DashboardScreen extends ConsumerWidget {
                       const SizedBox(height: 18),
                       const _UpdatePrompt(),
                       const _CycleRollPrompt(),
+                      const _RemindersCard(),
                       if (isWide)
                         // Desktop: hero + recent on the left, totals and
                         // categories in a right sidebar column.
@@ -562,6 +565,97 @@ class _UpdatePromptState extends ConsumerState<_UpdatePrompt> {
         ),
       ),
     );
+  }
+}
+
+/// What needs attention today — overdue receivables, a budget about to go, a
+/// recurring template past due. The provider behind this existed for months
+/// with no surface: five Settings switches turned reminders on and off, and
+/// nothing was ever shown.
+class _RemindersCard extends ConsumerWidget {
+  const _RemindersCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reminders = ref.watch(upcomingRemindersProvider);
+    if (reminders.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final calm = CalmColors.of(context);
+
+    Color colorFor(ReminderSeverity severity) => switch (severity) {
+      ReminderSeverity.danger => cs.error,
+      ReminderSeverity.warning => calm.warning,
+      ReminderSeverity.success => calm.positive,
+      ReminderSeverity.info => cs.onSurfaceVariant,
+    };
+
+    // Three at most: this is a nudge on the way past, not a to-do list.
+    final shown = reminders.take(3).toList();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: AccentEdgeCard(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const FieldLabel('NEEDS ATTENTION'),
+            const SizedBox(height: 10),
+            for (final reminder in shown) ...[
+              if (reminder != shown.first) const SizedBox(height: 10),
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => _open(ref, reminder),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 5),
+                      child: Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: colorFor(reminder.severity),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        reminder.message,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurface,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 16,
+                      color: cs.outline,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// A reminder you can't act on is just a nag, so each one lands on the screen
+  /// that fixes it.
+  void _open(WidgetRef ref, AppReminder reminder) {
+    final tab = switch (reminder.type) {
+      ReminderType.overdueReceivable => NavigationTab.debts,
+      ReminderType.upcomingRecurringExpense => NavigationTab.expenses,
+      ReminderType.budgetWarning => NavigationTab.insights,
+      ReminderType.monthlyBudgetPrompt => NavigationTab.insights,
+    };
+    ref.read(navigationProvider.notifier).navigateTo(tab);
   }
 }
 
