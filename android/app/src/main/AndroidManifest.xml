@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- A reboot clears scheduled alarms; the reminder is re-armed on boot so
+         it survives one. The app also reschedules on every launch. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.RECEIVE_SMS"/>
@@ -51,6 +54,15 @@
             android:value="2" />
 
         <!-- Quick-add home screen widget -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <!-- A reboot clears every alarm; this re-arms the daily one. -->
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".ExpenseWidgetProvider"
             android:exported="true">

@@ -11,6 +11,7 @@ import '../../providers/budget/category_budget_providers.dart';
 import '../../providers/sms/sms_providers.dart';
 import '../../providers/sync/sync_providers.dart';
 import '../../providers/update_providers.dart';
+import '../../services/notifications/reminder_notifications.dart';
 import '../ai_chat_screen.dart';
 import 'providers/productivity_providers.dart';
 import 'providers/settings_providers.dart';
@@ -346,9 +347,14 @@ class SettingsScreen extends ConsumerWidget {
                             _SettingRow(
                               icon: Icons.notifications_active_rounded,
                               title: 'Enable reminders',
+                              subtitle: ReminderNotifications.supported
+                                  ? 'On the dashboard, and once a day on your '
+                                        'phone'
+                                  : 'On the dashboard',
                               trailing: Switch(
                                 value: remindersOn,
-                                onChanged: settingsNotifier.setRemindersEnabled,
+                                onChanged: (v) =>
+                                    _setReminders(context, ref, v),
                               ),
                             ),
                             _SettingRow(
@@ -938,6 +944,29 @@ Future<void> _setSmsNotify(BuildContext context, WidgetRef ref, bool on) async {
       content: Text(
         'Allow notifications for Lekha in system settings to get these.',
       ),
+    ),
+  );
+}
+
+/// Turning reminders on is what asks for the Android 13 notification
+/// permission — never at launch. A refusal turns the switch back off rather
+/// than leaving it on next to a phone that will stay silent.
+Future<void> _setReminders(BuildContext context, WidgetRef ref, bool on) async {
+  final notifier = ref.read(settingsProvider.notifier);
+  if (!on) {
+    await notifier.setRemindersEnabled(false);
+    await ReminderNotifications.cancel();
+    return;
+  }
+  await notifier.setRemindersEnabled(true);
+  if (!ReminderNotifications.supported) return;
+  final granted = await ReminderNotifications.requestPermission();
+  if (granted) return;
+  await notifier.setRemindersEnabled(false);
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Notifications are off for Lekha in Android settings'),
     ),
   );
 }

@@ -19,7 +19,9 @@ import 'screens/auth/login_screen.dart';
 import 'screens/settings/widgets/onboarding_screen.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
+import 'screens/settings/providers/reminder_providers.dart';
 import 'services/errors/error_reporter.dart';
+import 'services/notifications/reminder_notifications.dart';
 import 'services/storage/hive_service.dart';
 import 'services/supabase/supabase_service.dart';
 import 'utils/url_cleanup/url_cleanup_stub.dart'
@@ -343,6 +345,7 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncSms(force: true);
       _startPolling();
+      _rescheduleReminder();
     });
   }
 
@@ -363,7 +366,11 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
       // the throttle here; the periodic poll keeps to it.
       _syncSms(force: true);
       _startPolling();
+      _rescheduleReminder();
     } else {
+      // Last chance to leave an accurate nudge behind: the notification text
+      // is a snapshot, and this is the moment the data is freshest.
+      _rescheduleReminder();
       _stopPolling();
       // Leaving the foreground: push the latest snapshot up so another device
       // gets this session's edits. push-only avoids clobbering them.
@@ -371,6 +378,26 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
         ref.read(syncProvider.notifier).syncNow(pushOnly: true);
       }
     }
+  }
+
+  /// Rebuild the daily reminder from what the app knows right now. Cheap, and
+  /// the only thing keeping the notification's wording honest — nothing runs in
+  /// the background to refresh it.
+  Future<void> _rescheduleReminder() async {
+    if (!ReminderNotifications.supported) return;
+    if (!ref.read(settingsProvider).remindersEnabled) {
+      await ReminderNotifications.cancel();
+      return;
+    }
+    final digest = reminderDigest(ref.read(upcomingRemindersProvider));
+    if (digest == null) {
+      await ReminderNotifications.cancel();
+      return;
+    }
+    await ReminderNotifications.scheduleDaily(
+      title: digest.title,
+      body: digest.body,
+    );
   }
 
   /// While the app is in the foreground there's no lifecycle event when an SMS

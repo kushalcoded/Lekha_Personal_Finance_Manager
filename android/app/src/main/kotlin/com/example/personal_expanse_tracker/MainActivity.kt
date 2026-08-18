@@ -40,6 +40,38 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, REMINDER_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    // Dart owns the wording; the alarm just reads it back.
+                    "schedule" -> {
+                        val args = call.arguments as? Map<*, *>
+                        getSharedPreferences(ReminderReceiver.PREFS, Context.MODE_PRIVATE)
+                            .edit()
+                            .putString(
+                                ReminderReceiver.KEY_TITLE,
+                                args?.get("title")?.toString() ?: ""
+                            )
+                            .putString(
+                                ReminderReceiver.KEY_BODY,
+                                args?.get("body")?.toString() ?: ""
+                            )
+                            .putInt(
+                                ReminderReceiver.KEY_HOUR,
+                                (args?.get("hour") as? Int) ?: 9
+                            )
+                            .apply()
+                        ReminderReceiver.schedule(this)
+                        result.success(hasNotifyPermission())
+                    }
+                    "cancel" -> {
+                        ReminderReceiver.cancel(this)
+                        result.success(null)
+                    }
+                    "requestPermission" -> requestNotifyPermission(result)
+                    else -> result.notImplemented()
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -88,6 +120,18 @@ class MainActivity : FlutterActivity() {
      * toggle is mirrored here. Returns whether notifications can actually be
      * posted — Dart uses that to warn instead of silently doing nothing.
      */
+    /** Ask for POST_NOTIFICATIONS on its own, for callers with no toggle to
+     *  mirror into SharedPreferences. */
+    private fun requestNotifyPermission(result: MethodChannel.Result) {
+        if (hasNotifyPermission()) {
+            result.success(true)
+            return
+        }
+        notifyResult?.success(false)
+        notifyResult = result
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFY_REQUEST)
+    }
+
     private fun setNotify(on: Boolean, result: MethodChannel.Result) {
         prefs().edit().putBoolean(SmsReceiver.KEY_NOTIFY, on).apply()
         if (!on || hasNotifyPermission()) {
@@ -186,6 +230,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL = "lekha/sms"
         private const val UPDATE_CHANNEL = "lekha/update"
+        private const val REMINDER_CHANNEL = "lekha/reminders"
         private const val NOTIFY_REQUEST = 4243
     }
 }

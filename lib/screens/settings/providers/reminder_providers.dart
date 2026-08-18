@@ -111,3 +111,17 @@ final upcomingRemindersProvider = Provider<List<AppReminder>>((ref) {
   reminders.sort((a, b) => b.severity.index.compareTo(a.severity.index));
   return reminders;
 });
+
+/// The single line the daily notification carries, or null when nothing is
+/// worth waking someone's phone for. The most severe reminder leads — they
+/// arrive sorted — and the rest are a count, because a notification nobody
+/// finishes reading is one they learn to swipe away.
+({String title, String body})? reminderDigest(List<AppReminder> reminders) {
+  if (reminders.isEmpty) return null;
+  final first = reminders.first;
+  final others = reminders.length - 1;
+  return (
+    title: first.title,
+    body: others > 0 ? '${first.message} · $others more' : first.message,
+  );
+}
