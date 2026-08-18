@@ -67,6 +67,12 @@ class Payable {
 
   /// The expense whose split created this, so the split can be edited later.
   final String? sourceExpenseId;
+
+  /// Everyone else on the bill and their share, when a friend paid — the payer
+  /// included, you excluded (your share is [amount]). Empty on a plain payable
+  /// and on every split recorded before this was stored, which is why the edit
+  /// sheet still has a read-only path.
+  final Map<String, double> participants;
   final DateTime createdAt;
   final DateTime dueDate;
   final PayableStatus status;
@@ -82,6 +88,7 @@ class Payable {
     required this.category,
     this.notes,
     this.sourceExpenseId,
+    this.participants = const {},
     required this.createdAt,
     required this.dueDate,
     required this.status,
@@ -98,6 +105,7 @@ class Payable {
     String? category,
     String? notes,
     String? sourceExpenseId,
+    Map<String, double>? participants,
     DateTime? createdAt,
     DateTime? dueDate,
     PayableStatus? status,
@@ -113,6 +121,7 @@ class Payable {
       category: category ?? this.category,
       notes: notes ?? this.notes,
       sourceExpenseId: sourceExpenseId ?? this.sourceExpenseId,
+      participants: participants ?? this.participants,
       createdAt: createdAt ?? this.createdAt,
       dueDate: dueDate ?? this.dueDate,
       status: status ?? this.status,
@@ -131,6 +140,7 @@ class Payable {
       'category': category,
       'notes': notes,
       'sourceExpenseId': sourceExpenseId,
+      'participants': participants,
       'createdAt': createdAt.toIso8601String(),
       'dueDate': dueDate.toIso8601String(),
       'status': status.name,
@@ -150,6 +160,11 @@ class Payable {
       category: json['category'] as String? ?? 'Miscellaneous',
       notes: json['notes'] as String?,
       sourceExpenseId: json['sourceExpenseId'] as String?,
+      participants: {
+        for (final entry in (json['participants'] as Map? ?? {}).entries)
+          if ((entry.value as num?) != null)
+            entry.key.toString(): (entry.value as num).toDouble(),
+      },
       createdAt: DateTime.parse(json['createdAt'] as String),
       dueDate: DateTime.parse(json['dueDate'] as String),
       status: PayableStatus.values.firstWhere(

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/payable/payable_model.dart';
 import '../../services/storage/hive_service.dart';
 import '../auth/auth_provider.dart';
 import '../storage/storage_providers.dart';
@@ -24,9 +25,9 @@ class PersonUse {
 /// the result is stable rather than dependent on map iteration. Hidden names
 /// are dropped entirely.
 ///
-/// Caveat worth knowing: a friend-paid split records only the payer, not the
-/// other participants, so people who mostly get paid *for* score lower than
-/// they should. Pinning is the escape hatch — cheaper than a schema change.
+/// Friend-paid splits now record everyone on the bill, not just the payer, so
+/// people you mostly get paid *for* rank on the same footing. Splits saved
+/// before that still count only their payer; pinning remains the escape hatch.
 List<String> rankPeople(
   List<PersonUse> people, {
   List<String> pinned = const [],
@@ -64,6 +65,16 @@ List<String> rankPeople(
   return visible.map((p) => p.name).toList();
 }
 
+/// Everyone a payable puts you in touch with: the person you owe, plus anyone
+/// else who was on the same bill. Each appears once — the payer is in
+/// `participants` too, and counting them twice would rank one split as two.
+List<String> payablePeople(Payable payable) => [
+  payable.toPerson,
+  ...payable.participants.keys.where(
+    (name) => name.toLowerCase() != payable.toPerson.toLowerCase(),
+  ),
+];
+
 /// Everyone you've already tracked money with, ranked for the split picker so
 /// the people you actually split with are one tap away.
 final knownPeopleProvider = Provider<List<String>>((ref) {
@@ -95,7 +106,9 @@ final knownPeopleProvider = Provider<List<String>>((ref) {
     record(r.fromPerson, r.createdAt);
   }
   for (final p in payables) {
-    record(p.toPerson, p.createdAt);
+    for (final person in payablePeople(p)) {
+      record(person, p.createdAt);
+    }
   }
 
   return rankPeople(

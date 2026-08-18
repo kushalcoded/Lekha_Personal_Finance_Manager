@@ -198,9 +198,13 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    // A friend-paid split doesn't record the other participants, so it can't be
-    // reconstructed for editing here.
-    if (_links != null && _links!.payable != null && !_links!.paidByMe) {
+    // Friend-paid splits saved before participants were recorded know only the
+    // payer, so there is nothing to rebuild an editable split from. Newer ones
+    // reconstruct like any other and fall through to the editor below.
+    if (_links != null &&
+        _links!.payable != null &&
+        !_links!.paidByMe &&
+        _links!.payable!.participants.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(

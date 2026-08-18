@@ -103,6 +103,12 @@ Future<void> createSplitDebts({
           category: category,
           notes: note,
           sourceExpenseId: sourceExpenseId,
+          // Who else was on the bill. Without this a friend-paid split knew
+          // only the payer: it couldn't be reopened for editing, and everyone
+          // else went uncounted in the people picker's ranking.
+          participants: {
+            for (final share in split.others) share.person: share.amount,
+          },
           createdAt: now,
           dueDate: due,
           status: PayableStatus.pending,
@@ -111,14 +117,32 @@ Future<void> createSplitDebts({
       );
 }
 
-/// Rebuild the split config + full bill from linked receivables (only possible
-/// when you paid — a friend-paid split doesn't record the other participants).
+/// Rebuild the split config + full bill from the debts it created.
+///
 /// [myShare] is the current stored expense amount. Returns null when it can't
-/// be reconstructed.
+/// be reconstructed — a friend-paid split saved before participants were
+/// recorded has nothing to rebuild from.
 ({SplitConfig config, double total})? reconstructSplit(
   SplitLinks links,
   double myShare,
 ) {
+  final payable = links.payable;
+  if (links.receivables.isEmpty && payable != null) {
+    if (payable.participants.isEmpty) return null;
+    final othersTotal = payable.participants.values.fold<double>(
+      0,
+      (sum, amount) => sum + amount,
+    );
+    return (
+      config: SplitConfig(
+        people: payable.participants.keys.toList(),
+        paidBy: payable.toPerson,
+        mode: SplitMode.exact,
+        exact: Map.of(payable.participants),
+      ),
+      total: myShare + othersTotal,
+    );
+  }
   if (links.receivables.isEmpty) return null;
   final people = links.receivables.map((r) => r.fromPerson).toList();
   final exact = {for (final r in links.receivables) r.fromPerson: r.amount};
