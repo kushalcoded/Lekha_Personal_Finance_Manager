@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -16,14 +17,34 @@ import '../screens/dashboard/providers/dashboard_providers.dart';
 import '../screens/expenses/providers/expenses_providers.dart';
 import '../screens/history_providers.dart';
 import '../screens/settings/providers/settings_providers.dart';
+import '../providers/payment/payment_method_providers.dart';
 import '../services/gemini_service.dart';
 import '../services/storage/hive_service.dart' show kLocalPrefsBox;
+import '../utils/formatters/formatters.dart';
 
 class AiChatMessage {
   final String role;
   final String text;
 
   const AiChatMessage({required this.role, required this.text});
+}
+
+/// What the confirm card says before an expense is written from chat. Pure so
+/// the wording — the only thing standing between a misread amount and the
+/// ledger — can be tested without a model in the loop.
+String summarizeAddExpense(Map<String, dynamic> action, String? category) {
+  final amount = (action['amount'] as num?)?.toDouble() ?? 0;
+  final parts = <String>[
+    'Add ${AppFormatters.formatCurrency(amount)}',
+    if (category != null) 'to $category',
+  ];
+  final note = (action['note'] as String? ?? '').trim();
+  if (note.isNotEmpty) parts.add('for $note');
+  final date = DateTime.tryParse(action['date'] as String? ?? '');
+  if (date != null) parts.add('on ${DateFormat('d MMM').format(date)}');
+  final method = (action['paymentMethod'] as String? ?? '').trim();
+  if (method.isNotEmpty) parts.add('via $method');
+  return parts.join(' ');
 }
 
 /// A money-mutating chat action awaiting the user's confirmation.
@@ -228,16 +249,13 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
   ) async {
     final action = _tryParseAction(reply);
 
-    // add_expense runs immediately (additive, trivially undone).
-    if (action != null && action['action'] == 'add_expense') {
-      final result = await _addExpense(action, userId);
-      _finishWithAssistant(baseMessages, result);
-      return;
-    }
-
-    // Money-mutating actions wait for explicit confirmation.
+    // Everything that writes money waits for a yes. add_expense used to go
+    // straight in as "additive, trivially undone" — but a misread amount or
+    // category books wrong data silently, and undoing it means hunting the row
+    // down in the list.
     if (action != null &&
-        (action['action'] == 'mark_payable_paid' ||
+        (action['action'] == 'add_expense' ||
+            action['action'] == 'mark_payable_paid' ||
             action['action'] == 'set_budget')) {
       final summary = _summarizeAction(action);
       state = state.copyWith(
@@ -282,10 +300,16 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
 
   String _summarizeAction(Map<String, dynamic> action) {
     switch (action['action']) {
+      case 'add_expense':
+        return summarizeAddExpense(
+          action,
+          _match(_ref.read(expenseCategoriesProvider), action['category']),
+        );
       case 'mark_payable_paid':
         return 'Mark ${action['payee'] ?? 'this payable'} as paid';
       case 'set_budget':
-        return 'Set the cycle budget to ${action['amount'] ?? '?'}';
+        return 'Set the cycle budget to '
+            '${AppFormatters.formatCurrency((action['amount'] as num?)?.toDouble() ?? 0)}';
       default:
         return 'Perform this action';
     }
@@ -301,6 +325,13 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
     final note = (action['note'] as String? ?? '').trim();
     final date =
         DateTime.tryParse(action['date'] as String? ?? '') ?? DateTime.now();
+    // The model is asked for a payment method and this used to throw it away,
+    // so every chat-added expense landed untagged while the add sheet tagged
+    // one by default — and the by-method breakdown quietly under-counted.
+    final method = resolveAutoPaymentMethod(
+      _match(_ref.read(paymentMethodsProvider), action['paymentMethod']),
+      _ref.read(defaultPaymentMethodProvider),
+    );
     final expense = Expense(
       id: const Uuid().v4(),
       userId: userId,
@@ -308,10 +339,11 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
       category: category,
       description: note.isEmpty ? null : note,
       date: date,
+      paymentMethod: method,
       createdAt: DateTime.now(),
     );
     await _ref.read(expensesProvider.notifier).addExpense(expense);
-    return 'Added $amount for $category.';
+    return 'Added ${AppFormatters.formatCurrency(amount)} to $category.';
   }
 
   Future<String> _markPayablePaid(Map<String, dynamic> action) async {
@@ -335,7 +367,7 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
     final amount = (action['amount'] as num?)?.toDouble() ?? 0;
     if (amount <= 0) return "I couldn't read a valid budget amount.";
     await _ref.read(settingsProvider.notifier).setCycleBudget(amount);
-    return 'Cycle budget set to $amount.';
+    return 'Cycle budget set to ${AppFormatters.formatCurrency(amount)}.';
   }
 
   String? _match(List<String> options, dynamic value) {
@@ -353,9 +385,14 @@ class AiChatNotifier extends StateNotifier<AiChatState> {
     state = state.copyWith(pending: null, isLoading: true);
     String result;
     try {
-      result = pending.action == 'set_budget'
-          ? await _setBudget(pending.args)
-          : await _markPayablePaid(pending.args);
+      result = switch (pending.action) {
+        'add_expense' => await _addExpense(
+          pending.args,
+          _ref.read(currentUserIdProvider) ?? '',
+        ),
+        'set_budget' => await _setBudget(pending.args),
+        _ => await _markPayablePaid(pending.args),
+      };
     } catch (e) {
       result = 'Could not complete that: $e';
     }
