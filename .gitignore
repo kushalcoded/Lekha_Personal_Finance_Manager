@@ -40,6 +40,9 @@ android/key.properties
 .pub-cache/
 .pub/
 /build/
+# Gradle writes reports here; `git add -A` swept one into a commit once.
+android/build/
+android/.gradle/
 /coverage/
 
 # Symbolication related
