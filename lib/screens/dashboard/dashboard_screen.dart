@@ -37,6 +37,7 @@ import '../settings/providers/settings_providers.dart';
 import '../settings/settings_screen.dart';
 import 'providers/dashboard_providers.dart';
 import 'widgets/budget_settings_modal.dart';
+import 'widgets/setup_checklist_card.dart';
 
 /// Home tab — a calm, glass "cycle health" overview.
 class DashboardScreen extends ConsumerWidget {
@@ -148,6 +149,7 @@ class DashboardScreen extends ConsumerWidget {
                       const SizedBox(height: 18),
                       const _UpdatePrompt(),
                       const _CycleRollPrompt(),
+                      const SetupChecklistCard(),
                       const _RemindersCard(),
                       if (isWide)
                         // Desktop: hero + recent on the left, totals and

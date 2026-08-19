@@ -25,13 +25,16 @@ import 'package:personal_expanse_tracker/screens/settings/providers/settings_pro
 import 'package:personal_expanse_tracker/screens/analytics/analytics_screen.dart';
 import 'package:personal_expanse_tracker/screens/auth/login_screen.dart';
 import 'package:personal_expanse_tracker/screens/dashboard/dashboard_screen.dart';
+import 'package:personal_expanse_tracker/screens/dashboard/widgets/setup_checklist_card.dart';
 import 'package:personal_expanse_tracker/screens/debts/debts_screen.dart';
 import 'package:personal_expanse_tracker/screens/debts/person_ledger_screen.dart';
 import 'package:personal_expanse_tracker/screens/expenses/expenses_screen.dart';
 import 'package:personal_expanse_tracker/providers/clock_provider.dart';
 import 'package:personal_expanse_tracker/screens/expenses/widgets/add_expense_modal.dart';
 import 'package:personal_expanse_tracker/screens/settings/settings_screen.dart';
+import 'package:personal_expanse_tracker/screens/onboarding/first_run_sheet.dart';
 import 'package:personal_expanse_tracker/screens/settings/widgets/manage_category_budgets_screen.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:personal_expanse_tracker/services/storage/hive_service.dart';
 import 'package:personal_expanse_tracker/services/supabase/supabase_service.dart';
 import 'package:personal_expanse_tracker/theme/app_theme.dart';
@@ -104,6 +107,10 @@ Future<void> _seed() async {
     // stored key is salaryCycleStartDate — `currentCycleStartDate` is a getter,
     // so seeding that name did nothing at all.
     'salaryCycleStartDate': day(12).toIso8601String(),
+    // Fully set up, so the "finish setting up" checklist stays off every other
+    // golden — it has one of its own.
+    'salaryDay': 7,
+    'defaultPaymentMethod': 'GPay',
     // One capped category, so the budget bar and the "no limit" rows both get
     // rendered somewhere.
     'categoryBudgets': {'Food': 1000.0},
@@ -180,6 +187,8 @@ Future<void> _seed() async {
   // Detected cards print an absolute timestamp, so these two are the one thing
   // seeded at a fixed instant — a relative one re-shot every screen that shows
   // a detection, which is most of them.
+  await _setupFlags(true);
+
   await hive.savePendingTransaction(
     PendingTransaction(
       id: 'pending_0',
@@ -198,6 +207,19 @@ Future<void> _seed() async {
       createdAt: _qcNow,
     ),
   );
+}
+
+/// The checklist's two discoverability rows are device-local flags, not
+/// settings, so the harness sets them the same way the app would.
+Future<void> _setupFlags(bool seen) async {
+  final box = Hive.box(kLocalPrefsBox);
+  if (seen) {
+    await box.put('setupSeenCategories', true);
+    await box.put('setupSeenPeople', true);
+  } else {
+    await box.delete('setupSeenCategories');
+    await box.delete('setupSeenPeople');
+  }
 }
 
 void main() {
@@ -329,6 +351,35 @@ void main() {
       act: (t) => t.tap(find.text('Food')),
     ),
   );
+  testWidgets('first run sheet', (t) async {
+    await shoot(
+      t,
+      'mobile_first_run',
+      const Scaffold(
+        backgroundColor: Color(0xFF131318),
+        body: SafeArea(child: FirstRunForm(userId: _userId)),
+      ),
+    );
+  });
+  testWidgets('setup checklist', (t) async {
+    // Hive writes are real disk I/O and never complete inside testWidgets'
+    // fake-async zone — without runAsync the test just hangs.
+    await t.runAsync(() => _setupFlags(false));
+    await shoot(
+      t,
+      'mobile_setup_checklist',
+      const Scaffold(
+        backgroundColor: Color(0xFF131318),
+        body: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: SetupChecklistCard(),
+          ),
+        ),
+      ),
+    );
+    await t.runAsync(() => _setupFlags(true));
+  });
   testWidgets(
     'category budgets',
     (t) => shoot(

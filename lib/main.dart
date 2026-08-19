@@ -16,6 +16,7 @@ import 'providers/storage/storage_providers.dart';
 import 'providers/sync/sync_providers.dart';
 import 'screens/settings/providers/settings_providers.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/onboarding/first_run_sheet.dart';
 import 'screens/settings/widgets/onboarding_screen.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
@@ -151,6 +152,16 @@ Future<bool?> _askKeepWhich() async {
   );
 }
 
+/// First sign-in on this account: ask for the handful of things that decide
+/// what the dashboard can even show. Anything skipped resurfaces on the
+/// dashboard checklist rather than hiding in Settings.
+Future<void> _maybeRunFirstRun(String userId) async {
+  if (firstRunDone(userId)) return;
+  final context = navigatorKey.currentContext;
+  if (context == null) return;
+  await showFirstRunSheet(context, userId);
+}
+
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
@@ -173,12 +184,14 @@ class MyApp extends ConsumerWidget {
             await reconcileSignIn(ref, userId);
             ref.read(authStateProvider.notifier).clearReconcileFlag();
             await _maybeAskDisplayName(ref, userId);
+            await _maybeRunFirstRun(userId);
           });
         } else {
           Future.microtask(() async {
             _reloadStores(ref, userId);
             ref.read(syncProvider.notifier).autoSyncOnStartup();
             await _maybeAskDisplayName(ref, userId);
+            await _maybeRunFirstRun(userId);
           });
         }
       } else if (!next.isAuthenticated && was) {

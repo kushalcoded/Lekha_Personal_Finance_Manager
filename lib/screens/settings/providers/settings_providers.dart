@@ -179,6 +179,23 @@ DateTime nextSalaryDayAfter(DateTime from, int day) {
   return inMonth(start.year, start.month + 1);
 }
 
+/// The most recent occurrence of [day] on or before [from], clamped to the
+/// month's length so a salary day of 31 still lands in February.
+///
+/// Setup uses this: someone paid on the 7th should not have a cycle that
+/// silently started on the 1st, which is the default when nobody has said.
+DateTime lastSalaryDayOnOrBefore(DateTime from, int day) {
+  DateTime inMonth(int year, int month) {
+    final lastDayOfMonth = DateTime(year, month + 1, 0).day;
+    return DateTime(year, month, day.clamp(1, lastDayOfMonth));
+  }
+
+  final start = DateTime(from.year, from.month, from.day);
+  final thisMonth = inMonth(start.year, start.month);
+  if (!thisMonth.isAfter(start)) return thisMonth;
+  return inMonth(start.year, start.month - 1);
+}
+
 class SettingsNotifier extends StateNotifier<SettingsState> {
   final HiveService _hiveService;
   final String _userId;

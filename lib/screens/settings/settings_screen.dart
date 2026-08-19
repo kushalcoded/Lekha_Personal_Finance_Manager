@@ -18,6 +18,7 @@ import 'providers/settings_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
 import '../../widgets/common/glass.dart';
+import '../../widgets/common/salary_day_picker.dart';
 import '../../widgets/common/update_flow.dart';
 import '../../utils/web_reload/web_reload_stub.dart'
     if (dart.library.js_interop) '../../utils/web_reload/web_reload_web.dart';
@@ -211,7 +212,7 @@ class SettingsScreen extends ConsumerWidget {
                               value: settings.salaryDay == null
                                   ? 'Not set'
                                   : _ordinal(settings.salaryDay!),
-                              onTap: () => _pickSalaryDay(context, ref),
+                              onTap: () => pickSalaryDay(context, ref),
                             ),
                             _SettingRow(
                               icon: Icons.restart_alt_rounded,
@@ -646,66 +647,6 @@ class SettingsScreen extends ConsumerWidget {
       lastDate: today,
       helpText: 'Cycle starts on',
     );
-  }
-
-  static Future<void> _pickSalaryDay(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final current = ref.read(settingsProvider).salaryDay;
-    final picked = await showDialog<int>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Salary day'),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: Text(
-              'Which day of the month does your salary usually land? Lekha '
-              'only uses it to ask about starting a new cycle — you always '
-              'confirm the real date.',
-              style: Theme.of(ctx).textTheme.bodySmall,
-            ),
-          ),
-          SizedBox(
-            height: 260,
-            width: 320,
-            child: GridView.count(
-              crossAxisCount: 6,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                for (var day = 1; day <= 31; day++)
-                  InkWell(
-                    onTap: () => Navigator.of(ctx).pop(day),
-                    child: Center(
-                      child: Text(
-                        '$day',
-                        style: TextStyle(
-                          fontWeight: day == current
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: day == current
-                              ? Theme.of(ctx).colorScheme.primary
-                              : null,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (current != null)
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(-1),
-              child: const Text("Don't ask me"),
-            ),
-        ],
-      ),
-    );
-    if (picked == null) return;
-    await ref
-        .read(settingsProvider.notifier)
-        .setSalaryDay(picked == -1 ? null : picked);
   }
 
   Future<void> _confirmRestore(
