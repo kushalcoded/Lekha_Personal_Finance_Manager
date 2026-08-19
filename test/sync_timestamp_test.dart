@@ -65,4 +65,83 @@ void main() {
     expect(iso.endsWith('Z'), isTrue);
     expect(DateTime.parse(iso).isUtc, isTrue);
   });
+
+  /// Deleting the only expense in an account was undone by the next sync: an
+  /// empty device looked factory-fresh, so it pulled the cloud copy back over
+  /// the deletion. Reproduced on the emulator, twice; offline the same delete
+  /// stuck, which is what isolated it.
+  group('shouldPull', () {
+    bool pull({
+      bool pushOnly = false,
+      bool hasRemote = true,
+      bool remoteNewer = false,
+      bool localEmpty = false,
+      bool localDirty = false,
+    }) => SupabaseSyncService.shouldPull(
+      pushOnly: pushOnly,
+      hasRemote: hasRemote,
+      remoteNewer: remoteNewer,
+      localEmpty: localEmpty,
+      localDirty: localDirty,
+    );
+
+    test('a device that just deleted its last record never pulls', () {
+      expect(pull(localEmpty: true, localDirty: true), isFalse);
+      expect(
+        pull(localEmpty: true, localDirty: true, remoteNewer: true),
+        isFalse,
+      );
+    });
+
+    test('a genuinely fresh device still adopts the cloud', () {
+      expect(pull(localEmpty: true), isTrue);
+    });
+
+    test('unpushed edits beat a newer cloud copy', () {
+      expect(pull(remoteNewer: true, localDirty: true), isFalse);
+      expect(pull(remoteNewer: true), isTrue);
+    });
+
+    test('nothing to pull without a remote, or when pushing', () {
+      expect(pull(hasRemote: false, remoteNewer: true), isFalse);
+      expect(pull(pushOnly: true, remoteNewer: true), isFalse);
+    });
+  });
+
+  group('refuseEmptyPush', () {
+    test('an accidentally empty device cannot flatten the cloud', () {
+      expect(
+        SupabaseSyncService.refuseEmptyPush(
+          localEmpty: true,
+          remoteHasData: true,
+          localDirty: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a deliberate deletion is allowed through', () {
+      // Only writes that went through the app set the mutation marker;
+      // clearAllData and a mid-restore blank do not.
+      expect(
+        SupabaseSyncService.refuseEmptyPush(
+          localEmpty: true,
+          remoteHasData: true,
+          localDirty: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('nothing to protect when the cloud is empty too', () {
+      expect(
+        SupabaseSyncService.refuseEmptyPush(
+          localEmpty: true,
+          remoteHasData: false,
+          localDirty: false,
+        ),
+        isFalse,
+      );
+    });
+  });
 }

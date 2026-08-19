@@ -60,10 +60,15 @@ class SupabaseSyncService {
       var downloads = 0;
       DateTime marker;
 
-      if (!pushOnly &&
-          remote != null &&
-          (remoteNewer || localEmpty) &&
-          (!localDirty || localEmpty)) {
+      // `remote != null` inline so the branch keeps its null promotion.
+      if (remote != null &&
+          shouldPull(
+            pushOnly: pushOnly,
+            hasRemote: true,
+            remoteNewer: remoteNewer,
+            localEmpty: localEmpty,
+            localDirty: localDirty,
+          )) {
         // PULL: adopt the cloud snapshot wholesale. If it holds fewer records
         // than we do, stash what's here first so the data is recoverable from
         // Settings even if the cloud copy turns out to be the wrong one.
@@ -83,19 +88,25 @@ class SupabaseSyncService {
           final merged = await _hiveService.mergeRemotePending(remote.snapshot);
           if (merged) downloads = 1;
         }
-        // Last line of defence: an empty local side must never flatten a
-        // populated cloud. Any bug that leaves the boxes momentarily empty
-        // (a concurrent restore, a failed load) would otherwise erase every
-        // device. Deliberate "start over" still works through the sign-in
-        // reconciler's Keep-this-device, which calls pushSnapshot directly.
         if (remote != null &&
-            _localIsEmpty(userId) &&
-            !_snapshotIsEmpty(remote.snapshot)) {
+            refuseEmptyPush(
+              localEmpty: _localIsEmpty(userId),
+              remoteHasData: !_snapshotIsEmpty(remote.snapshot),
+              localDirty: localDirty,
+            )) {
           throw StateError(
             'Refused to upload an empty snapshot over cloud data. Your data '
             'is safe in the cloud — reopen the app, and use Settings → sync '
             'if you meant to clear it.',
           );
+        }
+        // Emptying the account on purpose IS allowed above, so keep the copy
+        // we are about to overwrite. Restoring it from Settings is then the
+        // undo for "I deleted the last thing and meant to keep it".
+        if (remote != null &&
+            _localIsEmpty(userId) &&
+            !_snapshotIsEmpty(remote.snapshot)) {
+          await _hiveService.saveLocalBackup(remote.snapshot);
         }
         marker = await _uploadSnapshot(userId);
         uploads = 1;
@@ -212,6 +223,38 @@ class SupabaseSyncService {
   /// local string. Dart parses that as local time, which is the instant that
   /// was meant — so converting is safe, and forcing UTC on it would shift every
   /// stored value by the device's offset.
+  /// Adopt the cloud copy wholesale, rather than uploading ours?
+  ///
+  /// `localDirty` vetoes a pull outright. It used to be `!localDirty ||
+  /// localEmpty`, and `localEmpty` is exactly what deleting your last record
+  /// makes you: the device looked factory-fresh, pulled, and the record came
+  /// back — reproducible by deleting the only expense in an account. Offline
+  /// the same delete stuck, which is what gave the game away.
+  static bool shouldPull({
+    required bool pushOnly,
+    required bool hasRemote,
+    required bool remoteNewer,
+    required bool localEmpty,
+    required bool localDirty,
+  }) {
+    if (pushOnly || !hasRemote || localDirty) return false;
+    return remoteNewer || localEmpty;
+  }
+
+  /// Block an upload that would flatten a populated cloud from an empty device.
+  ///
+  /// Aimed at accidents — a concurrent restore, a failed load — which never
+  /// touch the mutation marker. A deliberate delete does, so [localDirty]
+  /// lets a real "I removed everything" through instead of stranding the
+  /// device in a sync that can never succeed.
+  static bool refuseEmptyPush({
+    required bool localEmpty,
+    required bool remoteHasData,
+    required bool localDirty,
+  }) {
+    return localEmpty && remoteHasData && !localDirty;
+  }
+
   static bool remoteIsNewer(DateTime remoteUpdatedAt, DateTime? lastSynced) {
     if (lastSynced == null) return true;
     return remoteUpdatedAt.toUtc().isAfter(lastSynced.toUtc());
@@ -250,8 +293,7 @@ class SupabaseSyncService {
     }
 
     return count('expenses') < _hiveService.getAllExpenses(userId).length ||
-        count('receivables') <
-            _hiveService.getAllReceivables(userId).length ||
+        count('receivables') < _hiveService.getAllReceivables(userId).length ||
         count('payables') < _hiveService.getAllPayables(userId).length;
   }
 }
