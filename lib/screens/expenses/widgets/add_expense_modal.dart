@@ -962,6 +962,14 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                       ),
                     ],
                     _categoryBudgetLine(theme, cs),
+                    // Directly under the amount and category it is about. It
+                    // used to sit below the notes field, which on a phone put
+                    // it off-screen — a warning you have to scroll for is one
+                    // you find out about after saving.
+                    if (inlineWarning != null) ...[
+                      const SizedBox(height: 14),
+                      _WarnBanner(text: inlineWarning),
+                    ],
                     const SizedBox(height: 18),
                     const FieldLabel('Paid via'),
                     const SizedBox(height: 10),
@@ -1030,10 +1038,6 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                       controller: _notesController,
                       onChanged: (_) => _markInteracted(),
                     ),
-                    if (inlineWarning != null) ...[
-                      const SizedBox(height: 16),
-                      _WarnBanner(text: inlineWarning),
-                    ],
                   ],
                 ),
               ),

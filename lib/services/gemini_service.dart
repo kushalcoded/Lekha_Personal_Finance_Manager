@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/history/cycle_history_snapshot.dart';
+import '../utils/formatters/formatters.dart';
 import 'supabase/supabase_service.dart';
 
 class GeminiService {
@@ -91,14 +92,17 @@ class GeminiService {
           'You provide dashboard recommendations for a finance tracker. Be '
           'concise and action-oriented. Reply as 2 to 3 short plain-text '
           'sentences, one per line. Do not use markdown, asterisks, bold, '
-          'bullet symbols, numbering, or headings.',
+          'bullet symbols, numbering, or headings. Write any amount exactly '
+          'as it appears below.',
+      // Amounts go in pre-formatted: raw doubles came straight back, so the
+      // dashboard card read "Allocate ₹20000.0 to your monthly budget".
       userPrompt:
           'Give 2 to 3 short recommendations from this dashboard state.\n'
-          'Cycle spend: $cycleSpend\n'
-          'Budget: $budget\n'
-          'Salary: $salary\n'
-          'Receivables: $receivables\n'
-          'Payables: $payables\n'
+          'Cycle spend: ${AppFormatters.formatCurrency(cycleSpend)}\n'
+          'Budget: ${AppFormatters.formatCurrency(budget)}\n'
+          'Salary: ${AppFormatters.formatCurrency(salary)}\n'
+          'Receivables: ${AppFormatters.formatCurrency(receivables)}\n'
+          'Payables: ${AppFormatters.formatCurrency(payables)}\n'
           'Transaction count: $transactionCount\n'
           'Overdue debt count: $overdueDebtCount',
     );
