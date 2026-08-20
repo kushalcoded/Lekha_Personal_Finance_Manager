@@ -174,42 +174,141 @@ either.
 
 ## 2. Deploy the Edge Function
 
-`supabase/functions/share/index.ts`. Functions are **not** deployed from git in
-this project — paste the file into the dashboard.
+Do section 1 first — the function talks to those four tables and will error on
+every call until they exist.
 
-- **Verify JWT: OFF.** Guests have no JWT. The share token in the request body
-  is the credential, exactly as `ingest-sms` works.
-- Set two function secrets, each 32+ random bytes:
-  - `GUEST_PIN_PEPPER` — mixed into every PIN hash. Because it is not in the
-    database, a database leak on its own does not expose a single PIN. **Changing
-    it invalidates every existing PIN**, so set it once.
-  - `GUEST_SESSION_SECRET` — signs the week-long session tokens. Changing it
-    signs everyone out, which is harmless.
+### 2a. Make the two secrets
 
-`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically.
+Generate them **before** opening the dashboard, so you can paste rather than
+invent something memorable. Each wants 32 random bytes. In PowerShell:
+
+```powershell
+$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
+```
+
+Run it twice and keep both lines — one is `GUEST_PIN_PEPPER`, the other is
+`GUEST_SESSION_SECRET`. (On a Mac or in git bash, `openssl rand -base64 32`
+does the same job.)
+
+| Secret | What it does | If you change it later |
+|---|---|---|
+| `GUEST_PIN_PEPPER` | Mixed into every PIN hash. It lives here and **not** in the database, which is what stops a database leak from exposing PINs — 10,000 combinations is otherwise trivially crackable. | **Every existing PIN stops working**, with no way to migrate them. Set it once. |
+| `GUEST_SESSION_SECRET` | Signs the week-long session tokens. | Everyone is signed out and enters their PIN again. Harmless. |
+
+Keep both somewhere you keep passwords. They are not in the repo and not
+recoverable from it.
+
+### 2b. Create the function
+
+Supabase dashboard → **Edge Functions** → create a new function → name it
+exactly **`share`** (the guest page builds its endpoint as
+`<project-url>/functions/v1/share` — any other name and every call 404s).
+
+Paste the whole of `supabase/functions/share/index.ts` in, replacing whatever
+template it starts with, and deploy.
+
+> Functions here are **not** deployed from git. Whatever is in the dashboard is
+> what runs, so after editing the file locally you have to come back and paste
+> it again. Same as `ingest-sms`.
+
+### 2c. Turn Verify JWT OFF
+
+In the function's settings, **disable "Verify JWT"**.
+
+This is the step that is easy to miss and produces a confusing failure: with it
+on, Supabase's gateway rejects every request *before* the function runs, so
+you get a 401 that looks like your token is wrong when the code was never
+reached. Guests have no Supabase account and no JWT — the share token in the
+request body is the credential, exactly as `ingest-sms` works.
+
+### 2d. Add the secrets
+
+Edge Functions → **Secrets** → add `GUEST_PIN_PEPPER` and
+`GUEST_SESSION_SECRET` with the two values from 2a.
+
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically —
+do not add those yourself.
 
 ### Check it took
 
-With a real token from the app (Debts → a person → share):
+You need a share token. Once the app ships you get one from **Debts → a person
+→ the link icon**, but to test the function before then, make one by hand in
+the SQL editor. Put your own sign-in email in the first line:
 
-```bash
-curl -s -X POST "$SUPABASE_URL/functions/v1/share" \
-  -H 'content-type: application/json' \
-  -d '{"action":"open","t":"<token>"}'
+```sql
+with me as (
+  select id from auth.users where email = 'you@example.com'
+), space as (
+  insert into public.shared_spaces (owner_id, owner_name)
+  select id, 'Kushal' from me
+  returning id, owner_id
+), person as (
+  insert into public.shared_people (owner_id, name, name_key)
+  select owner_id, 'Test Guest', 'test guest' from space
+  returning id, owner_id
+)
+insert into public.shared_participants
+  (token, owner_id, space_id, person_id, owner_net)
+select md5(random()::text) || md5(random()::text),
+       space.owner_id, space.id, person.id, 430
+from space, person
+returning token;
 ```
 
-Expect `{"name":"...","ownerName":"...","state":"claim"}` on a fresh link.
-Then, in order:
+Copy the token it returns. Then, in git bash:
 
-| Check | Expect |
+```bash
+URL=https://YOUR-PROJECT.supabase.co/functions/v1/share
+T=paste_the_token_here
+call() { curl -s -X POST "$URL" -H 'content-type: application/json' -d "$1"; echo; }
+```
+
+Now run these in order. Each line tells you something different went right:
+
+```bash
+call '{"action":"open","t":"'$T'"}'
+```
+
+| Then run | Expect |
 |---|---|
-| `claim` with a 4-digit PIN | a session token back |
-| `claim` again | `409` — a claimed identity cannot be silently re-claimed |
-| `login` with the wrong PIN, six times | `401` five times, then `429` with a wait |
-| `login` with the right PIN after the lock expires | a session, counter cleared |
-| `open` with a session token | the ledger, in one request |
-| `forgot` with a nonsense token | `{"ok":true}` — it must never confirm whether a token exists |
-| `OPTIONS` | the CORS headers, so a browser can call it at all |
+| the `open` above | `{"name":"Test Guest","ownerName":"Kushal","state":"claim"}` |
+| `call '{"action":"claim","t":"'$T'","pin":"1234"}'` | an `s` (session token) and a `ledger` |
+| the same `claim` again | `{"error":"already claimed"}` — a claimed identity can't be silently re-claimed |
+| `call '{"action":"login","t":"'$T'","pin":"9999"}'` six times | `wrong pin` with a falling `left`, then `{"error":"locked","lockedFor":900}` |
+| `call '{"action":"login","t":"'$T'","pin":"1234"}'` while locked | still `locked` — the right PIN does not bypass the wait |
+| `call '{"action":"forgot","t":"total-nonsense"}'` | `{"ok":true}` — it must answer the same for a fake token, or it becomes a way to test guessed links |
+| `curl -i -X OPTIONS "$URL"` | `200` and `access-control-allow-origin: *` — without this no browser can call it at all |
+
+The lockout is the one worth actually running. It is the only thing standing
+between a 4-digit PIN and someone with a script, and it cannot be unit-tested
+from this repo.
+
+To skip the 15-minute wait while testing:
+
+```sql
+update public.shared_people
+set failed_count = 0, locked_until = null
+where name_key = 'test guest';
+```
+
+And when you are done, remove the test rows:
+
+```sql
+delete from public.shared_spaces
+where id = (select space_id from public.shared_participants
+            where token = 'paste_the_token_here');
+delete from public.shared_people where name_key = 'test guest';
+```
+
+### If something is wrong
+
+| What you see | What it means |
+|---|---|
+| `{"error":"share secrets not configured"}`, 500 | 2d was skipped, or a name is misspelled |
+| `401` with `Missing authorization header` | Verify JWT is still **on** (2c) |
+| `{"error":"link not active"}`, 404 | Wrong token, or the participant row has `revoked_at` set |
+| `relation "public.shared_people" does not exist` | Section 1 did not commit — re-run it and read the error at the top |
+| Works in curl, fails in the browser | The `OPTIONS` check above; a missing CORS header shows up as "Failed to fetch" with no status |
 
 ## 3. The guest page
 
