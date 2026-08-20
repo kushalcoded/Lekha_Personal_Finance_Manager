@@ -1,5 +1,6 @@
 import '../../utils/amount_expression.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
@@ -268,12 +269,16 @@ class PersonLedgerScreen extends ConsumerWidget {
       );
       return;
     }
-    await SharePlus.instance.share(
-      ShareParams(
-        text:
-            'Here is what we owe each other, kept up to date: $link\n\n'
-            'No app needed — you pick a 4-digit PIN the first time.',
-      ),
+    if (!context.mounted) return;
+    // A dialog rather than going straight to the share sheet. The sheet is
+    // one-shot — dismiss it or pick the wrong app and the link is gone — and
+    // on web there may not be one at all. It also has to be a dialog for Copy
+    // to work: a clipboard write on web only succeeds inside a real user
+    // gesture, and the tap that started this expired while the link was coming
+    // back from the network. Tapping Copy here is a fresh one.
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => _ShareLinkDialog(link: link, person: person),
     );
   }
 
@@ -707,6 +712,100 @@ class _LedgerRowState extends State<_LedgerRow> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The share link, somewhere you can read it, copy it, or hand it to the share
+/// sheet — rather than a sheet that fires once and takes the link with it.
+class _ShareLinkDialog extends StatelessWidget {
+  final String link;
+  final String person;
+
+  const _ShareLinkDialog({required this.link, required this.person});
+
+  String get _message =>
+      'Here is what we owe each other, kept up to date: $link\n\n'
+      'No app needed — you pick a 4-digit PIN the first time.';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return AlertDialog(
+      title: Text(
+        'Share with $person',
+        style: const TextStyle(
+          fontFamily: 'Space Grotesk',
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'They open this in a browser and pick a 4-digit PIN. Anything they '
+            'add comes back here for you to accept.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A21),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+            ),
+            child: SelectableText(
+              link,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontFamily: 'JetBrains Mono',
+                height: 1.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'The same link every time — sharing again will not lock them out.',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+        OutlinedButton.icon(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: link));
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Link copied')),
+            );
+          },
+          style: OutlinedButton.styleFrom(
+            foregroundColor: cs.onSurface,
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
+          ),
+          icon: const Icon(Icons.copy_rounded, size: 18),
+          label: const Text('Copy'),
+        ),
+        FilledButton.icon(
+          onPressed: () =>
+              SharePlus.instance.share(ShareParams(text: _message)),
+          icon: const Icon(Icons.share_rounded, size: 18),
+          label: const Text('Share'),
+        ),
+      ],
     );
   }
 }
