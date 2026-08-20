@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/expense/expense_model.dart';
 import '../../models/share/shared_entry.dart';
 import '../../screens/debts/providers/people_balance_providers.dart';
+import '../../screens/settings/providers/settings_providers.dart';
 import '../../screens/expenses/utils/split_helpers.dart';
 import '../../screens/expenses/utils/split_persistence.dart';
 import '../../services/supabase/supabase_service.dart';
@@ -92,27 +93,57 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
         pending.add(SharedEntry.fromRow(row, personName: name));
       }
 
-      final resetRows =
+      // Everything for this owner in one go, filtered here rather than with a
+      // server-side `not.is.null`: there are only ever a handful of rows, and
+      // this leaves no room for the filter syntax to be subtly wrong.
+      final peopleRows =
           await client
                   .from('shared_people')
                   .select('id, name, pin_reset_requested_at')
-                  .not('pin_reset_requested_at', 'is', null)
+                  .eq('owner_id', userId)
+              as List<dynamic>;
+      final participantRows =
+          await client
+                  .from('shared_participants')
+                  .select('person_id, space_id')
+                  .eq('owner_id', userId)
+                  .isFilter('revoked_at', null)
               as List<dynamic>;
 
-      state = SharedInbox(
-        pending: pending,
-        resets: resetRows.cast<Map<String, dynamic>>().map((r) {
-          return PinResetRequest(
+      final resets = <PinResetRequest>[];
+      for (final r in peopleRows.cast<Map<String, dynamic>>()) {
+        final at = DateTime.tryParse(
+          r['pin_reset_requested_at']?.toString() ?? '',
+        );
+        if (at == null) continue;
+        resets.add(
+          PinResetRequest(
             personId: r['id'].toString(),
             name: r['name'] as String? ?? '',
-            requestedAt:
-                DateTime.tryParse(
-                  r['pin_reset_requested_at']?.toString() ?? '',
-                ) ??
-                DateTime.now(),
-          );
-        }).toList(),
-      );
+            requestedAt: at,
+          ),
+        );
+      }
+
+      state = SharedInbox(pending: pending, resets: resets);
+
+      // Push the owner's own ledger out while we are here. Without it the guest
+      // sees a balance with nothing behind it, which is the opposite of the
+      // point of sharing it at all.
+      final nameById = {
+        for (final r in peopleRows.cast<Map<String, dynamic>>())
+          r['id'].toString(): r['name'] as String? ?? '',
+      };
+      for (final part in participantRows.cast<Map<String, dynamic>>()) {
+        final personId = part['person_id'].toString();
+        final name = nameById[personId];
+        if (name == null || name.isEmpty) continue;
+        await _syncSpace(
+          name,
+          personId: personId,
+          spaceId: part['space_id'].toString(),
+        );
+      }
     } catch (e) {
       // Same posture as every other network path here: fail quiet, try again
       // on the next tick rather than putting an error in front of the user.
@@ -176,7 +207,7 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
                   .maybeSingle();
 
       if (existing != null) {
-        await _pushNet(person);
+        await _syncSpace(person);
         return '$kSharePageBase${existing['token']}';
       }
 
@@ -193,8 +224,13 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
         'owner_id': userId,
         'space_id': spaceRow['id'],
         'person_id': personId,
-        'owner_net': _netFor(person),
+        'owner_net': _ref.read(personBalanceProvider(person))?.net ?? 0,
       });
+      await _syncSpace(
+        person,
+        personId: personId,
+        spaceId: spaceRow['id'].toString(),
+      );
       return '$kSharePageBase$token';
     } catch (e) {
       debugPrint('share link failed: $e');
@@ -207,33 +243,122 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
       const Uuid().v4().replaceAll('-', '') +
       const Uuid().v4().replaceAll('-', '');
 
-  double _netFor(String person) =>
-      _ref.read(personBalanceProvider(person))?.net ?? 0;
+  /// Re-uploading an identical projection every minute is pure waste; this is
+  /// the cheapest possible guard against it.
+  final Map<String, String> _lastPushed = {};
 
-  /// Push the app's own balance out to every link with [person].
+  /// Push the balance **and the items behind it** to [person]'s shared page.
   ///
-  /// This is the whole reason the guest page and the app can never disagree:
-  /// there is one balance, computed here from `peopleBalancesProvider`, and the
-  /// function only ever echoes it back.
-  Future<void> _pushNet(String person) async {
+  /// The balance on its own was not enough: the guest saw a number with nothing
+  /// explaining it. These rows are a projection — the app stays the only place
+  /// they are authored, and the page never edits them.
+  ///
+  /// It is also why the app and the page cannot disagree. There is one balance,
+  /// computed from `peopleBalancesProvider`, and the Edge Function only ever
+  /// echoes what is written here.
+  Future<void> _syncSpace(
+    String person, {
+    String? personId,
+    String? spaceId,
+  }) async {
     final userId = _userId;
     if (userId == null) return;
+    final client = SupabaseService.client;
     try {
-      final client = SupabaseService.client;
-      final people =
+      var pid = personId;
+      var sid = spaceId;
+      if (pid == null) {
+        final row = await client
+            .from('shared_people')
+            .select('id')
+            .eq('owner_id', userId)
+            .eq('name_key', person.trim().toLowerCase())
+            .maybeSingle();
+        if (row == null) return;
+        pid = row['id'].toString();
+      }
+      if (sid == null) {
+        final row = await client
+            .from('shared_participants')
+            .select('space_id')
+            .eq('person_id', pid)
+            .isFilter('revoked_at', null)
+            .limit(1)
+            .maybeSingle();
+        if (row == null) return;
+        sid = row['space_id'].toString();
+      }
+
+      final ownerName = _ref.read(settingsProvider).displayName.trim();
+      if (ownerName.isEmpty) return;
+
+      // Debts an accepted entry created are already on the page as the guest's
+      // own submission. Projecting them as well would show every shared bill
+      // twice, once from each side.
+      final acceptedRows =
           await client
-                  .from('shared_people')
-                  .select('id')
-                  .eq('owner_id', userId)
-                  .eq('name_key', person.trim().toLowerCase())
-                  .maybeSingle();
-      if (people == null) return;
+                  .from('shared_entries')
+                  .select('linked_expense_id')
+                  .eq('space_id', sid)
+              as List<dynamic>;
+      final fromShare = <String>{
+        for (final r in acceptedRows.cast<Map<String, dynamic>>())
+          if (r['linked_expense_id'] != null) r['linked_expense_id'].toString(),
+      };
+
+      final balance = _ref.read(personBalanceProvider(person));
+      final net = balance?.net ?? 0;
+      final rows = <Map<String, dynamic>>[];
+      for (final item in balance?.items ?? const <PersonLedgerItem>[]) {
+        if (item.settled) continue;
+        final source =
+            item.receivable?.sourceExpenseId ?? item.payable?.sourceExpenseId;
+        if (source != null && fromShare.contains(source)) continue;
+        rows.add({
+          'id': item.id,
+          'owner_id': userId,
+          'space_id': sid,
+          // No author: this came from the app, not from anyone on the page.
+          'author_person_id': null,
+          'kind': 'expense',
+          'total': item.amount,
+          'payer_name': item.isReceivable ? ownerName : person,
+          'shares': item.isReceivable
+              ? {person: item.amount}
+              : {ownerName: item.amount},
+          'note': item.note,
+          'occurred_on': item.date.toIso8601String().substring(0, 10),
+          'status': 'accepted',
+        });
+      }
+
+      final ids = rows.map((r) => r['id'].toString()).join(',');
+      final fingerprint =
+          '$net|${rows.map((r) => '${r['id']}:${r['total']}').join(',')}';
+      if (_lastPushed[pid] == fingerprint) return;
+      _lastPushed[pid] = fingerprint;
+
       await client
           .from('shared_participants')
-          .update({'owner_net': _netFor(person)})
-          .eq('person_id', people['id']);
+          .update({'owner_net': net})
+          .eq('person_id', pid);
+
+      if (rows.isNotEmpty) {
+        await client.from('shared_entries').upsert(rows);
+      }
+      // Drop projected rows for debts that no longer exist locally — an upsert
+      // on its own would leave a deleted debt on the page forever.
+      var stale = client
+          .from('shared_entries')
+          .delete()
+          .eq('space_id', sid)
+          .isFilter('author_person_id', null);
+      if (rows.isNotEmpty) {
+        stale = stale.not('id', 'in', '($ids)');
+      }
+      await stale;
     } catch (e) {
-      debugPrint('net push failed: $e');
+      debugPrint('space sync failed: $e');
     }
   }
 
@@ -258,7 +383,7 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
       pending: state.pending.where((e) => e.id != entry.id).toList(),
       resets: state.resets,
     );
-    await _pushNet(entry.personName);
+    await _syncSpace(entry.personName);
   }
 
   /// Clear the PIN so the guest can set a new one, and bump `pin_version` so
@@ -402,5 +527,8 @@ Future<void> acceptSharedEntry({
     category: _shareCategory,
   );
 
-  await inbox.decide(entry, 'accepted', linkedExpenseId: expenseId);
+  // Always a value, even when no expense was written: this is the id
+  // createSplitDebts tagged the debts with, and the projection reads it to know
+  // they are already on the page as the guest's own entry.
+  await inbox.decide(entry, 'accepted', linkedExpenseId: expenseId ?? entry.id);
 }
