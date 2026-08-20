@@ -32,7 +32,10 @@ import 'package:personal_expanse_tracker/screens/expenses/expenses_screen.dart';
 import 'package:personal_expanse_tracker/providers/clock_provider.dart';
 import 'package:personal_expanse_tracker/screens/expenses/widgets/add_expense_modal.dart';
 import 'package:personal_expanse_tracker/screens/settings/settings_screen.dart';
+import 'package:personal_expanse_tracker/models/share/shared_entry.dart';
+import 'package:personal_expanse_tracker/providers/share/share_providers.dart';
 import 'package:personal_expanse_tracker/screens/debts/widgets/add_debt_sheet.dart';
+import 'package:personal_expanse_tracker/screens/debts/widgets/shared_entry_card.dart';
 import 'package:personal_expanse_tracker/screens/onboarding/first_run_sheet.dart';
 import 'package:personal_expanse_tracker/screens/settings/widgets/manage_category_budgets_screen.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -366,6 +369,52 @@ void main() {
       const Scaffold(
         backgroundColor: Color(0xFF131318),
         body: SafeArea(child: AddDebtForm()),
+      ),
+    ),
+  );
+  // What a guest did, before the owner has decided anything about it.
+  testWidgets(
+    'shared page cards',
+    (t) => shoot(
+      t,
+      'mobile_shared_entries',
+      Scaffold(
+        backgroundColor: const Color(0xFF131318),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                SharedEntryCard(
+                  entry: SharedEntry(
+                    id: 'e1',
+                    spaceId: 's1',
+                    personName: 'Rahul',
+                    kind: 'expense',
+                    total: 1200,
+                    payerName: 'Rahul',
+                    shares: const {'Rahul': 600, 'Kushal': 600},
+                    note: 'Dinner at Toit',
+                    occurredOn: _qcNow,
+                  ),
+                  ownerName: 'Kushal',
+                  onAccept: () {},
+                  onDismiss: () {},
+                ),
+                const SizedBox(height: 10),
+                PinResetCard(
+                  request: PinResetRequest(
+                    personId: 'p1',
+                    name: 'Rahul',
+                    requestedAt: _qcNow,
+                  ),
+                  onAllow: () {},
+                  onDismiss: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     ),
   );

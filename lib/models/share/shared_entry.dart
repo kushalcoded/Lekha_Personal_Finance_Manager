@@ -1,0 +1,126 @@
+import '../../screens/expenses/utils/split_helpers.dart';
+import '../../utils/formatters/formatters.dart';
+
+/// One line a guest added on a shared page, waiting for a decision.
+///
+/// Cloud-only, and deliberately **not** a Hive record. A detected SMS is stored
+/// locally because it arrives on a device that may be offline for days; this
+/// only exists because the network was there to fetch it, so a local copy would
+/// be a second source of truth for no benefit.
+class SharedEntry {
+  final String id;
+  final String spaceId;
+
+  /// The guest who added it — also the person this ledger is with.
+  final String personName;
+
+  /// `expense` or `settlement`.
+  final String kind;
+
+  /// The whole bill, not anyone's share.
+  final double total;
+
+  /// Whose money it was. Matches the owner's display name when they paid.
+  final String payerName;
+
+  /// Name → that person's share of [total].
+  final Map<String, double> shares;
+
+  final String? note;
+  final DateTime occurredOn;
+
+  const SharedEntry({
+    required this.id,
+    required this.spaceId,
+    required this.personName,
+    required this.kind,
+    required this.total,
+    required this.payerName,
+    required this.shares,
+    required this.note,
+    required this.occurredOn,
+  });
+
+  bool get isSettlement => kind == 'settlement';
+
+  /// Rebuilt defensively: Postgres hands numerics back as `num`, and a jsonb
+  /// map arrives with dynamic keys.
+  factory SharedEntry.fromRow(
+    Map<String, dynamic> row, {
+    required String personName,
+  }) {
+    return SharedEntry(
+      id: row['id'].toString(),
+      spaceId: row['space_id'].toString(),
+      personName: personName,
+      kind: row['kind'] as String? ?? 'expense',
+      total: (row['total'] as num?)?.toDouble() ?? 0,
+      payerName: row['payer_name'] as String? ?? '',
+      shares: {
+        for (final e in (row['shares'] as Map? ?? const {}).entries)
+          if ((e.value as num?) != null)
+            e.key.toString(): (e.value as num).toDouble(),
+      },
+      note: (row['note'] as String?)?.trim().isEmpty ?? true
+          ? null
+          : row['note'] as String,
+      occurredOn:
+          DateTime.tryParse(row['occurred_on']?.toString() ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
+/// How a guest's expense becomes a split this app already knows how to store.
+///
+/// Everything follows from two facts: whether the owner paid, and what the
+/// owner's own share was. Nothing is invented here — the result goes straight
+/// into [computeSplit] and `createSplitDebts`, the same pair the add-expense
+/// form uses, so an accepted entry is indistinguishable from one typed by hand.
+SplitConfig splitConfigFor(SharedEntry entry, {required String ownerName}) {
+  final theirShare = entry.shares[entry.personName] ?? 0;
+  return SplitConfig(
+    people: [entry.personName],
+    // paidBy null means "me" — the owner.
+    paidBy: entry.payerName == ownerName ? null : entry.personName,
+    // Always exact: the guest sent amounts, and re-deriving an equal split
+    // here could disagree with what they were shown by a paisa.
+    mode: SplitMode.exact,
+    exact: {entry.personName: theirShare},
+  );
+}
+
+/// True when accepting this settlement means money came *to* the owner, which
+/// is what decides whether it pays down receivables or payables.
+bool settlementPaysOwner(SharedEntry entry, {required String ownerName}) =>
+    entry.payerName != ownerName;
+
+/// One line saying what accepting this entry would actually do, in the terms
+/// the person reading the card already thinks in — never "payable" or
+/// "receivable", and always naming who ends up owing whom.
+String sharedEntryEffect(SharedEntry entry, {required String ownerName}) {
+  final money = AppFormatters.formatCurrency;
+  if (entry.isSettlement) {
+    return settlementPaysOwner(entry, ownerName: ownerName)
+        ? '${entry.personName} says they paid you ${money(entry.total)}'
+        : '${entry.personName} says you paid them ${money(entry.total)}';
+  }
+
+  final config = splitConfigFor(entry, ownerName: ownerName);
+  final split = computeSplit(
+    total: entry.total,
+    people: config.people,
+    mode: config.mode,
+    exactAmounts: config.exact,
+  );
+  final bill = 'Bill ${money(entry.total)}';
+  if (config.paidByMe) {
+    final theirs = split.others.single.amount;
+    return theirs <= 0
+        ? '$bill · nothing owed either way'
+        : '$bill · ${entry.personName} would owe you ${money(theirs)}';
+  }
+  return split.myShare <= 0
+      ? '$bill · ${entry.personName} covered it, nothing owed'
+      : '$bill · you would owe ${entry.personName} ${money(split.myShare)}';
+}

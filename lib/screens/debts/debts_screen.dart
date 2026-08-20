@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../navigation/floating_glass_nav.dart';
 import '../../providers/auth/auth_provider.dart';
+import '../../providers/share/share_providers.dart';
 import '../../providers/storage/storage_providers.dart'
     show totalPayablesProvider, totalReceivablesProvider;
 import '../../theme/app_theme.dart';
@@ -25,6 +26,14 @@ class DebtsScreen extends ConsumerStatefulWidget {
 class _DebtsScreenState extends ConsumerState<DebtsScreen> {
   /// Desktop master-detail: the person whose ledger fills the right pane.
   String? _selectedPerson;
+
+  @override
+  void initState() {
+    super.initState();
+    // Opening this tab is the moment someone wants to know whether a guest
+    // added anything — worth not making them wait out the 60s poll.
+    Future.microtask(() => ref.read(sharedInboxProvider.notifier).refresh());
+  }
 
   @override
   Widget build(BuildContext context) {

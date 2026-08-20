@@ -411,6 +411,13 @@ async function add(payload: Record<string, unknown>): Promise<Response> {
   }
   if (Object.keys(shares).length === 0) return json({ error: "shares" }, 400);
 
+  // The entry has to involve the owner — they either paid, or owe part of it.
+  // Anything else is a line about two other people, which a pairwise ledger
+  // cannot represent and the owner has no way to accept.
+  if (payer !== ownerName && !(ownerName in shares)) {
+    return json({ error: "does not involve the owner" }, 400);
+  }
+
   const on = String(payload?.on ?? "").match(/^\d{4}-\d{2}-\d{2}$/)
     ? String(payload?.on)
     : new Date().toISOString().slice(0, 10);

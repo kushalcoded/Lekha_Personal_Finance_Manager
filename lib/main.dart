@@ -11,6 +11,7 @@ import 'screens/expenses/widgets/add_expense_modal.dart';
 import 'widgets/common/ambient_background.dart';
 import 'providers/onboarding/onboarding_provider.dart';
 import 'providers/auth/auth_provider.dart';
+import 'providers/share/share_providers.dart';
 import 'providers/sms/sms_providers.dart';
 import 'providers/storage/storage_providers.dart';
 import 'providers/sync/sync_providers.dart';
@@ -339,6 +340,7 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
   bool _smsPermissionAsked = false;
   bool _syncing = false;
   Timer? _smsPoll;
+  Timer? _sharePoll;
   Timer? _pushDebounce;
   StreamSubscription<Uri?>? _widgetSub;
 
@@ -357,6 +359,7 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
     HiveService.onDataChanged = _schedulePush;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncSms(force: true);
+      _syncShare();
       _startPolling();
       _rescheduleReminder();
     });
@@ -378,6 +381,7 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
       // Coming back is exactly when the cloud queue is worth a look, so skip
       // the throttle here; the periodic poll keeps to it.
       _syncSms(force: true);
+      _syncShare();
       _startPolling();
       _rescheduleReminder();
     } else {
@@ -419,11 +423,26 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
   void _startPolling() {
     _smsPoll?.cancel();
     _smsPoll = Timer.periodic(const Duration(seconds: 5), (_) => _syncSms());
+    // A sibling timer rather than a second job on the 5s tick: SmsCaptureService
+    // already re-throttles its own network half to 60s internally, so hanging
+    // this off that tick would mean writing a second throttle inside a timer
+    // that exists to be throttled. A friend's entry arriving within a minute is
+    // fine; the ledger screen also refreshes the moment it is opened.
+    _sharePoll?.cancel();
+    _sharePoll = Timer.periodic(const Duration(seconds: 60), (_) => _syncShare());
   }
 
   void _stopPolling() {
     _smsPoll?.cancel();
     _smsPoll = null;
+    _sharePoll?.cancel();
+    _sharePoll = null;
+  }
+
+  /// Pull anything guests did on their shared pages. Silent on failure, like
+  /// every other network path here.
+  Future<void> _syncShare() {
+    return ref.read(sharedInboxProvider.notifier).refresh();
   }
 
   /// Detect new bank/UPI debits from SMS captured while we were away.

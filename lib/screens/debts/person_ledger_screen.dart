@@ -6,7 +6,10 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../providers/ai_providers.dart';
+import '../../models/share/shared_entry.dart';
+import '../../providers/auth/auth_provider.dart';
 import '../../providers/clock_provider.dart';
+import '../../providers/share/share_providers.dart';
 import '../../providers/storage/storage_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
@@ -14,7 +17,9 @@ import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
 import '../payables/widgets/payable_settlement_modal.dart';
 import '../receivables/widgets/receivable_settlement_modal.dart';
+import '../settings/providers/settings_providers.dart';
 import 'providers/people_balance_providers.dart';
+import 'widgets/shared_entry_card.dart';
 
 /// Everything you and one person owe each other, in one ledger.
 class PersonLedgerScreen extends ConsumerWidget {
@@ -27,6 +32,9 @@ class PersonLedgerScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final calm = CalmColors.of(context);
+    final inbox = ref.watch(sharedInboxProvider);
+    final waiting = inbox.forPerson(person);
+    final resets = inbox.resetsForPerson(person);
     final balance = ref.watch(personBalanceProvider(person));
 
     if (balance == null) {
@@ -82,10 +90,53 @@ class PersonLedgerScreen extends ConsumerWidget {
             Text(person),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Share this page',
+            icon: const Icon(Icons.link_rounded),
+            onPressed: () => _shareLedger(context, ref),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
+          if (waiting.isNotEmpty || resets.isNotEmpty) ...[
+            const FieldLabel('From the shared page'),
+            const SizedBox(height: 4),
+            Text(
+              'Nothing here is in your ledger yet.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ...resets.map(
+              (r) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: PinResetCard(
+                  request: r,
+                  onAllow: () => _allowReset(context, ref, r),
+                  onDismiss: () =>
+                      ref.read(sharedInboxProvider.notifier).dismissReset(r),
+                ),
+              ),
+            ),
+            ...waiting.map(
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: SharedEntryCard(
+                  entry: e,
+                  ownerName: ref.read(settingsProvider).displayName,
+                  onAccept: () => _acceptEntry(context, ref, e),
+                  onDismiss: () => ref
+                      .read(sharedInboxProvider.notifier)
+                      .decide(e, 'dismissed'),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           GlassCard(
             radius: 12,
             padding: const EdgeInsets.all(16),
@@ -186,6 +237,72 @@ class PersonLedgerScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Create (or reuse) this person's share link and hand it to the share
+  /// sheet. Deliberately its own action rather than being appended to the AI
+  /// reminder: a link buried at the end of a nudge about money reads like the
+  /// nudge, and this is an invitation.
+  Future<void> _shareLedger(BuildContext context, WidgetRef ref) async {
+    final ownerName = ref.read(settingsProvider).displayName.trim();
+    if (ownerName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Add your name in Settings first, so they know who shared it.',
+          ),
+        ),
+      );
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final link = await ref
+        .read(sharedInboxProvider.notifier)
+        .shareLinkFor(person, ownerName: ownerName);
+    if (link == null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Could not make a link. Check you are signed in.'),
+        ),
+      );
+      return;
+    }
+    await SharePlus.instance.share(
+      ShareParams(
+        text:
+            'Here is what we owe each other, kept up to date: $link\n\n'
+            'No app needed — you pick a 4-digit PIN the first time.',
+      ),
+    );
+  }
+
+  Future<void> _acceptEntry(
+    BuildContext context,
+    WidgetRef ref,
+    SharedEntry entry,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await acceptSharedEntry(
+      ref: ref,
+      entry: entry,
+      userId: ref.read(currentUserIdProvider) ?? localUserId,
+      ownerName: ref.read(settingsProvider).displayName,
+    );
+    messenger.showSnackBar(const SnackBar(content: Text('Added')));
+  }
+
+  Future<void> _allowReset(
+    BuildContext context,
+    WidgetRef ref,
+    PinResetRequest request,
+  ) async {
+    final inbox = ref.read(sharedInboxProvider.notifier);
+    final version = await inbox.pinVersionOf(request);
+    await inbox.allowReset(request, bumpTo: version + 1);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${request.name} can set a new PIN now')),
     );
   }
 
