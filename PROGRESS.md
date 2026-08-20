@@ -45,31 +45,37 @@ Full design: `~/.claude/plans/swift-bubbling-conway.md`.
 - [x] `test/add_debt_direction_test.dart`, `mobile_add_debt` golden.
 - [x] Pinned the `mobile_ledger` golden, which re-shot itself every day.
 
-### 2. Schema — not started
+### 2. Schema — **written** (`8b8b9a6`), needs running
 
-- [ ] `SETUP_SHARE.md`: `shared_spaces`, `shared_people`, `shared_participants`,
+- [x] `SETUP_SHARE.md`: `shared_spaces`, `shared_people`, `shared_participants`,
       `shared_entries`, owner-scoped RLS, `revoke select (pin_hash, pin_salt)`.
+      The owner's net sits on the participant row, not the space, so a group
+      needs no new column.
 - [ ] **Yours:** run it in the Supabase SQL editor. Re-runnable by design — run
       it twice to prove the `drop policy if exists` discipline holds.
 
-### 3. Edge function — not started
+### 3. Edge function — **written** (`8b8b9a6`), needs deploying
 
-- [ ] `supabase/functions/share/index.ts`, one function, actions `open` /
+- [x] `supabase/functions/share/index.ts`, one function, actions `open` /
       `claim` / `login` / `add` / `forgot`. PBKDF2 + a server-side pepper,
-      lockout after 5 wrong PINs, a stateless 7-day session revoked by bumping
-      `pin_version`.
+      lockout after 5 wrong PINs that doubles, a stateless 7-day session revoked
+      by bumping `pin_version`. Type-checks clean under `--strict`.
 - [ ] **Yours:** paste it into the dashboard with **Verify JWT off**, and set
       `GUEST_PIN_PEPPER` and `GUEST_SESSION_SECRET` as function secrets.
 
-### 4. The guest page — not started
+### 4. The guest page — **done** (`e01b98b`), ships on the next push
 
-- [ ] `web/s/index.html`, one file, no framework, no build step. Ships through
-      the existing Pages workflow because `web/` is copied verbatim into
-      `build/web/`.
-- [ ] Token in the fragment (`/s/#<token>`) so it never reaches a server log,
-      then cleared from the address bar on first read.
-- [ ] System font stack, not Inter — the app's Inter is 876 KB and would blow
-      the under-a-second budget on its own.
+- [x] `web/s/index.html`, one file, no framework, no build step. **23 KB raw,
+      7 KB gzipped.**
+- [x] Token in the fragment, cleared from the address bar on first read —
+      verified in a browser.
+- [x] System font stack, not Inter (876 KB). Money uses the same
+      two-decimals-only-if-needed rule as `AppFormatters.formatCurrency`.
+- [x] Reads the project URL from `/assets/.env` rather than keeping a second
+      copy — verified resolving against the real project.
+- [x] Verified in a browser at 375px: no sideways scroll, 46px minimum tap
+      target, claim / login / ledger / add / settle / forgot / error all render,
+      exact-split validation catches shares that don't add up.
 
 ### 5. Owner side in the app — not started
 
