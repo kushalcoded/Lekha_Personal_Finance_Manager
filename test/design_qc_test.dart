@@ -32,6 +32,7 @@ import 'package:personal_expanse_tracker/screens/expenses/expenses_screen.dart';
 import 'package:personal_expanse_tracker/providers/clock_provider.dart';
 import 'package:personal_expanse_tracker/screens/expenses/widgets/add_expense_modal.dart';
 import 'package:personal_expanse_tracker/screens/settings/settings_screen.dart';
+import 'package:personal_expanse_tracker/screens/debts/widgets/add_debt_sheet.dart';
 import 'package:personal_expanse_tracker/screens/onboarding/first_run_sheet.dart';
 import 'package:personal_expanse_tracker/screens/settings/widgets/manage_category_budgets_screen.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -96,6 +97,10 @@ Future<void> _seed() async {
   final hive = HiveService();
   final now = DateTime.now();
   DateTime day(int back) => now.subtract(Duration(days: back));
+  // Debts print an absolute 'MMM d' and, unlike expenses, are not scoped to
+  // the salary cycle — so they can be pinned outright. Seeded relative to the
+  // real clock, the ledger golden re-shot itself every single day.
+  DateTime debtDay(int back) => _qcNow.subtract(Duration(days: back));
 
   await hive.setMonthlyBudget(_userId, now, 20000);
   await hive.saveSettings(_userId, {
@@ -158,11 +163,11 @@ Future<void> _seed() async {
         fromPerson: person,
         amount: amount,
         description: note,
-        dueDate: day(back - 3),
+        dueDate: debtDay(back - 3),
         isPaid: paid,
         remainingAmount: paid ? 0 : amount,
-        createdAt: day(back),
-        updatedAt: day(back),
+        createdAt: debtDay(back),
+        updatedAt: debtDay(back),
       ),
     );
   }
@@ -176,11 +181,11 @@ Future<void> _seed() async {
       remainingAmount: 300,
       category: 'Friends',
       notes: 'Cab share',
-      dueDate: day(2),
+      dueDate: debtDay(2),
       status: PayableStatus.pending,
       settlements: const [],
-      createdAt: day(6),
-      updatedAt: day(6),
+      createdAt: debtDay(6),
+      updatedAt: debtDay(6),
     ),
   );
 
@@ -349,6 +354,19 @@ void main() {
         body: SafeArea(child: AddExpenseForm(isDialog: false)),
       ),
       act: (t) => t.tap(find.text('Food')),
+    ),
+  );
+  // One sheet for both directions: the old flow made you pick "someone owes
+  // me" vs "I owe someone" before it would show you a form at all.
+  testWidgets(
+    'add debt sheet',
+    (t) => shoot(
+      t,
+      'mobile_add_debt',
+      const Scaffold(
+        backgroundColor: Color(0xFF131318),
+        body: SafeArea(child: AddDebtForm()),
+      ),
     ),
   );
   testWidgets('first run sheet', (t) async {

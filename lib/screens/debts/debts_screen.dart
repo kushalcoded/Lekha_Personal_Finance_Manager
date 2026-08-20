@@ -9,10 +9,9 @@ import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
 import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
-import '../payables/widgets/payable_modal.dart';
-import '../receivables/widgets/receivable_modal.dart';
 import 'person_ledger_screen.dart';
 import 'providers/people_balance_providers.dart';
+import 'widgets/add_debt_sheet.dart';
 
 /// Debts — one netted balance per person. Tap someone to see the full ledger
 /// of what you owe each other (inline pane on desktop, pushed on mobile).
@@ -76,10 +75,10 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         const SizedBox(height: 20),
         if (people.isEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 60),
+            padding: const EdgeInsets.fromLTRB(0, 48, 0, 24),
             child: Center(
               child: Text(
-                'No open debts.\nSplit a bill or tap + to add one.',
+                'No open debts.\nSplit a bill, or add one below.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: cs.onSurfaceVariant,
@@ -97,42 +96,39 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
               child: _PersonRow(balance: p, onTap: () => _openPerson(p.name)),
             ),
           ),
-          // The only add-a-debt entry point: a FAB here would collide with
-          // the bottom bar's centre button (they are different actions, so
-          // two violet circles read as a bug).
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => _showAddChooser(context),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-              ),
-              child: Center(
-                child: Text(
-                  '+ Add a debt',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: cs.primary,
-                  ),
+        ],
+        // Outside the empty check on purpose: this is the only add-a-debt
+        // entry point, and it used to live inside the `else`, so settling your
+        // last debt left no way to record another one. A FAB isn't the answer
+        // either — it would land on the bottom bar's centre button, and two
+        // violet circles doing different things read as a bug.
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => showAddDebtSheet(context),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            ),
+            child: Center(
+              child: Text(
+                '+ Add a debt',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: cs.primary,
                 ),
               ),
             ),
           ),
-        ],
+        ),
       ],
     );
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      // Desktop already has the inline add row + sidebar button; the FAB is
-      // a thumb-reach affordance for phones only.
-      // No FAB: the inline "+ Add a debt" row is the entry point on both
-      // layouts. On mobile a FAB here would land on top of the nav bar's own
-      // centre button — two violet circles doing different things.
       body: SafeArea(
         bottom: false,
         child: isWide
@@ -173,41 +169,6 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     }
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => PersonLedgerScreen(person: name)),
-    );
-  }
-
-  void _showAddChooser(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF131318),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            ListTile(
-              leading: const Icon(Icons.south_west_rounded),
-              title: const Text('Someone owes me'),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                showAddReceivableModal(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.north_east_rounded),
-              title: const Text('I owe someone'),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                showAddPayableModal(context);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
     );
   }
 }

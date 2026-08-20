@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../providers/ai_providers.dart';
+import '../../providers/clock_provider.dart';
 import '../../providers/storage/storage_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
@@ -46,9 +47,13 @@ class PersonLedgerScreen extends ConsumerWidget {
     final net = balance.net;
     final netColor = net >= 0 ? calm.positive : cs.error;
     final open = balance.items.where((i) => !i.settled).toList();
+    // Through nowProvider, not DateTime.now(): this is the one number on the
+    // screen that changes on its own overnight, which re-shot the golden every
+    // single day.
     final oldestDays = open.isEmpty
         ? 0
-        : DateTime.now()
+        : ref
+              .read(nowProvider)()
               .difference(
                 open.map((i) => i.date).reduce((a, b) => a.isBefore(b) ? a : b),
               )

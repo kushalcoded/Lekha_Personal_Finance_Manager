@@ -6,6 +6,7 @@ import '../../../providers/people/people_providers.dart';
 import '../../../theme/app_theme.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../../../widgets/common/form_bits.dart';
+import '../../../widgets/common/person_menu.dart';
 import '../utils/split_helpers.dart';
 
 /// Configure how a bill is split. Returns the new [SplitConfig], or a config
@@ -93,42 +94,6 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
   /// Pin someone to the front of the suggestions, or stop offering them.
   /// Hiding is undoable from Settings → People, which the sheet says so nobody
   /// thinks they've deleted a person's history.
-  Future<void> _openPersonMenu(String name, bool isPinned) async {
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
-              ),
-              title: Text(isPinned ? 'Unpin $name' : 'Pin $name to the front'),
-              onTap: () => Navigator.of(sheetContext).pop('pin'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.visibility_off_rounded),
-              title: Text('Hide $name'),
-              subtitle: const Text('Undo in Settings → People'),
-              onTap: () => Navigator.of(sheetContext).pop('hide'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (action == null || !mounted) return;
-    final notifier = ref.read(peoplePrefsProvider.notifier);
-    if (action == 'pin') {
-      await notifier.togglePin(name);
-    } else {
-      await notifier.toggleHide(name);
-    }
-  }
 
   Map<String, double> get _exactAmounts => {
     for (final e in _exactControllers.entries)
@@ -218,10 +183,12 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
               children: known
                   .map(
                     (n) => GestureDetector(
-                      // Long-press rather than a visible control: the pills are
-                      // a fast path, and hanging an X off each one would make
-                      // the row read as a list to manage instead of tap.
-                      onLongPress: () => _openPersonMenu(n, prefs.isPinned(n)),
+                      onLongPress: () => showPersonMenu(
+                        context,
+                        ref,
+                        n,
+                        isPinned: prefs.isPinned(n),
+                      ),
                       child: ChoicePill(
                         label: n,
                         icon: prefs.isPinned(n)
