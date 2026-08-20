@@ -119,12 +119,26 @@ Full design: `~/.claude/plans/swift-bubbling-conway.md`.
       URL visible, a Copy button, and Share. Copy must be its own tap: a
       clipboard write on web only works inside a live user gesture.
 
-### 7. Groups — not started, and the only thing left
+### 7. Groups — **done**
 
-UI only. The schema already carries N participants per space, identity is
-already per-person rather than per-space, and the reduction is already written
-and tested. What is missing is a group screen, a second participant on a space,
-and per-participant nets pushed for each member.
+- [x] A group is a shared space with a title and more than one person on it. No
+      new schema: identity already hung off the person, so somebody already in a
+      one-to-one share keeps the PIN they set instead of collecting one per
+      group.
+- [x] **Group entries count immediately.** Waiting on the owner to approve a cab
+      two other people shared would be absurd, so `status` there means "the
+      owner has filed this in their own books", not "this is real".
+- [x] That is why a group can be summed on the server when a pairwise share
+      cannot: a group starts empty, so no history in anyone's Hive can
+      contradict the total.
+- [x] The page shows where you stand, where everyone else stands, and the fewest
+      payments that clear it — the same greedy reduction as `simplifyDebts`.
+- [x] Accepting generalises to N people, driven by the shares rather than by who
+      submitted it. Tested, including somebody who paid without eating any of it.
+- [x] App: "+ New group" on Debts, a per-member link with Copy and Share, and
+      entries that involve you waiting in the group sheet.
+- **Not done:** exact amounts inside a group (equal among whoever is ticked
+      only). It needs a field per person; left until somebody wants it.
 
 ---
 
@@ -140,9 +154,9 @@ Everything on the web side is **done and live**. What is left:
 
 ## Android
 
-**Nothing here has shipped to Android.** The APK is still `1.1.7+11`; every
-commit since is web-only. The next release needs a version bump, a local
-`flutter build apk --release`, and your go before it is published.
+**v1.2.0 is built and waiting.** `1.2.0+12`, signed with the release key
+(CN=Kushal Girdhar), on the Desktop as `Lekha-v1.2.0.apk`. **Nothing is
+published** — a release always waits for an explicit go.
 
 **It will not install over the current app** — the signing key changed. Export
 from Settings, uninstall, install, sign in; the cloud snapshot restores
