@@ -45,23 +45,24 @@ Full design: `~/.claude/plans/swift-bubbling-conway.md`.
 - [x] `test/add_debt_direction_test.dart`, `mobile_add_debt` golden.
 - [x] Pinned the `mobile_ledger` golden, which re-shot itself every day.
 
-### 2. Schema — **written** (`8b8b9a6`), needs running
+### 2. Schema — **done**, run on the live project
 
 - [x] `SETUP_SHARE.md`: `shared_spaces`, `shared_people`, `shared_participants`,
       `shared_entries`, owner-scoped RLS, `revoke select (pin_hash, pin_salt)`.
       The owner's net sits on the participant row, not the space, so a group
       needs no new column.
-- [ ] **Yours:** run it in the Supabase SQL editor. Re-runnable by design — run
-      it twice to prove the `drop policy if exists` discipline holds.
+- [x] Run in the Supabase SQL editor. Confirmed live: an unauthenticated call
+      reaches the tables and is correctly refused.
 
-### 3. Edge function — **written** (`8b8b9a6`), needs deploying
+### 3. Edge function — **done**, deployed with Verify JWT off
 
 - [x] `supabase/functions/share/index.ts`, one function, actions `open` /
       `claim` / `login` / `add` / `forgot`. PBKDF2 + a server-side pepper,
       lockout after 5 wrong PINs that doubles, a stateless 7-day session revoked
       by bumping `pin_version`. Type-checks clean under `--strict`.
-- [ ] **Yours:** paste it into the dashboard with **Verify JWT off**, and set
-      `GUEST_PIN_PEPPER` and `GUEST_SESSION_SECRET` as function secrets.
+- [x] Deployed, both secrets set. Verified end to end against production:
+      claim, add, settle, and the lockout — four warnings, then locked for 15
+      minutes, and the **correct** PIN does not buy a way past the wait.
 
 ### 4. The guest page — **done** (`e01b98b`), ships on the next push
 
@@ -98,6 +99,26 @@ Full design: `~/.claude/plans/swift-bubbling-conway.md`.
       with two people it can only ever return the number already on screen, and
       a Simplify button that never changes anything is worse than no button.
 
+### 8. Fixes found by actually using it
+
+- [x] **Reload looked like a dead link** (`604801d`). The token is wiped from
+      the address bar for privacy, but nothing kept a copy, so a reload found an
+      empty fragment and failed closed. Remembered now, and cleared on a 404 so
+      a revoked link cannot leave the page permanently broken.
+- [x] **The guest saw a balance with nothing behind it** (`f4e0424`). Only the
+      net was being pushed. The app now projects its open items too, skipping
+      anything the guest already submitted so shared bills do not appear twice,
+      and removing rows for debts deleted locally.
+- [x] **The reset card never appeared** (`f4e0424`) — a server-side
+      `not.is.null` filter that did not match. Filtered in Dart now.
+- [x] **The date field defaulted to yesterday** (`99c654a`). `toISOString()` is
+      UTC, so east of Greenwich it returns the previous day all morning. Built
+      from the local calendar now, shown as dd/mm/yyyy, and tapping it opens the
+      native picker instead of asking you to type.
+- [x] **The link only fired the share sheet** (`ccd3980`). Now a dialog with the
+      URL visible, a Copy button, and Share. Copy must be its own tap: a
+      clipboard write on web only works inside a live user gesture.
+
 ### 7. Groups — not started, and the only thing left
 
 UI only. The schema already carries N participants per space, identity is
@@ -109,13 +130,24 @@ and per-participant nets pushed for each member.
 
 ## What needs you, and when
 
-| Step | You do | Why it can't be automated |
-|---|---|---|
-| 2 | Run the SQL | Dashboard access |
-| 3 | Paste the function, set two secrets | Not deployed from git; secrets are yours |
-| 5 | Open a share link on your phone once | Desktop web has no share sheet |
-| — | Push to `main` | The guest page only exists once Pages redeploys |
-| — | A real trial with a friend | Whether a stranger understands the page |
+Everything on the web side is **done and live**. What is left:
 
-Everything else is verifiable here: a private browser window is a genuinely
-fresh guest.
+| What | Why it needs you |
+|---|---|
+| Cut the Android release | The APK is built locally and published under your account, and a release always waits for your explicit go |
+| A real trial with a friend | Whether someone who has never heard of Lekha opens the link and understands it |
+| Finish the PIN-reset test | One tap on "Allow reset" on Test's ledger — the last untested path |
+
+## Android
+
+**Nothing here has shipped to Android.** The APK is still `1.1.7+11`; every
+commit since is web-only. The next release needs a version bump, a local
+`flutter build apk --release`, and your go before it is published.
+
+**It will not install over the current app** — the signing key changed. Export
+from Settings, uninstall, install, sign in; the cloud snapshot restores
+everything.
+
+No new dependencies were added anywhere in this work, which matters on this
+machine: Gradle cannot fetch new artifacts through the TLS-inspecting proxy, so
+a build that needs nothing new is a build that works.
