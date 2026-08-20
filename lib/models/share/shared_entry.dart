@@ -78,15 +78,24 @@ class SharedEntry {
 /// into [computeSplit] and `createSplitDebts`, the same pair the add-expense
 /// form uses, so an accepted entry is indistinguishable from one typed by hand.
 SplitConfig splitConfigFor(SharedEntry entry, {required String ownerName}) {
-  final theirShare = entry.shares[entry.personName] ?? 0;
+  // Everyone on the bill but the owner. Driven by the shares rather than by
+  // who submitted it, so a group entry splitting four ways lands as a four-way
+  // split rather than collapsing onto the author.
+  final others = entry.shares.keys.where((n) => n != ownerName).toList();
+  if (others.isEmpty) others.add(entry.personName);
+  // Somebody can pay without eating any of it, and createSplitDebts needs them
+  // among the participants to record who was owed.
+  if (entry.payerName != ownerName && !others.contains(entry.payerName)) {
+    others.add(entry.payerName);
+  }
   return SplitConfig(
-    people: [entry.personName],
+    people: others,
     // paidBy null means "me" — the owner.
-    paidBy: entry.payerName == ownerName ? null : entry.personName,
-    // Always exact: the guest sent amounts, and re-deriving an equal split
-    // here could disagree with what they were shown by a paisa.
+    paidBy: entry.payerName == ownerName ? null : entry.payerName,
+    // Always exact: the amounts were already shown to whoever entered them, and
+    // re-deriving an equal split here could disagree with them by a paisa.
     mode: SplitMode.exact,
-    exact: {entry.personName: theirShare},
+    exact: {for (final name in others) name: entry.shares[name] ?? 0},
   );
 }
 

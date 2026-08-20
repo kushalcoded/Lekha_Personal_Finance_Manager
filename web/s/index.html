@@ -136,6 +136,18 @@ button.datebtn::after { content: '▾'; color: var(--muted); font-size: 12px; }
 .entry.dismissed strong { text-decoration: line-through; }
 .tag { font-size: 11px; color: var(--warning); }
 
+.who { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0;
+  border-bottom: 1px solid var(--hairline); font-variant-numeric: tabular-nums; }
+.who:last-child { border-bottom: 0; }
+.who .amt { font-weight: 600; white-space: nowrap; }
+.who .up { color: var(--positive); }
+.who .down { color: var(--negative); }
+.who .flat { color: var(--muted); }
+.pay { display: flex; align-items: baseline; gap: 8px; padding: 10px 0;
+  border-bottom: 1px solid var(--hairline); }
+.pay:last-child { border-bottom: 0; }
+.pay .arrow { color: var(--muted); }
+.pay .amt { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
 .err { color: var(--negative); font-size: 13px; margin-top: 8px; min-height: 18px; }
 .center { text-align: center; }
 [hidden] { display: none !important; }
@@ -205,6 +217,17 @@ hr { border: 0; border-top: 1px solid var(--hairline); margin: 20px 0; }
     <button class="ghost" id="goSettle">Settle up</button>
   </div>
   <hr>
+  <div id="owesWrap" hidden>
+    <span class="label">Who pays whom</span>
+    <div id="owesList"></div>
+    <p class="muted" id="owesNote"></p>
+    <hr>
+  </div>
+  <div id="membersWrap" hidden>
+    <span class="label">Everyone</span>
+    <div id="membersList"></div>
+    <hr>
+  </div>
   <div id="pendingWrap" hidden>
     <span class="label" id="pendingLabel">Waiting</span>
     <div id="pendingList"></div>
@@ -237,6 +260,10 @@ hr { border: 0; border-top: 1px solid var(--hairline); margin: 20px 0; }
   <div class="field">
     <span class="label">Who paid</span>
     <div class="seg" id="addPayer"></div>
+  </div>
+  <div class="field" id="withWrap" hidden>
+    <span class="label">Split between</span>
+    <div class="seg" id="addWith"></div>
   </div>
   <div class="field">
     <span class="label">Split</span>
@@ -296,7 +323,7 @@ function recallToken() { try { return localStorage.getItem('lekha.t') || ''; } c
 
 var TOKEN = location.hash.slice(1) || recallToken();
 var state = { fn: null, session: null, name: '', ownerName: '', ledger: null,
-              payer: null, mode: 'equal' };
+              payer: null, mode: 'equal', members: null, with: [] };
 
 var $ = function (id) { return document.getElementById(id); };
 // Same rule as AppFormatters.formatCurrency in the app: two decimals only when
@@ -399,6 +426,14 @@ function loadSession() {
 
 function renderLedger(ledger) {
   state.ledger = ledger;
+  state.members = ledger.members || null;
+  if (state.members) {
+    Array.prototype.forEach.call(document.querySelectorAll('.ownerName'),
+      function (el) { el.textContent = ledger.ownerName; });
+    return renderGroup(ledger);
+  }
+  $('owesWrap').hidden = true;
+  $('membersWrap').hidden = true;
   var net = Number(ledger.ownerNet) || 0;
   var hero = $('hero');
   hero.className = 'card hero ' + (net > 0 ? 'owe' : net < 0 ? 'owed' : 'level');
@@ -425,6 +460,47 @@ function renderLedger(ledger) {
   show('ledger');
 }
 
+/** A group nets out among everyone, so the page shows three things a pairwise
+ *  ledger has no use for: where you stand, the fewest payments that would
+ *  clear the whole thing, and where everybody else stands. */
+function renderGroup(ledger) {
+  var mine = Number(ledger.balances[ledger.you]) || 0;
+  var hero = $('hero');
+  hero.className = 'card hero ' + (mine < 0 ? 'owe' : mine > 0 ? 'owed' : 'level');
+  $('heroLabel').textContent = ledger.title || 'Group';
+  $('heroAmount').textContent = money.format(Math.abs(mine));
+  $('heroSub').textContent = mine < 0 ? 'You owe the group'
+    : mine > 0 ? 'The group owes you' : "You're square";
+
+  var transfers = ledger.transfers || [];
+  $('owesWrap').hidden = transfers.length === 0;
+  $('owesList').innerHTML = transfers.map(function (t) {
+    return '<div class="pay"><span>' + esc(t.from) + '</span>'
+      + '<span class="arrow">pays</span><span>' + esc(t.to) + '</span>'
+      + '<span class="amt">' + money.format(t.amount) + '</span></div>';
+  }).join('');
+  $('owesNote').textContent = transfers.length
+    ? 'The fewest payments that settle everyone.' : '';
+
+  $('membersWrap').hidden = false;
+  $('membersList').innerHTML = (ledger.members || []).map(function (name) {
+    var v = Number(ledger.balances[name]) || 0;
+    var cls = v > 0.009 ? 'up' : v < -0.009 ? 'down' : 'flat';
+    var text = v > 0.009 ? 'is owed ' + money.format(v)
+      : v < -0.009 ? 'owes ' + money.format(-v) : 'square';
+    return '<div class="who"><span>' + esc(name)
+      + (name === ledger.you ? ' (you)' : '')
+      + '</span><span class="amt ' + cls + '">' + esc(text) + '</span></div>';
+  }).join('');
+
+  $('pendingWrap').hidden = true;
+  $('entries').innerHTML = (ledger.entries || [])
+    .filter(function (e) { return e.status !== 'dismissed'; })
+    .map(entryHtml).join('');
+  $('emptyLedger').hidden = (ledger.entries || []).length > 0;
+  show('ledger');
+}
+
 function entryHtml(e) {
   var when = new Date(e.on + 'T00:00:00').toLocaleDateString('en-IN',
     { day: 'numeric', month: 'short' });
@@ -436,6 +512,10 @@ function entryHtml(e) {
     ? when
     : when + ' · ' + who + ' ' + money.format(e.total)
       + (e.yourShare ? ' · your share ' + money.format(e.yourShare) : '');
+  if (state.members && e.kind !== 'settlement' && e.shares) {
+    var names = Object.keys(e.shares);
+    if (names.length) meta += ' · ' + names.length + ' way';
+  }
   var tag = e.status === 'pending'
     ? '<div class="tag">Waiting to be accepted</div>'
     : e.status === 'dismissed'
@@ -556,18 +636,51 @@ $('goAdd').onclick = function () {
   state.payer = state.name; state.mode = 'equal';
   $('exactYouLabel').textContent = 'Your share';
   $('exactThemLabel').textContent = state.ownerName + "'s share";
-  $('addPayer').innerHTML =
-    '<button type="button" data-who="you" aria-pressed="true">You paid</button>'
-    + '<button type="button" data-who="them" aria-pressed="false">'
-    + esc(state.ownerName) + ' paid</button>';
+
+  var everyone = state.members || [state.name, state.ownerName];
+  state.with = everyone.slice();
+
+  $('addPayer').innerHTML = everyone.map(function (n) {
+    return '<button type="button" data-who="' + esc(n) + '" aria-pressed="'
+      + (n === state.name) + '">' + esc(n === state.name ? 'You' : n)
+      + ' paid</button>';
+  }).join('');
   Array.prototype.forEach.call($('addPayer').children, function (b) {
     b.onclick = function () {
-      state.payer = b.dataset.who === 'you' ? state.name : state.ownerName;
+      state.payer = b.dataset.who;
       Array.prototype.forEach.call($('addPayer').children, function (o) {
         o.setAttribute('aria-pressed', String(o === b));
       });
     };
   });
+
+  // Only a group needs this: pairwise, "split between" can only ever be both
+  // of you, and a control with no other answer is just another thing to read.
+  $('withWrap').hidden = !state.members;
+  if (state.members) {
+    $('addWith').innerHTML = everyone.map(function (n) {
+      return '<button type="button" data-who="' + esc(n)
+        + '" aria-pressed="true">' + esc(n === state.name ? 'You' : n)
+        + '</button>';
+    }).join('');
+    Array.prototype.forEach.call($('addWith').children, function (b) {
+      b.onclick = function () {
+        var on = b.getAttribute('aria-pressed') !== 'true';
+        // Somebody has to be in it.
+        if (!on && state.with.length === 1) return;
+        b.setAttribute('aria-pressed', String(on));
+        state.with = on
+          ? state.with.concat([b.dataset.who])
+          : state.with.filter(function (n) { return n !== b.dataset.who; });
+      };
+    });
+    // Exact amounts in a group would need a field per person; equal shares
+    // among whoever you tick covers the case people actually hit.
+    $('addMode').hidden = true;
+    $('exactWrap').hidden = true;
+  } else {
+    $('addMode').hidden = false;
+  }
   show('add'); $('addTotal').focus();
 };
 $('addBack').onclick = function () { show('ledger'); };
@@ -588,7 +701,20 @@ $('addGo').onclick = function () {
   if (!(total > 0)) { $('addErr').textContent = 'How much was it?'; return; }
 
   var shares = {};
-  if (state.mode === 'equal') {
+  if (state.members) {
+    // Equal among whoever was ticked, with the rounding remainder left on the
+    // person entering it rather than silently losing a paisa.
+    var picked = state.with.slice();
+    var each = Math.round((total / picked.length) * 100) / 100;
+    var running = 0;
+    picked.forEach(function (n, i) {
+      var amount = i === picked.length - 1
+        ? Math.round((total - running) * 100) / 100
+        : each;
+      running += amount;
+      if (amount > 0) shares[n] = amount;
+    });
+  } else if (state.mode === 'equal') {
     // Halves, with the odd paisa falling on the Lekha user, which is the
     // rounding their app already uses. It is only a preview either way: the
     // app re-derives every split with computeSplit when it accepts the entry,
@@ -623,6 +749,23 @@ $('addGo').onclick = function () {
 };
 
 $('goSettle').onclick = function () {
+  if (state.members) {
+    // Whatever the reduction says you should pay, and to whom.
+    var owing = (state.ledger.transfers || []).filter(function (t) {
+      return t.from === state.name;
+    })[0];
+    state.settleTo = owing ? owing.to : null;
+    $('settleAmount').value = owing ? owing.amount : '';
+    $('settleOn').value = today();
+    paintSettleDate();
+    $('settleNote').value = '';
+    $('settleErr').textContent = '';
+    $('settleWho').textContent = owing
+      ? 'Recording what you paid ' + owing.to + '.'
+      : 'Nothing to settle right now — record anything you like.';
+    show('settle'); $('settleAmount').focus();
+    return;
+  }
   var net = Number(state.ledger.ownerNet) || 0;
   $('settleAmount').value = Math.abs(net) || '';
   $('settleOn').value = today();
@@ -643,11 +786,19 @@ $('settleGo').onclick = function () {
   $('settleErr').textContent = '';
   if (!(amount > 0)) { $('settleErr').textContent = 'How much?'; return; }
   // Whoever owes is the one paying, and the whole payment counts towards the
-  // other person — that one shape covers both directions.
-  var net = Number(state.ledger.ownerNet) || 0;
-  var payer = net < 0 ? state.ownerName : state.name;
+  // other person — that one shape covers both directions, and a group as well.
+  var payer, other;
+  if (state.members) {
+    payer = state.name;
+    other = state.settleTo;
+    if (!other) { $('settleErr').textContent = 'Nobody to pay right now.'; return; }
+  } else {
+    var net = Number(state.ledger.ownerNet) || 0;
+    payer = net < 0 ? state.ownerName : state.name;
+    other = payer === state.name ? state.ownerName : state.name;
+  }
   var shares = {};
-  shares[payer === state.name ? state.ownerName : state.name] = amount;
+  shares[other] = amount;
 
   var btn = this;
   busy(btn, true, 'Record it');

@@ -13,6 +13,7 @@ import '../../widgets/common/glass.dart';
 import 'person_ledger_screen.dart';
 import 'providers/people_balance_providers.dart';
 import 'widgets/add_debt_sheet.dart';
+import 'widgets/group_sheet.dart';
 
 /// Debts — one netted balance per person. Tap someone to see the full ledger
 /// of what you owe each other (inline pane on desktop, pushed on mobile).
@@ -42,6 +43,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     final calm = CalmColors.of(context);
     final userId = ref.watch(currentUserIdProvider) ?? '';
     final people = ref.watch(peopleBalancesProvider);
+    final groups = ref.watch(sharedInboxProvider).groups;
     final owed = ref.watch(totalReceivablesProvider(userId));
     final owe = ref.watch(totalPayablesProvider(userId));
     final isWide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
@@ -106,6 +108,45 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
             ),
           ),
         ],
+        if (groups.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          const FieldLabel('Groups'),
+          const SizedBox(height: 10),
+          ...groups.map(
+            (g) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _GroupRow(
+                group: g,
+                waiting: ref.watch(sharedInboxProvider).forSpace(g.id).length,
+                onTap: () => showGroupSheet(context, g),
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 10),
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => showNewGroupSheet(context),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+            ),
+            child: Center(
+              child: Text(
+                '+ New group',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: cs.primary,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
         // Outside the empty check on purpose: this is the only add-a-debt
         // entry point, and it used to live inside the `else`, so settling your
         // last debt left no way to record another one. A FAB isn't the answer
@@ -326,6 +367,73 @@ class _PersonRow extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A group in the people list. Its balances live on the shared page, so this
+/// only says how many people are in it and whether anything is waiting.
+class _GroupRow extends StatelessWidget {
+  final SharedGroup group;
+  final int waiting;
+  final VoidCallback onTap;
+
+  const _GroupRow({
+    required this.group,
+    required this.waiting,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return GlassCard(
+      radius: 12,
+      padding: const EdgeInsets.all(14),
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(Icons.group_rounded, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  group.title,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '${group.members.length} '
+                  '${group.members.length == 1 ? 'person' : 'people'}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (waiting > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: cs.primary.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '$waiting waiting',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: cs.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       ),
     );

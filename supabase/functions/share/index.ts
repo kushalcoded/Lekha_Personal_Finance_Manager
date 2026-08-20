@@ -195,9 +195,69 @@ async function personById(id: string) {
   return data;
 }
 
-/** What the page renders. No arithmetic on the balance happens here — see
- * owner_net's comment in SETUP_SHARE.md. Pending rows are returned with their
- * status so the page can keep them out of the headline and say so. */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Everyone on a space except the owner, by display name. */
+async function membersOf(spaceId: string): Promise<string[]> {
+  const { data: parts } = await supabase
+    .from("shared_participants")
+    .select("person_id")
+    .eq("space_id", spaceId)
+    .is("revoked_at", null);
+  const ids = (parts ?? []).map((p: Record<string, unknown>) => p.person_id);
+  if (!ids.length) return [];
+  const { data: people } = await supabase
+    .from("shared_people")
+    .select("name")
+    .in("id", ids);
+  return (people ?? [])
+    .map((p: Record<string, unknown>) => String(p.name ?? ""))
+    .filter((n: string) => n.length > 0);
+}
+
+/** The fewest payments that clear [balances], where a positive value means
+ * that person is owed. Greedy: settle the largest creditor against the largest
+ * debtor, repeatedly. Deliberately the same rule as simplifyDebts in the app,
+ * so the two never disagree about who should pay whom. */
+function simplify(
+  balances: Record<string, number>,
+  epsilon = 0.01,
+): { from: string; to: string; amount: number }[] {
+  const creditors: [string, number][] = [];
+  const debtors: [string, number][] = [];
+  for (const [who, value] of Object.entries(balances)) {
+    if (value > epsilon) creditors.push([who, value]);
+    else if (value < -epsilon) debtors.push([who, -value]);
+  }
+  const out: { from: string; to: string; amount: number }[] = [];
+  while (creditors.length && debtors.length) {
+    creditors.sort((a, b) => b[1] - a[1]);
+    debtors.sort((a, b) => b[1] - a[1]);
+    const amount = round2(Math.min(creditors[0][1], debtors[0][1]));
+    if (amount <= epsilon) break;
+    out.push({ from: debtors[0][0], to: creditors[0][0], amount });
+    creditors[0][1] = round2(creditors[0][1] - amount);
+    debtors[0][1] = round2(debtors[0][1] - amount);
+    if (creditors[0][1] <= epsilon) creditors.shift();
+    if (debtors[0][1] <= epsilon) debtors.shift();
+  }
+  return out;
+}
+
+/** What the page renders.
+ *
+ * Pairwise: no arithmetic happens here at all. The owner's app computes the
+ * balance and this only echoes it — see owner_net's comment in SETUP_SHARE.md.
+ * Pending rows come back with their status so the page can keep them out of
+ * the headline and say why.
+ *
+ * A group is different, and can be summed here, because a group starts empty:
+ * there is no history sitting in someone's Hive that this would contradict.
+ * Group entries also count the moment they are added — waiting on the owner to
+ * approve a cab two other people shared would be absurd. `status` there means
+ * "the owner has filed this in their own books", not "this is real". */
 async function ledgerFor(part: Participant, youName: string) {
   const [space, entries] = await Promise.all([
     supabase
@@ -223,18 +283,47 @@ async function ledgerFor(part: Participant, youName: string) {
       total: Number(e.total),
       payerName: e.payer_name,
       yourShare: Number(shares[youName] ?? 0),
+      shares,
       note: e.note,
       on: e.occurred_on,
       status: e.status,
     };
   });
 
+  const title = space.data?.title ?? null;
+  if (!title) {
+    return {
+      title: null,
+      ownerName,
+      // Positive = the owner is owed, i.e. the guest owes.
+      ownerNet: Number(part.owner_net),
+      you: youName,
+      entries: rows,
+    };
+  }
+
+  const members = [ownerName, ...(await membersOf(part.space_id))];
+  const balances: Record<string, number> = {};
+  for (const name of members) balances[name] = 0;
+  for (const e of entries.data ?? []) {
+    if (e.status === "dismissed") continue;
+    const payer = String(e.payer_name);
+    balances[payer] = (balances[payer] ?? 0) + Number(e.total);
+    for (const [who, amount] of Object.entries(e.shares ?? {})) {
+      balances[who] = (balances[who] ?? 0) - Number(amount);
+    }
+  }
+  for (const name of Object.keys(balances)) {
+    balances[name] = round2(balances[name]);
+  }
+
   return {
-    title: space.data?.title ?? null,
+    title,
     ownerName,
-    // Positive = the owner is owed, i.e. the guest owes.
-    ownerNet: Number(part.owner_net),
     you: youName,
+    members,
+    balances,
+    transfers: simplify(balances),
     entries: rows,
   };
 }
@@ -385,7 +474,7 @@ async function add(payload: Record<string, unknown>): Promise<Response> {
 
   const space = await supabase
     .from("shared_spaces")
-    .select("owner_name")
+    .select("owner_name, title")
     .eq("id", part.space_id)
     .maybeSingle();
   const ownerName = space.data?.owner_name ?? "";
@@ -397,24 +486,34 @@ async function add(payload: Record<string, unknown>): Promise<Response> {
   // The payer has to be somebody in this space, and the guest can only ever
   // name themselves or the owner — otherwise a share link becomes a way to
   // write entries about people who never agreed to be in it.
+  // Who may appear on an entry at all. In a group that is everybody on it, so
+  // two guests can split something between themselves; pairwise it is just the
+  // two of you. Either way it is derived from the space, never from what the
+  // client claims, so a share link cannot be used to write entries about people
+  // who never agreed to be in it.
+  const isGroup = Boolean(space.data?.title);
+  const allowed = new Set(
+    isGroup
+      ? [ownerName, ...(await membersOf(part.space_id))]
+      : [ownerName, person.name],
+  );
+
   const payer = String(payload?.payer ?? person.name);
-  if (payer !== person.name && payer !== ownerName) {
-    return json({ error: "payer" }, 400);
-  }
+  if (!allowed.has(payer)) return json({ error: "payer" }, 400);
 
   const rawShares = (payload?.shares ?? {}) as Record<string, unknown>;
   const shares: Record<string, number> = {};
   for (const [who, amount] of Object.entries(rawShares)) {
-    if (who !== person.name && who !== ownerName) continue;
+    if (!allowed.has(who)) continue;
     const n = Number(amount);
     if (isFinite(n) && n > 0) shares[who] = n;
   }
   if (Object.keys(shares).length === 0) return json({ error: "shares" }, 400);
 
-  // The entry has to involve the owner — they either paid, or owe part of it.
-  // Anything else is a line about two other people, which a pairwise ledger
-  // cannot represent and the owner has no way to accept.
-  if (payer !== ownerName && !(ownerName in shares)) {
+  // Pairwise only: the entry has to involve the owner, because a two-person
+  // ledger cannot represent a line about anybody else and the owner would have
+  // no way to accept it. A group can, so this does not apply there.
+  if (!isGroup && payer !== ownerName && !(ownerName in shares)) {
     return json({ error: "does not involve the owner" }, 400);
   }
 

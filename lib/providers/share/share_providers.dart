@@ -33,13 +33,51 @@ class PinResetRequest {
   });
 }
 
+/// One person on a group, and the link that is theirs.
+class SharedGroupMember {
+  final String personId;
+  final String name;
+  final String token;
+
+  const SharedGroupMember({
+    required this.personId,
+    required this.name,
+    required this.token,
+  });
+
+  String get link => '$kSharePageBase$token';
+}
+
+/// A shared space with a name on it. The app keeps no group of its own — a
+/// group is a space with more than one participant, and the owner's own books
+/// stay the pairwise debts they always were.
+class SharedGroup {
+  final String id;
+  final String title;
+  final List<SharedGroupMember> members;
+
+  const SharedGroup({
+    required this.id,
+    required this.title,
+    required this.members,
+  });
+}
+
 class SharedInbox {
   final List<SharedEntry> pending;
   final List<PinResetRequest> resets;
+  final List<SharedGroup> groups;
 
-  const SharedInbox({this.pending = const [], this.resets = const []});
+  const SharedInbox({
+    this.pending = const [],
+    this.resets = const [],
+    this.groups = const [],
+  });
 
   int get count => pending.length + resets.length;
+
+  List<SharedEntry> forSpace(String spaceId) =>
+      pending.where((e) => e.spaceId == spaceId).toList();
 
   List<SharedEntry> forPerson(String person) => pending
       .where((e) => e.personName.toLowerCase() == person.toLowerCase())
@@ -105,7 +143,7 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
       final participantRows =
           await client
                   .from('shared_participants')
-                  .select('person_id, space_id')
+                  .select('person_id, space_id, token')
                   .eq('owner_id', userId)
                   .isFilter('revoked_at', null)
               as List<dynamic>;
@@ -125,24 +163,55 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
         );
       }
 
-      state = SharedInbox(pending: pending, resets: resets);
+      // A space with a title is a group; one without is a pairwise share.
+      final spaceRows =
+          await client
+                  .from('shared_spaces')
+                  .select('id, title')
+                  .eq('owner_id', userId)
+                  .isFilter('archived_at', null)
+              as List<dynamic>;
 
-      // Push the owner's own ledger out while we are here. Without it the guest
-      // sees a balance with nothing behind it, which is the opposite of the
-      // point of sharing it at all.
       final nameById = {
         for (final r in peopleRows.cast<Map<String, dynamic>>())
           r['id'].toString(): r['name'] as String? ?? '',
       };
+
+      final groups = <SharedGroup>[];
+      for (final sp in spaceRows.cast<Map<String, dynamic>>()) {
+        final title = (sp['title'] as String?)?.trim() ?? '';
+        if (title.isEmpty) continue;
+        final id = sp['id'].toString();
+        final members = <SharedGroupMember>[];
+        for (final part in participantRows.cast<Map<String, dynamic>>()) {
+          if (part['space_id'].toString() != id) continue;
+          final personId = part['person_id'].toString();
+          members.add(
+            SharedGroupMember(
+              personId: personId,
+              name: nameById[personId] ?? '',
+              token: part['token'].toString(),
+            ),
+          );
+        }
+        groups.add(SharedGroup(id: id, title: title, members: members));
+      }
+
+      state = SharedInbox(pending: pending, resets: resets, groups: groups);
+
+      // Push the owner's own ledger out while we are here. Without it the guest
+      // sees a balance with nothing behind it, which is the opposite of the
+      // point of sharing it at all.
       for (final part in participantRows.cast<Map<String, dynamic>>()) {
         final personId = part['person_id'].toString();
         final name = nameById[personId];
         if (name == null || name.isEmpty) continue;
-        await _syncSpace(
-          name,
-          personId: personId,
-          spaceId: part['space_id'].toString(),
-        );
+        final spaceId = part['space_id'].toString();
+        // Groups are summed from their own entries by the function — there is
+        // no pairwise history to project into them, and pushing one person's
+        // unrelated debts into a group would be wrong as well as confusing.
+        if (groups.any((g) => g.id == spaceId)) continue;
+        await _syncSpace(name, personId: personId, spaceId: spaceId);
       }
     } catch (e) {
       // Same posture as every other network path here: fail quiet, try again
@@ -235,6 +304,62 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
     } catch (e) {
       debugPrint('share link failed: $e');
       return null;
+    }
+  }
+
+  /// Create a named space with a link for each person.
+  ///
+  /// Reuses each person's existing identity, so somebody already in a one-to-one
+  /// share keeps the PIN they already set rather than being asked for a new one
+  /// per group.
+  Future<bool> createGroup(
+    String title,
+    List<String> names, {
+    required String ownerName,
+  }) async {
+    final userId = _userId;
+    if (userId == null || names.isEmpty) return false;
+    final client = SupabaseService.client;
+    try {
+      final space =
+          await client
+              .from('shared_spaces')
+              .insert({
+                'owner_id': userId,
+                'owner_name': ownerName,
+                'title': title.trim(),
+              })
+              .select('id')
+              .single();
+      final spaceId = space['id'];
+
+      for (final raw in names) {
+        final name = raw.trim();
+        if (name.isEmpty) continue;
+        final person = await client
+            .from('shared_people')
+            .upsert({
+              'owner_id': userId,
+              'name': name,
+              'name_key': name.toLowerCase(),
+            }, onConflict: 'owner_id,name_key')
+            .select('id')
+            .single();
+        await client.from('shared_participants').insert({
+          'token': _newToken(),
+          'owner_id': userId,
+          'space_id': spaceId,
+          'person_id': person['id'],
+          // Groups carry no opening balance: they start empty and the maths is
+          // derived from what gets added.
+          'owner_net': 0,
+        });
+      }
+      await refresh();
+      return true;
+    } catch (e) {
+      debugPrint('create group failed: $e');
+      return false;
     }
   }
 
@@ -382,6 +507,7 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
     state = SharedInbox(
       pending: state.pending.where((e) => e.id != entry.id).toList(),
       resets: state.resets,
+      groups: state.groups,
     );
     await _syncSpace(entry.personName);
   }
@@ -412,6 +538,7 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
       resets: state.resets
           .where((r) => r.personId != request.personId)
           .toList(),
+      groups: state.groups,
     );
   }
 
@@ -445,6 +572,7 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
       resets: state.resets
           .where((r) => r.personId != request.personId)
           .toList(),
+      groups: state.groups,
     );
   }
 }

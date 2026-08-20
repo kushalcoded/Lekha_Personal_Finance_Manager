@@ -169,6 +169,60 @@ void main() {
     });
   });
 
+  // A group entry splits among everyone on it, and must not collapse onto
+  // whoever happened to submit it.
+  group('groups', () {
+    test('a four-way split lands as a four-way split', () {
+      final e = SharedEntry(
+        id: 'g1',
+        spaceId: 's1',
+        personName: 'Rahul',
+        kind: 'expense',
+        total: 1200,
+        payerName: 'Meera',
+        shares: const {
+          'Rahul': 300,
+          'Meera': 300,
+          'Kushal': 300,
+          'Aman': 300,
+        },
+        note: 'Cab',
+        occurredOn: DateTime(2026, 8, 18),
+      );
+      final config = splitConfigFor(e, ownerName: owner);
+      expect(config.people, containsAll(['Rahul', 'Meera', 'Aman']));
+      expect(config.people, isNot(contains(owner)));
+      expect(config.paidByMe, isFalse, reason: 'Meera paid, not Kushal');
+      expect(config.paidBy, 'Meera');
+      final split = computeSplit(
+        total: e.total,
+        people: config.people,
+        mode: config.mode,
+        exactAmounts: config.exact,
+      );
+      expect(split.myShare, 300);
+      expect(split.othersTotal, 900);
+    });
+
+    test('somebody who paid but ate none of it is still a participant', () {
+      final e = SharedEntry(
+        id: 'g2',
+        spaceId: 's1',
+        personName: 'Rahul',
+        kind: 'expense',
+        total: 600,
+        payerName: 'Meera',
+        shares: const {'Rahul': 300, 'Kushal': 300},
+        note: 'Tickets',
+        occurredOn: DateTime(2026, 8, 18),
+      );
+      final config = splitConfigFor(e, ownerName: owner);
+      expect(config.people, contains('Meera'));
+      expect(config.exact['Meera'], 0);
+      expect(config.paidBy, 'Meera');
+    });
+  });
+
   group('fromRow', () {
     test('survives the types Postgres actually returns', () {
       final e = SharedEntry.fromRow({
