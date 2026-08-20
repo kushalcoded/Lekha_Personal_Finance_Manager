@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- A share link is for one person. It should never turn up in a search. -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0A0A0D">
+<title>Shared ledger · Lekha</title>
+<link rel="icon" href="/favicon.png">
+<style>
+/* Tokens copied from lib/theme/app_theme.dart:43-54 — change them there first.
+   No gradients, no blur, no glow: the app's design system bans all three and
+   this page is not an exception just because it is hand-written. */
+:root {
+  --ground: #0A0A0D;
+  --surface: #131318;
+  --surface2: #1A1A21;
+  --accent: #9083F0;
+  --on-accent: #0A0A0D;
+  --text: #EDEDEF;
+  --muted: #8A8F98;
+  --hairline: rgba(255, 255, 255, 0.07);
+  --hairline-strong: rgba(255, 255, 255, 0.14);
+  --positive: #46C98B;
+  --negative: #F2555A;
+  --warning: #F0A13B;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--ground); }
+body {
+  /* Deliberately not the app's Inter: that file is 876 KB, which on its own
+     would cost more than the rest of this page put together. */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding: 20px 16px calc(24px + env(safe-area-inset-bottom));
+  max-width: 560px;
+  margin: 0 auto;
+}
+h1, h2 { font-weight: 600; letter-spacing: -0.3px; margin: 0; }
+h1 { font-size: 20px; }
+h2 { font-size: 17px; }
+p { margin: 6px 0 0; }
+.muted { color: var(--muted); font-size: 13px; }
+.label {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase;
+  color: var(--muted); display: block; margin-bottom: 6px;
+}
+.money { font-variant-numeric: tabular-nums; }
+.card {
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 12px; padding: 16px; margin-bottom: 10px;
+}
+.hero { border-radius: 16px; padding: 20px; margin-bottom: 14px; }
+.hero .amount {
+  font-size: 30px; font-weight: 700; letter-spacing: -0.5px; margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.owe   { background: rgba(242,85,90,0.08);  border-color: rgba(242,85,90,0.30); }
+.owe .amount { color: var(--negative); }
+.owed  { background: rgba(70,201,139,0.08); border-color: rgba(70,201,139,0.30); }
+.owed .amount { color: var(--positive); }
+.level { background: var(--surface); }
+.level .amount { color: var(--text); }
+
+button, .btn {
+  font: inherit; font-weight: 600; border-radius: 10px; border: 1px solid transparent;
+  min-height: 46px; padding: 0 16px; width: 100%; cursor: pointer;
+  background: var(--surface2); color: var(--text); margin-top: 8px;
+}
+button.primary { background: var(--accent); color: var(--on-accent); }
+button.ghost { background: transparent; border-color: var(--hairline-strong); color: var(--accent); }
+button.link { background: none; border: 0; color: var(--accent); min-height: 34px;
+  font-weight: 500; font-size: 13px; text-decoration: underline; padding: 0; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+
+input, select {
+  font: inherit; width: 100%; min-height: 46px; padding: 10px 12px;
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--hairline); border-radius: 8px;
+}
+input:focus, select:focus, button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+input[type=number] { font-variant-numeric: tabular-nums; }
+.field { margin-bottom: 14px; }
+.pins { display: flex; gap: 8px; }
+.pins input {
+  letter-spacing: 8px; text-align: center; font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.seg { display: flex; gap: 8px; flex-wrap: wrap; }
+.seg button {
+  width: auto; flex: 0 0 auto; min-height: 38px; border-radius: 999px;
+  border: 1px solid var(--hairline-strong); background: transparent;
+  color: var(--text); font-size: 13px; margin: 0;
+}
+.seg button[aria-pressed="true"] {
+  background: rgba(144,131,240,0.16); border-color: var(--accent); color: var(--accent);
+}
+
+.entry { display: flex; align-items: baseline; gap: 12px; }
+.entry .what { flex: 1; min-width: 0; }
+.entry .what strong { font-weight: 600; display: block; }
+.entry .amt { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.entry.pending { border-style: dashed; }
+.entry.dismissed { opacity: 0.5; }
+.entry.dismissed strong { text-decoration: line-through; }
+.tag { font-size: 11px; color: var(--warning); }
+
+.err { color: var(--negative); font-size: 13px; margin-top: 8px; min-height: 18px; }
+.center { text-align: center; }
+[hidden] { display: none !important; }
+#boot { text-align: center; padding-top: 30vh; color: var(--muted); font-size: 34px; }
+hr { border: 0; border-top: 1px solid var(--hairline); margin: 20px 0; }
+</style>
+</head>
+<body>
+
+<section id="boot">₹</section>
+
+<section id="error" hidden>
+  <h1>This link isn't active</h1>
+  <p class="muted" id="errorWhy">Ask for a new one — links can be replaced at any time.</p>
+</section>
+
+<section id="claim" hidden>
+  <h1 id="claimHi">Hi</h1>
+  <p class="muted" id="claimWho"></p>
+  <hr>
+  <div class="field">
+    <span class="label">Pick a 4-digit PIN</span>
+    <div class="pins">
+      <input id="claimPin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+             autocomplete="one-time-code" placeholder="••••">
+      <input id="claimPin2" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+             autocomplete="one-time-code" placeholder="again">
+    </div>
+  </div>
+  <p class="muted">
+    <strong>Write it down or pick one you'll remember.</strong> This page keeps
+    you signed in for a week, then asks for the PIN again. If you forget it,
+    <span id="claimOwner">they</span> can reset it for you — but only they can.
+  </p>
+  <div class="err" id="claimErr"></div>
+  <button class="primary" id="claimGo">Set my PIN</button>
+</section>
+
+<section id="login" hidden>
+  <h1 id="loginHi">Welcome back</h1>
+  <p class="muted" id="loginWho"></p>
+  <hr>
+  <div class="field">
+    <span class="label">Your PIN</span>
+    <input id="loginPin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+           autocomplete="one-time-code" placeholder="••••" style="letter-spacing:8px;text-align:center;font-size:20px">
+  </div>
+  <div class="err" id="loginErr"></div>
+  <button class="primary" id="loginGo">Open the ledger</button>
+  <button class="link" id="forgotGo">I forgot my PIN</button>
+</section>
+
+<section id="forgot" hidden>
+  <h1>Asked for a reset</h1>
+  <p class="muted" id="forgotWho"></p>
+  <button class="ghost" id="forgotBack">Try my PIN again</button>
+</section>
+
+<section id="ledger" hidden>
+  <div id="hero" class="card hero">
+    <span class="label" id="heroLabel">Settled up</span>
+    <div class="amount money" id="heroAmount">₹0</div>
+    <p class="muted" id="heroSub"></p>
+  </div>
+  <div class="row">
+    <button class="primary" id="goAdd">Add an expense</button>
+    <button class="ghost" id="goSettle">Settle up</button>
+  </div>
+  <hr>
+  <div id="pendingWrap" hidden>
+    <span class="label" id="pendingLabel">Waiting</span>
+    <div id="pendingList"></div>
+    <hr>
+  </div>
+  <span class="label">Ledger</span>
+  <div id="entries"></div>
+  <p class="muted center" id="emptyLedger" hidden>Nothing here yet.</p>
+</section>
+
+<section id="add" hidden>
+  <h2>Add an expense</h2>
+  <p class="muted">It goes to <span class="ownerName">them</span> to accept.</p>
+  <hr>
+  <div class="field">
+    <span class="label">Amount</span>
+    <input id="addTotal" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0">
+  </div>
+  <div class="field">
+    <span class="label">What for</span>
+    <input id="addNote" type="text" maxlength="60" placeholder="Dinner">
+  </div>
+  <div class="field">
+    <span class="label">When</span>
+    <input id="addOn" type="date">
+  </div>
+  <div class="field">
+    <span class="label">Who paid</span>
+    <div class="seg" id="addPayer"></div>
+  </div>
+  <div class="field">
+    <span class="label">Split</span>
+    <div class="seg" id="addMode">
+      <button type="button" data-mode="equal" aria-pressed="true">Equally</button>
+      <button type="button" data-mode="exact" aria-pressed="false">Exact amounts</button>
+    </div>
+  </div>
+  <div class="field" id="exactWrap" hidden>
+    <div class="row">
+      <div><span class="label" id="exactYouLabel">Your share</span>
+        <input id="exactYou" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0"></div>
+      <div><span class="label" id="exactThemLabel">Their share</span>
+        <input id="exactThem" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0"></div>
+    </div>
+  </div>
+  <div class="err" id="addErr"></div>
+  <button class="primary" id="addGo">Send it over</button>
+  <button class="ghost" id="addBack">Cancel</button>
+</section>
+
+<section id="settle" hidden>
+  <h2>Settle up</h2>
+  <p class="muted" id="settleWho"></p>
+  <hr>
+  <div class="field">
+    <span class="label">Amount</span>
+    <input id="settleAmount" type="number" inputmode="decimal" min="0" step="0.01">
+  </div>
+  <div class="field">
+    <span class="label">When</span>
+    <input id="settleOn" type="date">
+  </div>
+  <div class="field">
+    <span class="label">Note</span>
+    <input id="settleNote" type="text" maxlength="60" placeholder="UPI">
+  </div>
+  <div class="err" id="settleErr"></div>
+  <button class="primary" id="settleGo">Record it</button>
+  <button class="ghost" id="settleBack">Cancel</button>
+</section>
+
+<script>
+// One file, no framework, no build step. It has to open fast on a stranger's
+// phone over mobile data, and it is small enough that a framework would be the
+// single largest thing on the page.
+
+var TOKEN = location.hash.slice(1);
+var state = { fn: null, session: null, name: '', ownerName: '', ledger: null,
+              payer: null, mode: 'equal' };
+
+var $ = function (id) { return document.getElementById(id); };
+// Same rule as AppFormatters.formatCurrency in the app: two decimals only when
+// there actually is a fraction, never a lone trailing digit like ₹12,500.5.
+var inr0 = new Intl.NumberFormat('en-IN',
+  { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+var inr2 = new Intl.NumberFormat('en-IN',
+  { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+var money = {
+  format: function (n) {
+    var v = Number(n) || 0;
+    return (Math.abs(v % 1) > 0.0001 ? inr2 : inr0).format(v);
+  }
+};
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function show(id) {
+  ['boot', 'error', 'claim', 'login', 'forgot', 'ledger', 'add', 'settle']
+    .forEach(function (s) { $(s).hidden = s !== id; });
+  window.scrollTo(0, 0);
+}
+function today() { return new Date().toISOString().slice(0, 10); }
+
+// The project URL is public — it ships inside the app bundle — but it is kept
+// out of the repo, so read it from the same asset the Flutter app uses rather
+// than pasting a copy here that could drift.
+function functionUrl() {
+  if (state.fn) return Promise.resolve(state.fn);
+  var cached = localStorage.getItem('lekha.fn');
+  if (cached) { state.fn = cached; return Promise.resolve(cached); }
+  return fetch('/assets/.env').then(function (r) { return r.text(); }).then(function (text) {
+    var m = text.match(/^\s*SUPABASE_URL\s*=\s*(\S+)/m);
+    if (!m) throw new Error('no SUPABASE_URL');
+    state.fn = m[1].replace(/\/+$/, '') + '/functions/v1/share';
+    localStorage.setItem('lekha.fn', state.fn);
+    return state.fn;
+  });
+}
+
+function api(action, body) {
+  return functionUrl().then(function (url) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(Object.assign({ action: action, t: TOKEN }, body || {}))
+    });
+  }).then(function (res) {
+    return res.json().catch(function () { return {}; }).then(function (data) {
+      if (!res.ok) { var e = new Error(data.error || 'failed'); e.data = data; e.status = res.status; throw e; }
+      return data;
+    });
+  });
+}
+
+function saveSession(s) {
+  state.session = s;
+  try { localStorage.setItem('lekha.s.' + TOKEN, s); } catch (e) { /* private mode */ }
+}
+function loadSession() {
+  try { return localStorage.getItem('lekha.s.' + TOKEN); } catch (e) { return null; }
+}
+
+// ------------------------------------------------------------------ render
+
+function renderLedger(ledger) {
+  state.ledger = ledger;
+  var net = Number(ledger.ownerNet) || 0;
+  var hero = $('hero');
+  hero.className = 'card hero ' + (net > 0 ? 'owe' : net < 0 ? 'owed' : 'level');
+  $('heroLabel').textContent = net > 0 ? 'You owe ' + ledger.ownerName
+    : net < 0 ? ledger.ownerName + ' owes you' : 'Settled up';
+  $('heroAmount').textContent = money.format(Math.abs(net));
+
+  var pending = ledger.entries.filter(function (e) { return e.status === 'pending'; });
+  $('heroSub').textContent = pending.length
+    ? pending.length + (pending.length === 1 ? ' entry is' : ' entries are')
+      + ' still waiting, and not counted above.'
+    : '';
+
+  $('pendingWrap').hidden = pending.length === 0;
+  $('pendingLabel').textContent = 'Waiting for ' + ledger.ownerName;
+  $('pendingList').innerHTML = pending.map(entryHtml).join('');
+
+  var settled = ledger.entries.filter(function (e) { return e.status !== 'pending'; });
+  $('entries').innerHTML = settled.map(entryHtml).join('');
+  $('emptyLedger').hidden = settled.length > 0;
+
+  Array.prototype.forEach.call(document.querySelectorAll('.ownerName'),
+    function (el) { el.textContent = ledger.ownerName; });
+  show('ledger');
+}
+
+function entryHtml(e) {
+  var when = new Date(e.on + 'T00:00:00').toLocaleDateString('en-IN',
+    { day: 'numeric', month: 'short' });
+  var who = e.payerName === state.name ? 'you paid' : esc(e.payerName) + ' paid';
+  var what = e.kind === 'settlement'
+    ? (e.payerName === state.name ? 'You settled up' : esc(e.payerName) + ' settled up')
+    : esc(e.note || 'Shared expense');
+  var meta = e.kind === 'settlement'
+    ? when
+    : when + ' · ' + who + ' ' + money.format(e.total)
+      + (e.yourShare ? ' · your share ' + money.format(e.yourShare) : '');
+  var tag = e.status === 'pending'
+    ? '<div class="tag">Waiting to be accepted</div>'
+    : e.status === 'dismissed'
+      ? '<div class="tag">Not accepted</div>' : '';
+  return '<div class="card entry ' + esc(e.status) + '">'
+    + '<div class="what"><strong>' + what + '</strong>'
+    + '<div class="muted">' + meta + '</div>' + tag + '</div>'
+    + '<div class="amt money">' + money.format(e.kind === 'settlement' ? e.total : (e.yourShare || e.total)) + '</div>'
+    + '</div>';
+}
+
+// ------------------------------------------------------------------- flows
+
+function start() {
+  if (!TOKEN) { return fail('That link is missing its code. Open the full link you were sent.'); }
+  // Out of the address bar once we have it: a screenshot of this page, or
+  // someone glancing over a shoulder, should not hand over the link.
+  history.replaceState(null, '', location.pathname);
+
+  api('open', { s: loadSession() }).then(function (r) {
+    state.name = r.name; state.ownerName = r.ownerName;
+    $('claimHi').textContent = 'Hi ' + r.name;
+    $('claimWho').textContent = r.ownerName + ' shared their side of what you two owe each other.';
+    $('claimOwner').textContent = r.ownerName;
+    $('loginHi').textContent = 'Welcome back, ' + r.name;
+    $('loginWho').textContent = 'Shared by ' + r.ownerName + '.';
+    $('forgotWho').textContent = 'We let ' + r.ownerName
+      + ' know. Once they allow it, come back and pick a new PIN.';
+    $('settleWho').textContent = 'Between you and ' + r.ownerName + '.';
+
+    if (r.state === 'ok') { renderLedger(r.ledger); return; }
+    if (r.state === 'claim') { show('claim'); $('claimPin').focus(); return; }
+    if (r.lockedFor > 0) { $('loginErr').textContent = lockText(r.lockedFor); }
+    show('login'); $('loginPin').focus();
+  }).catch(function (e) {
+    fail(e.status === 404
+      ? 'Ask for a new one — links can be replaced at any time.'
+      : 'Something went wrong reaching Lekha. Try again in a minute.');
+  });
+}
+
+function fail(why) { $('errorWhy').textContent = why; show('error'); }
+
+function lockText(seconds) {
+  var mins = Math.ceil(seconds / 60);
+  if (mins < 60) return 'Too many tries. Try again in ' + mins + ' minutes.';
+  return 'Too many tries. Try again in ' + Math.ceil(mins / 60) + ' hours.';
+}
+
+function busy(btn, on, label) {
+  btn.disabled = on;
+  btn.textContent = on ? 'Working…' : label;
+}
+
+$('claimGo').onclick = function () {
+  var a = $('claimPin').value.trim(), b = $('claimPin2').value.trim();
+  $('claimErr').textContent = '';
+  if (!/^\d{4}$/.test(a)) { $('claimErr').textContent = 'Four digits.'; return; }
+  if (a !== b) { $('claimErr').textContent = "Those two don't match."; return; }
+  busy(this, true, 'Set my PIN');
+  var btn = this;
+  api('claim', { pin: a }).then(function (r) {
+    saveSession(r.s); renderLedger(r.ledger);
+  }).catch(function (e) {
+    busy(btn, false, 'Set my PIN');
+    $('claimErr').textContent = e.status === 409
+      ? 'A PIN was already set for you. Try signing in, or ask for a reset.'
+      : 'Could not set it. Try again.';
+    if (e.status === 409) show('login');
+  });
+};
+
+$('loginGo').onclick = function () {
+  var pin = $('loginPin').value.trim();
+  $('loginErr').textContent = '';
+  if (!/^\d{4}$/.test(pin)) { $('loginErr').textContent = 'Four digits.'; return; }
+  var btn = this;
+  busy(btn, true, 'Open the ledger');
+  api('login', { pin: pin }).then(function (r) {
+    saveSession(r.s); renderLedger(r.ledger);
+  }).catch(function (e) {
+    busy(btn, false, 'Open the ledger');
+    $('loginPin').value = '';
+    if (e.status === 429) { $('loginErr').textContent = lockText(e.data.lockedFor || 900); }
+    else if (e.status === 409) { show('claim'); }
+    else {
+      var left = e.data && e.data.left;
+      $('loginErr').textContent = 'That PIN is wrong.'
+        + (left ? ' ' + left + (left === 1 ? ' try left.' : ' tries left.') : '');
+    }
+  });
+};
+
+$('forgotGo').onclick = function () {
+  api('forgot', {}).catch(function () { /* answer is always the same anyway */ });
+  show('forgot');
+};
+$('forgotBack').onclick = function () { show('login'); };
+
+$('goAdd').onclick = function () {
+  $('addTotal').value = ''; $('addNote').value = '';
+  $('addOn').value = today(); $('addErr').textContent = '';
+  state.payer = state.name; state.mode = 'equal';
+  $('exactYouLabel').textContent = 'Your share';
+  $('exactThemLabel').textContent = state.ownerName + "'s share";
+  $('addPayer').innerHTML =
+    '<button type="button" data-who="you" aria-pressed="true">You paid</button>'
+    + '<button type="button" data-who="them" aria-pressed="false">'
+    + esc(state.ownerName) + ' paid</button>';
+  Array.prototype.forEach.call($('addPayer').children, function (b) {
+    b.onclick = function () {
+      state.payer = b.dataset.who === 'you' ? state.name : state.ownerName;
+      Array.prototype.forEach.call($('addPayer').children, function (o) {
+        o.setAttribute('aria-pressed', String(o === b));
+      });
+    };
+  });
+  show('add'); $('addTotal').focus();
+};
+$('addBack').onclick = function () { show('ledger'); };
+
+Array.prototype.forEach.call($('addMode').children, function (b) {
+  b.onclick = function () {
+    state.mode = b.dataset.mode;
+    Array.prototype.forEach.call($('addMode').children, function (o) {
+      o.setAttribute('aria-pressed', String(o === b));
+    });
+    $('exactWrap').hidden = state.mode !== 'exact';
+  };
+});
+
+$('addGo').onclick = function () {
+  var total = Number($('addTotal').value);
+  $('addErr').textContent = '';
+  if (!(total > 0)) { $('addErr').textContent = 'How much was it?'; return; }
+
+  var shares = {};
+  if (state.mode === 'equal') {
+    // Halves, with the odd paisa falling on the Lekha user, which is the
+    // rounding their app already uses. It is only a preview either way: the
+    // app re-derives every split with computeSplit when it accepts the entry,
+    // so there is exactly one implementation of the rule that counts.
+    var half = Math.round((total / 2) * 100) / 100;
+    shares[state.ownerName] = half;
+    shares[state.name] = Math.round((total - half) * 100) / 100;
+  } else {
+    var mine = Number($('exactYou').value) || 0;
+    var theirs = Number($('exactThem').value) || 0;
+    if (Math.abs(mine + theirs - total) > 0.05) {
+      $('addErr').textContent = 'Those shares add up to '
+        + money.format(mine + theirs) + ', not ' + money.format(total) + '.';
+      return;
+    }
+    if (mine > 0) shares[state.name] = mine;
+    if (theirs > 0) shares[state.ownerName] = theirs;
+  }
+
+  var btn = this;
+  busy(btn, true, 'Send it over');
+  api('add', {
+    s: state.session, kind: 'expense', total: total, payer: state.payer,
+    shares: shares, note: $('addNote').value.trim(), on: $('addOn').value || today()
+  }).then(function (r) { renderLedger(r.ledger); })
+    .catch(function (e) {
+      busy(btn, false, 'Send it over');
+      $('addErr').textContent = e.status === 401
+        ? 'Your week is up — open the link again and enter your PIN.'
+        : 'Could not send it. Try again.';
+    });
+};
+
+$('goSettle').onclick = function () {
+  var net = Number(state.ledger.ownerNet) || 0;
+  $('settleAmount').value = Math.abs(net) || '';
+  $('settleOn').value = today();
+  $('settleNote').value = '';
+  $('settleErr').textContent = '';
+  $('settleWho').textContent = net > 0
+    ? 'Recording what you paid ' + state.ownerName + '.'
+    : net < 0
+      ? 'Recording what ' + state.ownerName + ' paid you.'
+      : "You're square — record anything you like.";
+  show('settle'); $('settleAmount').focus();
+};
+$('settleBack').onclick = function () { show('ledger'); };
+
+$('settleGo').onclick = function () {
+  var amount = Number($('settleAmount').value);
+  $('settleErr').textContent = '';
+  if (!(amount > 0)) { $('settleErr').textContent = 'How much?'; return; }
+  // Whoever owes is the one paying, and the whole payment counts towards the
+  // other person — that one shape covers both directions.
+  var net = Number(state.ledger.ownerNet) || 0;
+  var payer = net < 0 ? state.ownerName : state.name;
+  var shares = {};
+  shares[payer === state.name ? state.ownerName : state.name] = amount;
+
+  var btn = this;
+  busy(btn, true, 'Record it');
+  api('add', {
+    s: state.session, kind: 'settlement', total: amount, payer: payer,
+    shares: shares, note: $('settleNote').value.trim(), on: $('settleOn').value || today()
+  }).then(function (r) { renderLedger(r.ledger); })
+    .catch(function (e) {
+      busy(btn, false, 'Record it');
+      $('settleErr').textContent = e.status === 401
+        ? 'Your week is up — open the link again and enter your PIN.'
+        : 'Could not record it. Try again.';
+    });
+};
+
+['claimPin', 'claimPin2', 'loginPin'].forEach(function (id) {
+  $(id).addEventListener('input', function () {
+    this.value = this.value.replace(/\D/g, '').slice(0, 4);
+  });
+});
+$('loginPin').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') $('loginGo').click();
+});
+
+start();
+</script>
+</body>
+</html>

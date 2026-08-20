@@ -1,1 +1,17 @@
-﻿{"version":"0.0.1","configurations":[{"name":"design-preview","runtimeExecutable":"python","runtimeArgs":["-m","http.server","8321"],"port":8321}]}
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "design-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8321"],
+      "port": 8321
+    },
+    {
+      "name": "guest-page",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8322", "--directory", "build/web"],
+      "port": 8322
+    }
+  ]
+}
