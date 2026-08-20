@@ -126,7 +126,7 @@ hr { border: 0; border-top: 1px solid var(--hairline); margin: 20px 0; }
 <section id="boot">₹</section>
 
 <section id="error" hidden>
-  <h1>This link isn't active</h1>
+  <h1 id="errorTitle">This link isn't active</h1>
   <p class="muted" id="errorWhy">Ask for a new one — links can be replaced at any time.</p>
 </section>
 
@@ -259,7 +259,14 @@ hr { border: 0; border-top: 1px solid var(--hairline); margin: 20px 0; }
 // phone over mobile data, and it is small enough that a framework would be the
 // single largest thing on the page.
 
-var TOKEN = location.hash.slice(1);
+// The token is deliberately wiped from the address bar on first read (see
+// start()), so a reload has no fragment left to work from. Keeping a copy here
+// is what lets the page survive a reload, a bookmark, or coming back tomorrow
+// — and it is no weaker than the session token already sitting beside it.
+function rememberToken(t) { try { localStorage.setItem('lekha.t', t); } catch (e) { /* private mode */ } }
+function recallToken() { try { return localStorage.getItem('lekha.t') || ''; } catch (e) { return ''; } }
+
+var TOKEN = location.hash.slice(1) || recallToken();
 var state = { fn: null, session: null, name: '', ownerName: '', ledger: null,
               payer: null, mode: 'equal' };
 
@@ -382,7 +389,13 @@ function entryHtml(e) {
 // ------------------------------------------------------------------- flows
 
 function start() {
-  if (!TOKEN) { return fail('That link is missing its code. Open the full link you were sent.'); }
+  if (!TOKEN) {
+    return fail(
+      'Open the full link you were sent — the part after the # is what '
+      + 'identifies you.',
+      'Nothing to open');
+  }
+  rememberToken(TOKEN);
   // Out of the address bar once we have it: a screenshot of this page, or
   // someone glancing over a shoulder, should not hand over the link.
   history.replaceState(null, '', location.pathname);
@@ -403,13 +416,22 @@ function start() {
     if (r.lockedFor > 0) { $('loginErr').textContent = lockText(r.lockedFor); }
     show('login'); $('loginPin').focus();
   }).catch(function (e) {
-    fail(e.status === 404
-      ? 'Ask for a new one — links can be replaced at any time.'
-      : 'Something went wrong reaching Lekha. Try again in a minute.');
+    if (e.status === 404) {
+      // Remembering a revoked token would leave the page permanently broken
+      // even after a fresh link arrives.
+      try { localStorage.removeItem('lekha.t'); } catch (err) { /* private mode */ }
+      fail('Ask for a new one — links can be replaced at any time.');
+    } else {
+      fail('Something went wrong reaching Lekha. Try again in a minute.');
+    }
   });
 }
 
-function fail(why) { $('errorWhy').textContent = why; show('error'); }
+function fail(why, title) {
+  if (title) $('errorTitle').textContent = title;
+  $('errorWhy').textContent = why;
+  show('error');
+}
 
 function lockText(seconds) {
   var mins = Math.ceil(seconds / 60);

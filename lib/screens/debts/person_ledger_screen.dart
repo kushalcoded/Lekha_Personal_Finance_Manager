@@ -5,8 +5,8 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../providers/ai_providers.dart';
 import '../../models/share/shared_entry.dart';
+import '../../providers/ai_providers.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/clock_provider.dart';
 import '../../providers/share/share_providers.dart';
