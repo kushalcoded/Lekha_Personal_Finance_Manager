@@ -77,25 +77,33 @@ Full design: `~/.claude/plans/swift-bubbling-conway.md`.
       target, claim / login / ledger / add / settle / forgot / error all render,
       exact-split validation catches shares that don't add up.
 
-### 5. Owner side in the app — not started
+### 5. Owner side in the app — **done** (`7abe7c6`)
 
-- [ ] Share action on the person ledger; the link is appended to the reminder
-      that already goes through the share sheet.
-- [ ] Pending "from the shared page" cards on the person ledger, styled like the
-      detected-SMS cards, plus PIN-reset requests.
-- [ ] Accept reuses `createSplitDebts` and the existing expense write path — no
-      new way for money to enter the ledger.
-- [ ] A 60s poll alongside the existing SMS timer, not inside it.
+- [x] A link action on the person ledger. **Changed from the plan:** its own
+      action rather than appended to the AI reminder — a link at the end of a
+      nudge about money reads like part of the nudge, and this is an invitation.
+- [x] Pending cards on the person ledger, styled like the detected-SMS cards,
+      each saying in words what accepting would do ("you would owe Rahul ₹600").
+      PIN-reset requests appear beside them; allowing one bumps `pin_version`
+      and signs out any week-old session.
+- [x] Accept goes through `computeSplit` + `createSplitDebts` — the same pair
+      the add-expense form uses, so there is no second way for money to enter
+      the app. `test/shared_entry_accept_test.dart` covers both directions and
+      the cases where one person covered the whole bill.
+- [x] A sibling 60s poll, plus an immediate refresh when the Debts tab opens.
 
-### 6. Simplify debts — not started
+### 6. Simplify debts — **done** (`52f76a1`), wired to nothing on purpose
 
-- [ ] `simplify_debts.dart` + test. Written now, wired to no UI until groups
-      exist: with two people it can only ever return the number already on
-      screen.
+- [x] `simplify_debts.dart` + test. Called from nowhere until groups exist:
+      with two people it can only ever return the number already on screen, and
+      a Simplify button that never changes anything is worse than no button.
 
-### 7. Groups — not started
+### 7. Groups — not started, and the only thing left
 
-UI only. The schema already carries N participants per space.
+UI only. The schema already carries N participants per space, identity is
+already per-person rather than per-space, and the reduction is already written
+and tested. What is missing is a group screen, a second participant on a space,
+and per-participant nets pushed for each member.
 
 ---
 
@@ -106,6 +114,7 @@ UI only. The schema already carries N participants per space.
 | 2 | Run the SQL | Dashboard access |
 | 3 | Paste the function, set two secrets | Not deployed from git; secrets are yours |
 | 5 | Open a share link on your phone once | Desktop web has no share sheet |
+| — | Push to `main` | The guest page only exists once Pages redeploys |
 | — | A real trial with a friend | Whether a stranger understands the page |
 
 Everything else is verifiable here: a private browser window is a genuinely
