@@ -920,10 +920,17 @@ String _categoryBudgetsSubtitle(Map<String, double> budgets) {
       '${AppFormatters.formatCurrency(total)} a cycle';
 }
 
+/// dd/MM/yyyy in the reader's own timezone.
+///
+/// `.toLocal()` first: `.day` and `.month` on a UTC DateTime are UTC calendar
+/// fields, and this is handed `lastSyncedAt`, which is deliberately stored UTC.
+/// That is what showed "Last synced 20/08" for a sync that happened on the
+/// 21st. A no-op for the cycle dates, which are already local.
 String _formatCycleDate(DateTime date) {
-  final day = date.day.toString().padLeft(2, '0');
-  final month = date.month.toString().padLeft(2, '0');
-  return '$day/$month/${date.year}';
+  final local = date.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  return '$day/$month/${local.year}';
 }
 
 /// "7th", "1st", "22nd" — used wherever the salary day is shown.

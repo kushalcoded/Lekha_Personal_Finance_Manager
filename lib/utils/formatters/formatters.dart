@@ -13,21 +13,29 @@ class AppFormatters {
     return '$sign$symbol${formatter.format(normalized)}';
   }
 
-  /// Format date to readable format
+  /// Format date to readable format.
+  ///
+  /// `.toLocal()` because `DateFormat` renders whatever wall-clock fields the
+  /// DateTime carries: hand it a UTC value and it prints the UTC day, which
+  /// east of Greenwich is yesterday for the whole first part of the morning.
+  /// Several timestamps here are deliberately stored UTC, and this is the
+  /// boundary where they become something a person reads. A no-op for a value
+  /// that is already local.
   static String formatDate(DateTime date, {String format = 'MMM dd, yyyy'}) {
     try {
       final formatter = DateFormat(format);
-      return formatter.format(date);
+      return formatter.format(date.toLocal());
     } catch (e) {
       return date.toString();
     }
   }
 
-  /// Format date to time format
+  /// Format date to time format. Local for the same reason as [formatDate] —
+  /// and a clock time is off by the whole offset, not just at the boundary.
   static String formatTime(DateTime time, {String format = 'HH:mm'}) {
     try {
       final formatter = DateFormat(format);
-      return formatter.format(time);
+      return formatter.format(time.toLocal());
     } catch (e) {
       return time.toString();
     }

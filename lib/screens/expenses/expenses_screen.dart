@@ -397,17 +397,34 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
     return false;
   }
 
-  void _deleteExpenseWithUndo(Expense expense) {
+  /// Awaited, so "Expense deleted" is only ever said about an expense that was
+  /// actually deleted. This used to fire the delete unawaited and announce it
+  /// immediately — a failed write left the row on screen under a snackbar
+  /// claiming it was gone, offering an Undo for something that never happened.
+  Future<void> _deleteExpenseWithUndo(Expense expense) async {
     final messenger = ScaffoldMessenger.of(context);
-    ref.read(expensesProvider.notifier).deleteExpense(expense.id);
+    try {
+      await ref.read(expensesProvider.notifier).deleteExpense(expense.id);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not delete that expense: $e')),
+      );
+      return;
+    }
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
         content: const Text('Expense deleted'),
         action: SnackBarAction(
           label: 'Undo',
-          onPressed: () {
-            ref.read(expensesProvider.notifier).addExpense(expense);
+          onPressed: () async {
+            try {
+              await ref.read(expensesProvider.notifier).addExpense(expense);
+            } catch (e) {
+              messenger.showSnackBar(
+                SnackBar(content: Text('Could not undo that: $e')),
+              );
+            }
           },
         ),
       ),

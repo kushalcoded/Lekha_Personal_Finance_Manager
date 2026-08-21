@@ -280,7 +280,12 @@ void main() {
         nowProvider.overrideWithValue(() => _qcNow),
       ],
     );
-    addTearDown(container.dispose);
+    // Disposed at the end of shoot(), not here. addTearDown runs AFTER the
+    // framework's "no pending timers" check, so a container still alive at
+    // that point keeps every notifier alive with it — including the auth
+    // provider's 4s boot-loader fallback, which is what failed the login and
+    // settings goldens. The app cancels that timer correctly on dispose; it
+    // just never got the chance.
     await container.read(expensesProvider.notifier).fetchExpenses(_userId);
     await container
         .read(receivablesProvider.notifier)
@@ -311,6 +316,10 @@ void main() {
       find.byType(MaterialApp),
       matchesGoldenFile('goldens/$name.png'),
     );
+    // Inside the test body, so every notifier is disposed and every timer
+    // cancelled before the framework checks for pending ones.
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
   }
 
   testWidgets('login', (t) => shoot(t, 'mobile_login', const LoginScreen()));

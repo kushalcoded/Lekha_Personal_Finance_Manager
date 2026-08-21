@@ -59,7 +59,12 @@ class ExpensesNotifier extends StateNotifier<ExpensesState> {
       // Trigger non-blocking sync
       _ref.read(syncProvider.notifier).syncNow();
     } catch (e) {
+      // Rethrow, do not just record. ExpensesState.error is rendered nowhere,
+      // and because this catch existed at all, every caller's own try/catch was
+      // unreachable — so a failed write still produced "Expense saved
+      // successfully", "Expense deleted", and "Added ₹500 to Food."
       state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 
@@ -73,7 +78,12 @@ class ExpensesNotifier extends StateNotifier<ExpensesState> {
       // Trigger non-blocking sync
       _ref.read(syncProvider.notifier).syncNow();
     } catch (e) {
+      // Rethrow, do not just record. ExpensesState.error is rendered nowhere,
+      // and because this catch existed at all, every caller's own try/catch was
+      // unreachable — so a failed write still produced "Expense saved
+      // successfully", "Expense deleted", and "Added ₹500 to Food."
       state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 
@@ -85,7 +95,12 @@ class ExpensesNotifier extends StateNotifier<ExpensesState> {
       // Trigger non-blocking sync
       _ref.read(syncProvider.notifier).syncNow();
     } catch (e) {
+      // Rethrow, do not just record. ExpensesState.error is rendered nowhere,
+      // and because this catch existed at all, every caller's own try/catch was
+      // unreachable — so a failed write still produced "Expense saved
+      // successfully", "Expense deleted", and "Added ₹500 to Food."
       state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 

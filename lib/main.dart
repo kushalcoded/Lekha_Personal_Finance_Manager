@@ -153,6 +153,32 @@ Future<bool?> _askKeepWhich() async {
   );
 }
 
+/// Tell the user their sign-in merge did not go through.
+///
+/// Deliberately loud and non-dismissible-by-accident: everything else in this
+/// app fails quiet and retries, but this one decides which copy of their data
+/// wins, and getting it wrong is unrecoverable.
+void _showReconcileFailed(Object error) {
+  final context = navigatorKey.currentContext;
+  if (context == null) return;
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Could not finish setting up'),
+      content: Text(
+        'Your data is safe on this device, but it has not been merged with '
+        'the cloud yet. Check your connection and sign in again.\n\n$error',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('OK'),
+        ),
+      ],
+    ),
+  );
+}
+
 /// First sign-in on this account: ask for the handful of things that decide
 /// what the dashboard can even show. Anything skipped resurfaces on the
 /// dashboard checklist rather than hiding in Settings.
@@ -182,8 +208,19 @@ class MyApp extends ConsumerWidget {
         if (userId == null || userId.isEmpty) return;
         if (next.needsReconcile) {
           Future.microtask(() async {
-            await reconcileSignIn(ref, userId);
-            ref.read(authStateProvider.notifier).clearReconcileFlag();
+            // Guarded, and the flag is only cleared on success. This is the one
+            // place a silent failure loses data: the user picks "Keep this
+            // device", forcePush throws, and without this they are told nothing
+            // while believing their offline data reached the cloud. Leaving
+            // needsReconcile set means the next sign-in asks again instead of
+            // quietly moving on.
+            try {
+              await reconcileSignIn(ref, userId);
+              ref.read(authStateProvider.notifier).clearReconcileFlag();
+            } catch (e) {
+              _showReconcileFailed(e);
+              return;
+            }
             await _maybeAskDisplayName(ref, userId);
             await _maybeRunFirstRun(userId);
           });

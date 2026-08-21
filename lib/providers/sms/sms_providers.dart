@@ -58,15 +58,14 @@ DateTime resolveTransactionTime(Object? stated, {required DateTime fallback}) {
   // A date-only answer keeps the delivery clock time, so the row doesn't
   // claim a precision the message never gave.
   if (parsed.hour == 0 && parsed.minute == 0 && parsed.second == 0) {
-    return DateTime(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      fallback.hour,
-      fallback.minute,
-    );
+    // Both sides local first: mixing one DateTime's calendar fields with
+    // another's clock fields is only meaningful in the same zone, and unlike a
+    // display bug this one is baked into the stored value.
+    final local = parsed.toLocal();
+    final at = fallback.toLocal();
+    return DateTime(local.year, local.month, local.day, at.hour, at.minute);
   }
-  return parsed;
+  return parsed.toLocal();
 }
 
 /// Words that make a message a spend. Deliberately narrower than the native
@@ -424,8 +423,15 @@ class SmsCaptureService {
       final body = row['body']?.toString() ?? '';
       if (id.isEmpty || body.isEmpty) continue;
       final hash = 'cloud_$id';
+      // .toLocal() because received_at is written as an ISO string with a Z
+      // by the edge function, so tryParse hands back a UTC DateTime — and this
+      // one does not just get displayed, it becomes Expense.date. Left as UTC
+      // it books every detected expense 5h30m early in IST, puts anything spent
+      // before dawn on the wrong day, and can file a row in the wrong cycle.
       final dateTime =
-          DateTime.tryParse(row['received_at']?.toString() ?? '') ??
+          DateTime.tryParse(
+            row['received_at']?.toString() ?? '',
+          )?.toLocal() ??
           DateTime.now();
       if (await _ingest(hash: hash, body: body, dateTime: dateTime)) added++;
       // Seen = Gemini responded (kept or filtered) — safe to retire the row.
@@ -474,7 +480,9 @@ class SmsCaptureService {
           .order('received_at', ascending: false)
           .limit(1);
       if (rows.isEmpty) return null;
-      return DateTime.tryParse(rows.first['received_at']?.toString() ?? '');
+      return DateTime.tryParse(
+        rows.first['received_at']?.toString() ?? '',
+      )?.toLocal();
     } catch (_) {
       return null;
     }
