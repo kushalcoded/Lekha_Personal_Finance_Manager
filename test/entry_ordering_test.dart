@@ -17,11 +17,7 @@ void main() {
     ];
 
     test('most-used lead, the rest are strictly alphabetical', () {
-      final ordered = orderCategories(all, {
-        'Fuel': 9,
-        'Food': 12,
-        'Gifts': 3,
-      });
+      final ordered = orderCategories(all, {'Fuel': 9, 'Food': 12, 'Gifts': 3});
 
       expect(ordered.frequent, ['Food', 'Fuel', 'Gifts']);
       // The remainder must be findable by knowing the alphabet, not by
@@ -57,9 +53,7 @@ void main() {
     });
 
     test('the pinned group is capped', () {
-      final ordered = orderCategories(all, {
-        for (final name in all) name: 5,
-      });
+      final ordered = orderCategories(all, {for (final name in all) name: 5});
       expect(ordered.frequent.length, kFrequentCategoryCount);
     });
   });
@@ -78,14 +72,12 @@ void main() {
     });
 
     test('pinned names lead, in the order they were pinned', () {
-      expect(
-        rankPeople(people, pinned: ['Aditi']),
-        ['Aditi', 'Manav', 'Zara'],
-      );
-      expect(
-        rankPeople(people, pinned: ['Zara', 'Aditi']),
-        ['Zara', 'Aditi', 'Manav'],
-      );
+      expect(rankPeople(people, pinned: ['Aditi']), ['Aditi', 'Manav', 'Zara']);
+      expect(rankPeople(people, pinned: ['Zara', 'Aditi']), [
+        'Zara',
+        'Aditi',
+        'Manav',
+      ]);
     });
 
     test('hidden names are dropped entirely', () {
@@ -99,10 +91,7 @@ void main() {
     });
 
     test('someone never used still ranks, just last', () {
-      final withUnused = [
-        ...people,
-        const PersonUse(name: 'Bilal', count: 0),
-      ];
+      final withUnused = [...people, const PersonUse(name: 'Bilal', count: 0)];
       expect(rankPeople(withUnused).last, 'Bilal');
     });
   });

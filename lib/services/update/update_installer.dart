@@ -31,7 +31,9 @@ class UpdateInstaller {
       }
 
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}${Platform.pathSeparator}Lekha-v$version.apk');
+      final file = File(
+        '${dir.path}${Platform.pathSeparator}Lekha-v$version.apk',
+      );
       final sink = file.openWrite();
       final total = response.contentLength ?? 0;
       var received = 0;

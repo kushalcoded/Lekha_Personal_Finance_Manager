@@ -17,7 +17,11 @@ void main() {
   test('same amount seconds apart is a duplicate (re-sent / bank+UPI)', () {
     final existing = [_txn(820, base)];
     expect(
-      isDuplicateTransaction(existing, 820, base.add(const Duration(seconds: 40))),
+      isDuplicateTransaction(
+        existing,
+        820,
+        base.add(const Duration(seconds: 40)),
+      ),
       isTrue,
     );
   });
@@ -25,7 +29,11 @@ void main() {
   test('same amount well outside the window is NOT a duplicate', () {
     final existing = [_txn(820, base)];
     expect(
-      isDuplicateTransaction(existing, 820, base.add(const Duration(minutes: 10))),
+      isDuplicateTransaction(
+        existing,
+        820,
+        base.add(const Duration(minutes: 10)),
+      ),
       isFalse,
     );
   });
@@ -45,14 +53,14 @@ void main() {
         smsSenderLabel('HDFC Bank: Rs.450 debited via UPI'),
         'HDFC Bank · UPI',
       );
-      expect(
-        smsSenderLabel('SBI - Rs.2000 withdrawn at ATM'),
-        'SBI · ATM',
-      );
+      expect(smsSenderLabel('SBI - Rs.2000 withdrawn at ATM'), 'SBI · ATM');
     });
 
     test('trims a long sender and survives a body with no separator', () {
-      expect(smsSenderLabel('Rs 300 spent on your debit card'), 'Rs 300 · Card');
+      expect(
+        smsSenderLabel('Rs 300 spent on your debit card'),
+        'Rs 300 · Card',
+      );
       expect(smsSenderLabel('   '), 'Bank SMS');
     });
 

@@ -723,11 +723,17 @@ Future<void> acceptSharedEntry({
     return;
   }
 
+  final group = ref
+      .read(sharedInboxProvider)
+      .groups
+      .where((g) => g.id == entry.spaceId)
+      .firstOrNull;
   final expenseId = await _writeEntryToLedger(
     ref: ref,
     entry: entry,
     userId: userId,
     ownerName: ownerName,
+    sharedWith: group?.title ?? 'Shared with ${entry.personName}',
   );
 
   // Always a value, even when no expense was written: this is the id
@@ -748,6 +754,12 @@ Future<String> _writeEntryToLedger({
   required SharedEntry entry,
   required String userId,
   required String ownerName,
+
+  /// What to call it when there is no note — the group's name, or the other
+  /// person's. Never the owner's: an entry they paid for names *them* as the
+  /// author, so the old fallback told Kushal an expense was "Shared with
+  /// Kushal".
+  required String sharedWith,
 }) async {
   final config = splitConfigFor(entry, ownerName: ownerName);
   final split = computeSplit(
@@ -766,7 +778,7 @@ Future<String> _writeEntryToLedger({
       userId: userId,
       amount: split.myShare,
       category: _shareCategory,
-      description: entry.note ?? 'Shared with ${entry.personName}',
+      description: entry.note ?? sharedWith,
       date: entry.occurredOn,
       paymentMethod: null,
       createdAt: DateTime.now(),
@@ -828,6 +840,7 @@ Future<void> addGroupEntry({
     entry: entry,
     userId: userId,
     ownerName: ownerName,
+    sharedWith: group.title,
   );
   await ref.read(sharedInboxProvider.notifier).publishOwnEntry(entry, linkedId);
   ref.invalidate(groupLedgerProvider(group.id));

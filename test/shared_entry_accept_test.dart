@@ -272,6 +272,31 @@ void main() {
   // Four states across a list of names, and only one of them is guesswork:
   // the server knows when a page loaded and when a PIN was chosen; nothing can
   // know whether the message was actually delivered.
+  // The owner is the author of anything they add themselves, so any wording
+  // built from personName describes them to themselves.
+  group('an entry the owner added alone', () {
+    test('does not book them a debt with themselves', () {
+      final e = SharedEntry(
+        id: 'g6',
+        spaceId: 's1',
+        personName: owner,
+        kind: 'expense',
+        total: 300,
+        payerName: owner,
+        shares: const {'Kushal': 300},
+        note: null,
+        occurredOn: DateTime(2026, 8, 21),
+      );
+      final config = splitConfigFor(e, ownerName: owner);
+      expect(
+        config.people,
+        isEmpty,
+        reason: 'nobody else is on it, so there is nobody to owe',
+      );
+      expect(resolve(e).myShare, 300);
+    });
+  });
+
   group('shareProgressFor', () {
     test('a PIN means joined, whatever else is true', () {
       expect(

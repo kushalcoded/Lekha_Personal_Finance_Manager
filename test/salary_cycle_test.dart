@@ -4,17 +4,11 @@ import 'package:personal_expanse_tracker/screens/settings/providers/settings_pro
 void main() {
   group('nextSalaryDayAfter', () {
     test('finds the day later in the same month', () {
-      expect(
-        nextSalaryDayAfter(DateTime(2026, 8, 1), 7),
-        DateTime(2026, 8, 7),
-      );
+      expect(nextSalaryDayAfter(DateTime(2026, 8, 1), 7), DateTime(2026, 8, 7));
     });
 
     test('rolls to next month when the day has already passed', () {
-      expect(
-        nextSalaryDayAfter(DateTime(2026, 8, 7), 7),
-        DateTime(2026, 9, 7),
-      );
+      expect(nextSalaryDayAfter(DateTime(2026, 8, 7), 7), DateTime(2026, 9, 7));
       expect(
         nextSalaryDayAfter(DateTime(2026, 8, 20), 7),
         DateTime(2026, 9, 7),

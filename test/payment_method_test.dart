@@ -22,18 +22,13 @@ void main() {
       'GPay',
     );
     expect(
-      expensePaymentMethod(
-        expense(paymentMethod: 'GPay', description: 'gift'),
-      ),
+      expensePaymentMethod(expense(paymentMethod: 'GPay', description: 'gift')),
       'GPay',
     );
   });
 
   test('older records still resolve from the note', () {
-    expect(
-      formatPaymentMethod(expense(description: 'Lunch via GPay')),
-      'GPay',
-    );
+    expect(formatPaymentMethod(expense(description: 'Lunch via GPay')), 'GPay');
   });
 
   test('an empty stored method is treated as absent', () {

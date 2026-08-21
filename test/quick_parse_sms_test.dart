@@ -46,7 +46,10 @@ void main() {
     test('bails when a balance word leads the only amount', () {
       // Nothing here says what was spent, so the model has to decide.
       expect(quickParseSms('Avl Bal Rs.23,891.20 after debit'), isNull);
-      expect(quickParseSms('Your available balance is Rs.5000 (debited)'), isNull);
+      expect(
+        quickParseSms('Your available balance is Rs.5000 (debited)'),
+        isNull,
+      );
     });
   });
 

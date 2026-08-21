@@ -35,7 +35,11 @@ void main() {
 
   test('applyCustom overlay wins over built-ins and unknowns fall back', () {
     CategoryStyles.applyCustom(const [
-      ExpenseCategory(name: 'Food', iconKey: 'local_pizza', colorHex: '#123456'),
+      ExpenseCategory(
+        name: 'Food',
+        iconKey: 'local_pizza',
+        colorHex: '#123456',
+      ),
     ]);
 
     // Overlay overrides the built-in Food style.

@@ -3,10 +3,10 @@ import 'package:personal_expanse_tracker/providers/sms/sms_providers.dart';
 
 void main() {
   test('reads the decisions the notification buttons wrote', () {
-    expect(
-      smsDecisions('{"a1":"add","b2":"ignore"}'),
-      {'a1': 'add', 'b2': 'ignore'},
-    );
+    expect(smsDecisions('{"a1":"add","b2":"ignore"}'), {
+      'a1': 'add',
+      'b2': 'ignore',
+    });
   });
 
   test('anything unrecognised means no decision, never an auto-add', () {

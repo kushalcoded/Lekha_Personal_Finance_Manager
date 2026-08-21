@@ -30,7 +30,10 @@ void main() {
       createdAt: DateTime(2026, 1, 1),
     );
 
-    final added = txn.copyWith(status: PendingStatus.added, linkedExpenseId: 'e1');
+    final added = txn.copyWith(
+      status: PendingStatus.added,
+      linkedExpenseId: 'e1',
+    );
     expect(added.status, PendingStatus.added);
     expect(added.linkedExpenseId, 'e1');
 

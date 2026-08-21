@@ -11,19 +11,22 @@ void main() {
   const configured = ['Food', 'Travel', 'Miscellaneous'];
 
   test('a name records use but the list lost is reported', () {
-    expect(
-      missingCategoryNames(configured, ['Food', 'Transport', 'Rakhi']),
-      ['Rakhi', 'Transport'],
-    );
+    expect(missingCategoryNames(configured, ['Food', 'Transport', 'Rakhi']), [
+      'Rakhi',
+      'Transport',
+    ]);
   });
 
   test('nothing is reported when every name is configured', () {
     expect(missingCategoryNames(configured, ['Food', 'Travel']), isEmpty);
   });
 
-  test('matching ignores case, so a differently-typed name is not "missing"', () {
-    expect(missingCategoryNames(configured, ['food', 'TRAVEL']), isEmpty);
-  });
+  test(
+    'matching ignores case, so a differently-typed name is not "missing"',
+    () {
+      expect(missingCategoryNames(configured, ['food', 'TRAVEL']), isEmpty);
+    },
+  );
 
   test('the first spelling seen is the one offered', () {
     // Restoring should use what the records look like, not a lowercased key.
@@ -37,11 +40,7 @@ void main() {
   });
 
   test('output is sorted, so the banner does not reshuffle', () {
-    final names = missingCategoryNames(configured, [
-      'Zoo',
-      'apple',
-      'Mango',
-    ]);
+    final names = missingCategoryNames(configured, ['Zoo', 'apple', 'Mango']);
     expect(names, ['apple', 'Mango', 'Zoo']);
   });
 

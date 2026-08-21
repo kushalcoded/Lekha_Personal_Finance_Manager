@@ -70,9 +70,7 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: CycleHistoryDetailScreen(snapshot: snapshot),
-      ),
+      MaterialApp(home: CycleHistoryDetailScreen(snapshot: snapshot)),
     );
 
     expect(find.text('Cycle Details'), findsOneWidget);

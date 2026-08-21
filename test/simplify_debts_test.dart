@@ -5,19 +5,19 @@ import 'package:personal_expanse_tracker/screens/debts/utils/simplify_debts.dart
 /// leave everybody exactly square. A bug here hands somebody a number to pay
 /// that looks perfectly reasonable and is wrong.
 void main() {
-  double paidBy(List<Transfer> ts, String who) => ts
-      .where((t) => t.from == who)
-      .fold(0.0, (sum, t) => sum + t.amount);
-  double receivedBy(List<Transfer> ts, String who) => ts
-      .where((t) => t.to == who)
-      .fold(0.0, (sum, t) => sum + t.amount);
+  double paidBy(List<Transfer> ts, String who) =>
+      ts.where((t) => t.from == who).fold(0.0, (sum, t) => sum + t.amount);
+  double receivedBy(List<Transfer> ts, String who) =>
+      ts.where((t) => t.to == who).fold(0.0, (sum, t) => sum + t.amount);
 
   /// Everyone ends at zero once the transfers are applied. This is the property
   /// that actually matters; the transfer count is only the optimisation.
   void expectSettles(Map<String, double> net, List<Transfer> transfers) {
     for (final person in net.keys) {
       final after =
-          net[person]! + paidBy(transfers, person) - receivedBy(transfers, person);
+          net[person]! +
+          paidBy(transfers, person) -
+          receivedBy(transfers, person);
       expect(after, closeTo(0, 0.011), reason: '$person is not square');
     }
   }
@@ -30,12 +30,15 @@ void main() {
     expectSettles(net, transfers);
   });
 
-  test('three people owing in different directions need two payments, not three', () {
-    final net = {'A': -800.0, 'B': 300.0, 'C': 500.0};
-    final transfers = simplifyDebts(net);
-    expect(transfers.length, 2);
-    expectSettles(net, transfers);
-  });
+  test(
+    'three people owing in different directions need two payments, not three',
+    () {
+      final net = {'A': -800.0, 'B': 300.0, 'C': 500.0};
+      final transfers = simplifyDebts(net);
+      expect(transfers.length, 2);
+      expectSettles(net, transfers);
+    },
+  );
 
   test('everyone already square means nobody pays anything', () {
     expect(simplifyDebts({'A': 0.0, 'B': 0.0}), isEmpty);

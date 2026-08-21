@@ -82,7 +82,12 @@ SplitConfig splitConfigFor(SharedEntry entry, {required String ownerName}) {
   // who submitted it, so a group entry splitting four ways lands as a four-way
   // split rather than collapsing onto the author.
   final others = entry.shares.keys.where((n) => n != ownerName).toList();
-  if (others.isEmpty) others.add(entry.personName);
+  // Only when that somebody is not the owner. An entry the owner added and is
+  // alone in — "I paid, split with nobody" — would otherwise put their own name
+  // in `people` and book them a debt with themselves.
+  if (others.isEmpty && entry.personName != ownerName) {
+    others.add(entry.personName);
+  }
   // Somebody can pay without eating any of it, and createSplitDebts needs them
   // among the participants to record who was owed.
   if (entry.payerName != ownerName && !others.contains(entry.payerName)) {

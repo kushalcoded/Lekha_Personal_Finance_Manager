@@ -70,10 +70,7 @@ Future<void> runAppUpdate(BuildContext context, AppRelease release) async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Update failed: $error'),
-        action: SnackBarAction(
-          label: 'Browser',
-          onPressed: _openReleasePage,
-        ),
+        action: SnackBarAction(label: 'Browser', onPressed: _openReleasePage),
       ),
     );
   } finally {

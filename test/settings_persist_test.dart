@@ -14,9 +14,9 @@ void main() {
     final dir = await Directory.systemTemp.createTemp('lekha_settings');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-      const MethodChannel('plugins.flutter.io/path_provider'),
-      (call) async => dir.path,
-    );
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (call) async => dir.path,
+        );
     await HiveService.initialize();
   });
 

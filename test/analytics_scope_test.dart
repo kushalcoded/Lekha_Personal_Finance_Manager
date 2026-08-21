@@ -58,8 +58,10 @@ void main() {
       // Dating a spend forward is legal in the picker, so it must not silently
       // disappear from the screen that is supposed to total everything.
       final nextWeek = DateTime(2026, 8, 19, 9);
-      expect(inScope(analyticsScopeStart(AnalyticsScope.days30, now), nextWeek),
-          isTrue);
+      expect(
+        inScope(analyticsScopeStart(AnalyticsScope.days30, now), nextWeek),
+        isTrue,
+      );
       expect(inScope(DateTime(2026, 8, 6), nextWeek), isTrue);
     });
   });

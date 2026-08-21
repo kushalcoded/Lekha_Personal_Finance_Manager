@@ -33,7 +33,9 @@ void main() {
     final hive = HiveService();
     await hive.savePendingTransaction(_provisional('p1', 450));
 
-    final stored = hive.getPendingTransactions().firstWhere((t) => t.id == 'p1');
+    final stored = hive.getPendingTransactions().firstWhere(
+      (t) => t.id == 'p1',
+    );
     expect(stored.provisional, isTrue);
     expect(stored.amount, 450);
   });

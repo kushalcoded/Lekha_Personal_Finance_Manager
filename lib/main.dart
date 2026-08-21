@@ -502,7 +502,10 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
     // that exists to be throttled. A friend's entry arriving within a minute is
     // fine; the ledger screen also refreshes the moment it is opened.
     _sharePoll?.cancel();
-    _sharePoll = Timer.periodic(const Duration(seconds: 60), (_) => _syncShare());
+    _sharePoll = Timer.periodic(
+      const Duration(seconds: 60),
+      (_) => _syncShare(),
+    );
   }
 
   void _stopPolling() {

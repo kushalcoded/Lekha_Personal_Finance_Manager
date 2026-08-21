@@ -54,7 +54,9 @@ class SegmentedScope<T> extends StatelessWidget {
 
     // Left-aligned on desktop rather than stretched: a 1400px-wide switch for
     // three words reads as a banner, not a control.
-    return compact ? track : Align(alignment: Alignment.centerLeft, child: track);
+    return compact
+        ? track
+        : Align(alignment: Alignment.centerLeft, child: track);
   }
 }
 

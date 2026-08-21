@@ -36,12 +36,11 @@ void main() {
 
   testWidgets('AiText renders **bold** as a bold span', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(body: AiText('watch **Food** spend')),
-      ),
+      const MaterialApp(home: Scaffold(body: AiText('watch **Food** spend'))),
     );
 
-    final root = tester.widget<RichText>(find.byType(RichText)).text as TextSpan;
+    final root =
+        tester.widget<RichText>(find.byType(RichText)).text as TextSpan;
     TextSpan? boldSpan;
     void visit(InlineSpan s) {
       if (s is TextSpan) {
