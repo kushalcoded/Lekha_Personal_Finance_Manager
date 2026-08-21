@@ -135,7 +135,10 @@ final debtInsightsProvider = Provider.family<List<SmartFinancialInsight>, String
     insights.add(
       SmartFinancialInsight(
         title: 'Receivables overdue',
-        message: '${receivablesStats.overdueCount} receivables are overdue.',
+        message:
+            '${receivablesStats.overdueCount} '
+            '${AppFormatters.plural(receivablesStats.overdueCount, 'receivable', 'receivables')} '
+            '${AppFormatters.plural(receivablesStats.overdueCount, 'is', 'are')} overdue.',
         icon: Icons.priority_high_rounded,
         severity: InsightSeverity.warning,
       ),
@@ -146,7 +149,10 @@ final debtInsightsProvider = Provider.family<List<SmartFinancialInsight>, String
     insights.add(
       SmartFinancialInsight(
         title: 'Payables overdue',
-        message: '$overduePayables payables are past due.',
+        message:
+            '$overduePayables '
+            '${AppFormatters.plural(overduePayables, 'payable', 'payables')} '
+            '${AppFormatters.plural(overduePayables, 'is', 'are')} past due.',
         icon: Icons.warning_amber_rounded,
         severity: InsightSeverity.danger,
       ),

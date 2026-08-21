@@ -52,8 +52,35 @@ void main() {
 
     test('a local value is untouched', () {
       final local = DateTime(2026, 8, 21, 9, 5);
-      expect(AppFormatters.formatDate(local, format: 'dd/MM/yyyy'), '21/08/2026');
+      expect(
+        AppFormatters.formatDate(local, format: 'dd/MM/yyyy'),
+        '21/08/2026',
+      );
       expect(AppFormatters.formatTime(local), '09:05');
+    });
+  });
+
+  // "1 receivables are overdue" went out in the daily notification, so this is
+  // not only a written-English nit — it buzzes the phone.
+  group('plural', () {
+    test('one takes the singular, everything else the plural', () {
+      expect(
+        AppFormatters.plural(1, 'receivable', 'receivables'),
+        'receivable',
+      );
+      expect(
+        AppFormatters.plural(2, 'receivable', 'receivables'),
+        'receivables',
+      );
+      expect(
+        AppFormatters.plural(0, 'receivable', 'receivables'),
+        'receivables',
+      );
+    });
+
+    test('works for the verb too, which is the half usually forgotten', () {
+      expect(AppFormatters.plural(1, 'is', 'are'), 'is');
+      expect(AppFormatters.plural(3, 'is', 'are'), 'are');
     });
   });
 

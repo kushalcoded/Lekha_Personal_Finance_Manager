@@ -13,6 +13,14 @@ class AppFormatters {
     return '$sign$symbol${formatter.format(normalized)}';
   }
 
+  /// Pick the wording that matches [count].
+  ///
+  /// For the noun and for the verb, since English needs both: "1 receivable is
+  /// overdue", not "1 receivables are overdue" — which is what the daily
+  /// notification actually said.
+  static String plural(int count, String one, String many) =>
+      count == 1 ? one : many;
+
   /// Format date to readable format.
   ///
   /// `.toLocal()` because `DateFormat` renders whatever wall-clock fields the

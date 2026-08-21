@@ -6,6 +6,7 @@ import '../../../providers/auth/auth_provider.dart';
 import '../../expenses/providers/recurring_expenses_providers.dart';
 import '../../receivables/providers/receivables_providers.dart';
 import 'settings_providers.dart';
+import '../../../utils/formatters/formatters.dart';
 
 final upcomingRemindersProvider = Provider<List<AppReminder>>((ref) {
   final settings = ref.watch(settingsProvider);
@@ -56,7 +57,10 @@ final upcomingRemindersProvider = Provider<List<AppReminder>>((ref) {
           id: 'overdue_receivables',
           type: ReminderType.overdueReceivable,
           title: 'Overdue receivables',
-          message: '$overdueReceivables receivables are overdue.',
+          message:
+              '$overdueReceivables '
+              '${AppFormatters.plural(overdueReceivables, 'receivable', 'receivables')} '
+              '${AppFormatters.plural(overdueReceivables, 'is', 'are')} overdue.',
           dueAt: now,
           severity: ReminderSeverity.warning,
         ),
@@ -68,7 +72,10 @@ final upcomingRemindersProvider = Provider<List<AppReminder>>((ref) {
           id: 'overdue_recurring',
           type: ReminderType.upcomingRecurringExpense,
           title: 'Recurring templates overdue',
-          message: '$overdue recurring templates are past due.',
+          message:
+              '$overdue recurring '
+              '${AppFormatters.plural(overdue, 'template', 'templates')} '
+              '${AppFormatters.plural(overdue, 'is', 'are')} past due.',
           dueAt: now,
           severity: ReminderSeverity.info,
         ),
@@ -84,7 +91,10 @@ final upcomingRemindersProvider = Provider<List<AppReminder>>((ref) {
           id: 'due_recurring',
           type: ReminderType.upcomingRecurringExpense,
           title: 'Recurring expenses due',
-          message: '${dueRecurring.length} recurring expenses are due today.',
+          message:
+              '${dueRecurring.length} recurring '
+              '${AppFormatters.plural(dueRecurring.length, 'expense', 'expenses')} '
+              '${AppFormatters.plural(dueRecurring.length, 'is', 'are')} due today.',
           dueAt: now,
           severity: ReminderSeverity.info,
         ),

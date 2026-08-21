@@ -688,8 +688,8 @@ class _CycleRollPrompt extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'This one began ${DateFormat('d MMM').format(started)} — '
-              '${DateTime.now().difference(started).inDays} days ago. '
+              'This one began ${DateFormat('d MMM').format(started)}'
+              '${_cycleAge(started)}. '
               'Starting a new one archives it to History.',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: cs.onSurfaceVariant,
@@ -1151,6 +1151,16 @@ class _RecentCard extends StatelessWidget {
       ],
     );
   }
+}
+
+/// " — 3 days ago", or nothing at all on the day it started.
+///
+/// The old line said "1 days ago", and "0 days ago" for a cycle begun this
+/// morning, which reads like a bug even though the number was right.
+String _cycleAge(DateTime started) {
+  final days = DateTime.now().difference(started).inDays;
+  if (days <= 0) return ', today';
+  return ' — $days ${AppFormatters.plural(days, 'day', 'days')} ago';
 }
 
 /// Run a sync and say what happened.
