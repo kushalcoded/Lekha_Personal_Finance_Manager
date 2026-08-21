@@ -59,6 +59,21 @@ class SyncNotifier extends StateNotifier<SyncState> {
   }
 
   Future<SyncResult> _syncNow({bool pushOnly = false}) async {
+    // The flag every spinner in the app watches. It used to be written only to
+    // Hive by the service and re-read here *after* the sync finished, so it was
+    // false for the entire duration and all four spinners were unreachable —
+    // tapping Sync changed nothing on screen until it completed.
+    state = state.copyWith(isSyncing: true, status: 'Syncing…', error: null);
+    try {
+      return await _runSync(pushOnly: pushOnly);
+    } finally {
+      // In a finally so no exit path — success, failure, timeout, or a throw
+      // from somewhere unforeseen — can leave the app looking stuck.
+      state = state.copyWith(isSyncing: false);
+    }
+  }
+
+  Future<SyncResult> _runSync({bool pushOnly = false}) async {
     final userId = _getUserId();
     if (userId == null || userId.isEmpty) {
       state = state.copyWith(
@@ -89,6 +104,7 @@ class SyncNotifier extends StateNotifier<SyncState> {
     }
 
     // Check connectivity
+    state = state.copyWith(status: 'Checking connection…');
     final isOnline = await _connectivityService.isOnline();
     if (!isOnline) {
       state = state.copyWith(
@@ -106,7 +122,10 @@ class SyncNotifier extends StateNotifier<SyncState> {
     }
 
     try {
+      state = state.copyWith(status: pushOnly ? 'Uploading…' : 'Syncing…');
       final result = await _syncService.syncUser(userId, pushOnly: pushOnly);
+      // Hive's copy has isSyncing false already; the finally in _syncNow is
+      // what guarantees it either way.
       state = _hiveService.getSyncState(userId);
       if (result.downloadCount > 0) await _refreshLocalStores(userId);
       return result;
@@ -143,24 +162,37 @@ class SyncNotifier extends StateNotifier<SyncState> {
   Future<void> forcePush() => _serialize(() async {
     final userId = _getUserId();
     if (userId == null || userId.isEmpty) return;
-    await _syncService.pushSnapshot(userId);
-    state = _hiveService.getSyncState(userId);
+    state = state.copyWith(isSyncing: true, status: 'Uploading…', error: null);
+    try {
+      await _syncService.pushSnapshot(userId);
+      state = _hiveService.getSyncState(userId);
+    } finally {
+      state = state.copyWith(isSyncing: false);
+    }
   });
 
   /// Reconciler action: overwrite this device with the cloud snapshot.
   Future<void> forcePull() => _serialize(() async {
     final userId = _getUserId();
     if (userId == null || userId.isEmpty) return;
-    await _syncService.pullSnapshot(userId);
-    state = _hiveService.getSyncState(userId);
-    await _refreshLocalStores(userId);
+    state = state.copyWith(isSyncing: true, status: 'Restoring…', error: null);
+    try {
+      await _syncService.pullSnapshot(userId);
+      state = _hiveService.getSyncState(userId);
+      await _refreshLocalStores(userId);
+    } finally {
+      state = state.copyWith(isSyncing: false);
+    }
   });
 
   /// Refresh current sync status
   Future<void> refreshStatus() async {
     final userId = _getUserId();
     if (userId != null && userId.isNotEmpty) {
-      state = _hiveService.getSyncState(userId);
+      // Never trust a persisted `true`: a process killed mid-sync leaves one
+      // behind, and Settings then shows a spinner *instead of* the Sync pill
+      // forever, with no way left to retry.
+      state = _hiveService.getSyncState(userId).copyWith(isSyncing: false);
     }
   }
 

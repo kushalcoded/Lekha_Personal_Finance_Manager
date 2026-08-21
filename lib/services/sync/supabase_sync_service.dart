@@ -19,6 +19,17 @@ import '../supabase/supabase_service.dart';
 class SupabaseSyncService {
   static const String _table = 'user_backups';
 
+  /// Generous for a whole-account snapshot on a slow connection, and far short
+  /// of the OS TCP timeout. Without it a connected-but-dead network (captive
+  /// portal, one bar) sails past the 6s health probe and then hangs for
+  /// minutes with the sync button inert — every further tap attaches to the
+  /// same stuck future rather than starting a new one.
+  static const Duration _netTimeout = Duration(seconds: 30);
+
+  static Never _timedOut() => throw Exception(
+    'The server took too long to answer. Check your connection and try again.',
+  );
+
   final HiveService _hiveService;
   final SupabaseClient _client;
 
@@ -171,11 +182,14 @@ class SupabaseSyncService {
     // snapshot came back one UTC offset in the future — the remote always
     // looked newer, and every cold start pulled and overwrote local data.
     final now = DateTime.now().toUtc();
-    await _client.from(_table).upsert({
-      'user_id': userId,
-      'snapshot': snapshot,
-      'updated_at': now.toIso8601String(),
-    });
+    await _client
+        .from(_table)
+        .upsert({
+          'user_id': userId,
+          'snapshot': snapshot,
+          'updated_at': now.toIso8601String(),
+        })
+        .timeout(_netTimeout, onTimeout: _timedOut);
     return now;
   }
 
@@ -204,7 +218,8 @@ class SupabaseSyncService {
         .from(_table)
         .select('snapshot, updated_at')
         .eq('user_id', userId)
-        .limit(1);
+        .limit(1)
+        .timeout(_netTimeout, onTimeout: _timedOut);
     if (rows.isEmpty) return null;
     final row = Map<String, dynamic>.from(rows.first);
     final snap = row['snapshot'];

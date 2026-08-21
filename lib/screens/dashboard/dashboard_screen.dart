@@ -83,7 +83,7 @@ class DashboardScreen extends ConsumerWidget {
         ),
       ),
       isSyncing: ref.watch(syncProvider.select((s) => s.isSyncing)),
-      onSync: () => ref.read(syncProvider.notifier).syncNow(),
+      onSync: () => _syncWithFeedback(context, ref),
     );
     final hero = _CycleHealthHero(
       metrics: budgetMetrics,
@@ -146,6 +146,7 @@ class DashboardScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       header,
+                      const _SyncStatusLine(),
                       const SizedBox(height: 18),
                       const _UpdatePrompt(),
                       const _CycleRollPrompt(),
@@ -1148,6 +1149,94 @@ class _RecentCard extends StatelessWidget {
             );
           }),
       ],
+    );
+  }
+}
+
+/// Run a sync and say what happened.
+///
+/// The spinner alone tells you something is running; it never tells you it
+/// finished, or that it failed. On a phone this is the only sync feedback
+/// there is — the "Synced just now" chip lives in a sidebar that needs a
+/// 1280px window and so never renders on Android at all.
+Future<void> _syncWithFeedback(BuildContext context, WidgetRef ref) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final result = await ref.read(syncProvider.notifier).syncNow();
+  final changed = result.uploadCount + result.downloadCount;
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(
+        result.error != null
+            ? 'Sync failed — ${result.error}'
+            : changed == 0
+            ? 'Already up to date'
+            : 'Synced · $changed ${changed == 1 ? 'change' : 'changes'}',
+      ),
+      action: result.error == null
+          ? null
+          : SnackBarAction(
+              label: 'Retry',
+              onPressed: () => _syncWithFeedback(context, ref),
+            ),
+    ),
+  );
+}
+
+/// A line under the header, shown only when there is something to say: the
+/// stage while a sync runs, and the reason plus a way back when one failed.
+/// Silence the rest of the time — a permanent "everything is fine" banner is
+/// just something to learn to ignore.
+class _SyncStatusLine extends ConsumerWidget {
+  const _SyncStatusLine();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sync = ref.watch(syncProvider);
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final failed = !sync.isSyncing && sync.error != null;
+    if (!sync.isSyncing && !failed) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+      child: Row(
+        children: [
+          if (sync.isSyncing)
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.6,
+                color: cs.onSurfaceVariant,
+              ),
+            )
+          else
+            Icon(Icons.error_outline_rounded, size: 14, color: cs.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              sync.isSyncing
+                  ? (sync.status.isEmpty ? 'Syncing…' : sync.status)
+                  : 'Sync failed — your data is safe on this device',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: failed ? cs.error : cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+          if (failed)
+            TextButton(
+              onPressed: () => _syncWithFeedback(context, ref),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32),
+              ),
+              child: const Text('Retry'),
+            ),
+        ],
+      ),
     );
   }
 }
