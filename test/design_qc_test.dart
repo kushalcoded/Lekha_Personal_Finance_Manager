@@ -427,6 +427,48 @@ void main() {
       ),
     ),
   );
+  // Only ever on screen mid-sync or after a failure, neither of which a
+  // signed-out harness reaches — so it takes plain values.
+  testWidgets(
+    'sync status line',
+    (t) => shoot(
+      t,
+      'mobile_sync_status',
+      Scaffold(
+        backgroundColor: const Color(0xFF0A0A0D),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                SyncStatusLine(
+                  isSyncing: true,
+                  status: 'Restoring…',
+                  error: null,
+                  onRetry: () {},
+                ),
+                const SizedBox(height: 12),
+                SyncStatusLine(
+                  isSyncing: false,
+                  status: 'Sync failed',
+                  error: 'The server took too long to answer.',
+                  onRetry: () {},
+                ),
+                const SizedBox(height: 12),
+                // Idle renders nothing at all.
+                SyncStatusLine(
+                  isSyncing: false,
+                  status: 'Synced',
+                  error: null,
+                  onRetry: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
   testWidgets('first run sheet', (t) async {
     await shoot(
       t,

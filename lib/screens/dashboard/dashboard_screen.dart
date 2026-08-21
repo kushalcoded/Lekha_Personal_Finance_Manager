@@ -1193,16 +1193,49 @@ class _SyncStatusLine extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sync = ref.watch(syncProvider);
+    return SyncStatusLine(
+      isSyncing: sync.isSyncing,
+      status: sync.status,
+      error: sync.error,
+      onRetry: () => _syncWithFeedback(context, ref),
+    );
+  }
+}
+
+/// A line under the header, shown only when there is something to say: the
+/// stage while a sync runs, and the reason plus a way back when one failed.
+/// Silence the rest of the time — a permanent "everything is fine" banner is
+/// just something to learn to ignore.
+///
+/// Takes plain values rather than reading the provider so it can be rendered
+/// in a test; the state it shows only exists mid-sync on a signed-in account,
+/// which is not reachable from a harness.
+class SyncStatusLine extends StatelessWidget {
+  final bool isSyncing;
+  final String status;
+  final String? error;
+  final VoidCallback onRetry;
+
+  const SyncStatusLine({
+    super.key,
+    required this.isSyncing,
+    required this.status,
+    required this.error,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final failed = !sync.isSyncing && sync.error != null;
-    if (!sync.isSyncing && !failed) return const SizedBox.shrink();
+    final failed = !isSyncing && error != null;
+    if (!isSyncing && !failed) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
       child: Row(
         children: [
-          if (sync.isSyncing)
+          if (isSyncing)
             SizedBox(
               width: 12,
               height: 12,
@@ -1216,8 +1249,8 @@ class _SyncStatusLine extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              sync.isSyncing
-                  ? (sync.status.isEmpty ? 'Syncing…' : sync.status)
+              isSyncing
+                  ? (status.isEmpty ? 'Syncing…' : status)
                   : 'Sync failed — your data is safe on this device',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1228,7 +1261,7 @@ class _SyncStatusLine extends ConsumerWidget {
           ),
           if (failed)
             TextButton(
-              onPressed: () => _syncWithFeedback(context, ref),
+              onPressed: onRetry,
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: const Size(0, 32),
