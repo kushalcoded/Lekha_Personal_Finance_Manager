@@ -265,7 +265,7 @@ hr { border: 0; border-top: 1px solid var(--hairline); margin: 20px 0; }
     <span class="label">Split between</span>
     <div class="seg" id="addWith"></div>
   </div>
-  <div class="field">
+  <div class="field" id="modeWrap">
     <span class="label">Split</span>
     <div class="seg" id="addMode">
       <button type="button" data-mode="equal" aria-pressed="true">Equally</button>
@@ -552,7 +552,14 @@ function start() {
       + ' know. Once they allow it, come back and pick a new PIN.';
     $('settleWho').textContent = 'Between you and ' + r.ownerName + '.';
 
-    if (r.state === 'ok') { renderLedger(r.ledger); return; }
+    if (r.state === 'ok') {
+      // The session came back valid, so adopt the stored one. Without this it
+      // was only ever set by claim and login — so anyone returning to the page
+      // could read the ledger and then had every add rejected as expired.
+      saveSession(loadSession());
+      renderLedger(r.ledger);
+      return;
+    }
     if (r.state === 'claim') { show('claim'); $('claimPin').focus(); return; }
     if (r.lockedFor > 0) { $('loginErr').textContent = lockText(r.lockedFor); }
     show('login'); $('loginPin').focus();
@@ -676,10 +683,12 @@ $('goAdd').onclick = function () {
     });
     // Exact amounts in a group would need a field per person; equal shares
     // among whoever you tick covers the case people actually hit.
-    $('addMode').hidden = true;
+    // The whole field, not just the control — hiding the buttons alone left
+    // a "SPLIT" heading with nothing under it.
+    $('modeWrap').hidden = true;
     $('exactWrap').hidden = true;
   } else {
-    $('addMode').hidden = false;
+    $('modeWrap').hidden = false;
   }
   show('add'); $('addTotal').focus();
 };
@@ -743,7 +752,7 @@ $('addGo').onclick = function () {
     .catch(function (e) {
       busy(btn, false, 'Send it over');
       $('addErr').textContent = e.status === 401
-        ? 'Your week is up — open the link again and enter your PIN.'
+        ? 'Signed out. Open the link again and enter your PIN.'
         : 'Could not send it. Try again.';
     });
 };
@@ -809,7 +818,7 @@ $('settleGo').onclick = function () {
     .catch(function (e) {
       busy(btn, false, 'Record it');
       $('settleErr').textContent = e.status === 401
-        ? 'Your week is up — open the link again and enter your PIN.'
+        ? 'Signed out. Open the link again and enter your PIN.'
         : 'Could not record it. Try again.';
     });
 };
