@@ -37,6 +37,7 @@ import 'package:personal_expanse_tracker/providers/share/share_providers.dart';
 import 'package:personal_expanse_tracker/screens/debts/widgets/add_debt_sheet.dart';
 import 'package:personal_expanse_tracker/screens/debts/widgets/shared_entry_card.dart';
 import 'package:personal_expanse_tracker/screens/onboarding/first_run_sheet.dart';
+import 'package:personal_expanse_tracker/screens/onboarding/restoring_screen.dart';
 import 'package:personal_expanse_tracker/screens/settings/widgets/manage_category_budgets_screen.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:personal_expanse_tracker/services/storage/hive_service.dart';
@@ -466,6 +467,18 @@ void main() {
             ),
           ),
         ),
+      ),
+    ),
+  );
+  // The one blocking screen in the app, and the first thing a reinstall shows.
+  testWidgets(
+    'restoring',
+    (t) => shoot(
+      t,
+      'mobile_restoring',
+      const Scaffold(
+        backgroundColor: Color(0xFF0A0A0D),
+        body: Center(child: RestoringDialog()),
       ),
     ),
   );

@@ -18,6 +18,7 @@ import 'providers/sync/sync_providers.dart';
 import 'screens/settings/providers/settings_providers.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/onboarding/first_run_sheet.dart';
+import 'screens/onboarding/restoring_screen.dart';
 import 'screens/settings/widgets/onboarding_screen.dart';
 import 'screens/splash_screen.dart';
 import 'theme/app_theme.dart';
@@ -84,7 +85,7 @@ Future<void> reconcileSignIn(WidgetRef ref, String userId) async {
     // Different account's data sits on this device (it's safe in its own cloud,
     // pushed on logout). Load THIS account instead of merging.
     if (remote) {
-      await sync.forcePull();
+      await _showingRestore(() => sync.forcePull());
     } else {
       await hive.clearAllData();
       _reloadStores(ref, userId);
@@ -105,7 +106,7 @@ Future<void> reconcileSignIn(WidgetRef ref, String userId) async {
         localUserId,
         userId,
       ); // so pull's clear covers it
-      await sync.forcePull();
+      await _showingRestore(() => sync.forcePull());
     }
   } else if (localData) {
     // This account's own local data (or first-ever sign-in) → carry it up.
@@ -113,12 +114,47 @@ Future<void> reconcileSignIn(WidgetRef ref, String userId) async {
     await sync.forcePush();
     _reloadStores(ref, userId);
   } else if (remote) {
-    // Fresh device → pull the account down.
-    await sync.forcePull();
+    // Fresh device → pull the account down. The long one, and the one people
+    // hit right after installing, so it gets the blocking screen.
+    await _showingRestore(() => sync.forcePull());
   } else {
     _reloadStores(ref, userId);
   }
   await hive.setLocalDataOwner(userId);
+}
+
+/// Run [work] behind the blocking restore screen.
+///
+/// The dialog's own context is captured rather than popping the navigator
+/// blind: this runs from a microtask at sign-in, when the display-name prompt
+/// and the first-run sheet are queued right behind it, and popping "whatever
+/// is on top" would eventually close one of those instead.
+///
+/// If there is no UI yet the work still runs — the restore matters more than
+/// the screen describing it.
+Future<void> _showingRestore(Future<void> Function() work) async {
+  final context = navigatorKey.currentContext;
+  if (context == null) return work();
+
+  BuildContext? dialogContext;
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        dialogContext = ctx;
+        return const RestoringDialog();
+      },
+    ),
+  );
+  try {
+    await work();
+  } finally {
+    // In a finally: a restore that throws must not leave a modal with no
+    // buttons sitting over the app forever.
+    final ctx = dialogContext;
+    if (ctx != null && ctx.mounted) Navigator.of(ctx).pop();
+  }
 }
 
 /// Conflict prompt: true = keep this device, false = keep cloud, null = cancel.
