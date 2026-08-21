@@ -68,6 +68,21 @@ DateTime resolveTransactionTime(Object? stated, {required DateTime fallback}) {
   return parsed.toLocal();
 }
 
+/// When a cloud SMS row was received, in local terms.
+///
+/// `.toLocal()` is the whole point. `received_at` is written by the edge
+/// function as an ISO string with a Z, so `tryParse` hands back a **UTC**
+/// DateTime — and this one is not merely displayed, it becomes `Expense.date`.
+/// Left as UTC it books every detected expense one offset early, puts anything
+/// spent before dawn on the wrong day, and can file a row in the wrong salary
+/// cycle for good.
+///
+/// Pulled out as a function so the conversion is testable without a device or
+/// a fiddled clock: the result's `isUtc` is false in every timezone, including
+/// on a machine sitting at UTC, where comparing rendered dates proves nothing.
+DateTime parseCloudReceivedAt(Object? raw) =>
+    DateTime.tryParse(raw?.toString() ?? '')?.toLocal() ?? DateTime.now();
+
 /// Words that make a message a spend. Deliberately narrower than the native
 /// receiver's gate, which also lets `txn`/`transaction` through — fine for
 /// deciding what to queue, too vague to book money on without the model.
@@ -423,14 +438,7 @@ class SmsCaptureService {
       final body = row['body']?.toString() ?? '';
       if (id.isEmpty || body.isEmpty) continue;
       final hash = 'cloud_$id';
-      // .toLocal() because received_at is written as an ISO string with a Z
-      // by the edge function, so tryParse hands back a UTC DateTime — and this
-      // one does not just get displayed, it becomes Expense.date. Left as UTC
-      // it books every detected expense 5h30m early in IST, puts anything spent
-      // before dawn on the wrong day, and can file a row in the wrong cycle.
-      final dateTime =
-          DateTime.tryParse(row['received_at']?.toString() ?? '')?.toLocal() ??
-          DateTime.now();
+      final dateTime = parseCloudReceivedAt(row['received_at']);
       if (await _ingest(hash: hash, body: body, dateTime: dateTime)) added++;
       // Seen = Gemini responded (kept or filtered) — safe to retire the row.
       if (hive.isSmsSeen(hash)) done.add(id);
@@ -478,9 +486,8 @@ class SmsCaptureService {
           .order('received_at', ascending: false)
           .limit(1);
       if (rows.isEmpty) return null;
-      return DateTime.tryParse(
-        rows.first['received_at']?.toString() ?? '',
-      )?.toLocal();
+      final raw = rows.first['received_at']?.toString() ?? '';
+      return DateTime.tryParse(raw)?.toLocal();
     } catch (_) {
       return null;
     }
