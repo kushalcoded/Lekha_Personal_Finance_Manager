@@ -124,7 +124,8 @@ final debtInsightsProvider = Provider.family<List<SmartFinancialInsight>, String
       SmartFinancialInsight(
         title: 'Outstanding payables',
         message:
-            'You owe ${AppFormatters.formatCurrency(payablesTotal)} across $peopleOwed people.',
+            'You owe ${AppFormatters.formatCurrency(payablesTotal)} across '
+            '$peopleOwed ${AppFormatters.plural(peopleOwed, 'person', 'people')}.',
         icon: Icons.payments_rounded,
         severity: InsightSeverity.warning,
       ),

@@ -90,7 +90,6 @@ class AnalyticsNotifier extends StateNotifier<AnalyticsState> {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
-
 }
 
 /// The chosen scope, remembered across launches like the last open tab.
@@ -428,4 +427,3 @@ double _sumForRange(List<Expense> expenses, DateTime start, DateTime end) {
       )
       .fold(0.0, (sum, expense) => sum + expense.amount);
 }
-

@@ -305,7 +305,9 @@ OrderedCategories orderCategories(
   final used = categories.where((c) => (counts[c] ?? 0) > 0).toList()
     ..sort((a, b) {
       final byCount = (counts[b] ?? 0).compareTo(counts[a] ?? 0);
-      return byCount != 0 ? byCount : a.toLowerCase().compareTo(b.toLowerCase());
+      return byCount != 0
+          ? byCount
+          : a.toLowerCase().compareTo(b.toLowerCase());
     });
 
   final frequent = used.take(frequentCount).toList();

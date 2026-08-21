@@ -80,7 +80,9 @@ class HistoryScreen extends ConsumerWidget {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      '${snapshot.transactionCount} transactions archived',
+                                      '${snapshot.transactionCount} '
+                                      '${AppFormatters.plural(snapshot.transactionCount, 'transaction', 'transactions')} '
+                                      'archived',
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
                                             color: theme

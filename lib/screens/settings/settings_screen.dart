@@ -660,10 +660,11 @@ class SettingsScreen extends ConsumerWidget {
         title: const Text('Restore backup?'),
         content: Text(
           'This will replace your current local data with:\n'
-          '${item.expenseCount} expenses, '
-          '${item.receivableCount} receivables, '
-          '${item.payableCount} payables, '
-          '${item.recurringTemplateCount} recurring templates.\n\n'
+          '${item.expenseCount} ${AppFormatters.plural(item.expenseCount, 'expense', 'expenses')}, '
+          '${item.receivableCount} ${AppFormatters.plural(item.receivableCount, 'receivable', 'receivables')}, '
+          '${item.payableCount} ${AppFormatters.plural(item.payableCount, 'payable', 'payables')}, '
+          '${item.recurringTemplateCount} recurring '
+          '${AppFormatters.plural(item.recurringTemplateCount, 'template', 'templates')}.\n\n'
           'This action cannot be undone (a safety snapshot is created '
           'automatically).\n\nBackup: ${item.backupId}',
         ),

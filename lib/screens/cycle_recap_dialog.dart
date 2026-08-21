@@ -51,5 +51,6 @@ String _localRecap(CycleHistorySnapshot snapshot) {
   final base = snapshot.cycleBudget > 0
       ? 'You spent $spent of your $budget budget'
       : 'You spent $spent';
-  return '$base across ${snapshot.transactionCount} transactions.';
+  final n = snapshot.transactionCount;
+  return '$base across $n ${AppFormatters.plural(n, 'transaction', 'transactions')}.';
 }

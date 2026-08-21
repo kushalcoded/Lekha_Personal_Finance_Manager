@@ -429,9 +429,7 @@ class SmsCaptureService {
       // it books every detected expense 5h30m early in IST, puts anything spent
       // before dawn on the wrong day, and can file a row in the wrong cycle.
       final dateTime =
-          DateTime.tryParse(
-            row['received_at']?.toString() ?? '',
-          )?.toLocal() ??
+          DateTime.tryParse(row['received_at']?.toString() ?? '')?.toLocal() ??
           DateTime.now();
       if (await _ingest(hash: hash, body: body, dateTime: dateTime)) added++;
       // Seen = Gemini responded (kept or filtered) — safe to retire the row.

@@ -245,7 +245,9 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                           onEditingComplete: _controller.clearComposing,
                           onSubmitted: (_) {
                             if (HardwareKeyboard.instance.isShiftPressed) {
-                              _controller.value = withNewline(_controller.value);
+                              _controller.value = withNewline(
+                                _controller.value,
+                              );
                             } else {
                               _send(configured, chat.isLoading);
                             }

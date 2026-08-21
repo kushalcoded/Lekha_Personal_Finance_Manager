@@ -118,7 +118,10 @@ class BackupCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${backup.expenseCount} expenses · ${backup.receivableCount} receivables · ${backup.payableCount} payables · ${backup.recurringTemplateCount} recurring',
+                  '${backup.expenseCount} ${AppFormatters.plural(backup.expenseCount, 'expense', 'expenses')}'
+                  ' · ${backup.receivableCount} ${AppFormatters.plural(backup.receivableCount, 'receivable', 'receivables')}'
+                  ' · ${backup.payableCount} ${AppFormatters.plural(backup.payableCount, 'payable', 'payables')}'
+                  ' · ${backup.recurringTemplateCount} recurring',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
