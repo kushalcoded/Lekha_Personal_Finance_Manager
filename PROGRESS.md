@@ -99,7 +99,7 @@ Full design: `~/.claude/plans/swift-bubbling-conway.md`.
       with two people it can only ever return the number already on screen, and
       a Simplify button that never changes anything is worse than no button.
 
-### 8. Fixes found by actually using it
+### 8. Fixes found by actually using the pairwise flow
 
 - [x] **Reload looked like a dead link** (`604801d`). The token is wiped from
       the address bar for privacy, but nothing kept a copy, so a reload found an
@@ -152,11 +152,45 @@ Everything on the web side is **done and live**. What is left:
 | A real trial with a friend | Whether someone who has never heard of Lekha opens the link and understands it |
 | Finish the PIN-reset test | One tap on "Allow reset" on Test's ledger — the last untested path |
 
+### 9. Fixes found by actually using groups
+
+Groups shipped in v1.2.0 and everything below came out of trying to use one.
+
+- [x] **Entries the owner is not in demanded a decision from them** (`15a8994`).
+      A group lets guests split between themselves; those rows still landed in
+      the owner's inbox, where accepting them did nothing at all.
+- [x] **The owner could not see their own group** (`b5d9f28`). They have no
+      share link, correctly — but the group sheet showed only the links and the
+      cards waiting on them, so the person who created it was the one person who
+      could not see it. Now shows where everyone stands and the fewest payments
+      that settle it, using `simplifyDebts`.
+- [x] **No way to tell who had joined** (`b5d9f28`). Four states per member, three
+      of them from the server (`last_seen_at`, `pin_set_at`) and one recorded
+      locally when you take the link — nothing can know whether a message was
+      actually delivered.
+- [x] **The group was read-only** (`fd15eed`). Adding an expense from the app now
+      books the split by the same path accepting does — one shared function — and
+      publishes the row so everyone's page shows it. Settling needed no new
+      screen: a group's debts are ordinary receivables and payables once they
+      land, and names tap through to the ledger where Record a payment lives.
+- [x] **"Shared with Kushal" in Kushal's own ledger** (`dabf5f9`). The
+      description fell back to the entry's author, which for anything the owner
+      added is the owner. Falls back to the group's name now. The same field
+      would also have booked the owner a debt with themselves on an expense they
+      were alone in.
+
+**Not done in groups:** exact amounts (equal among whoever is ticked only), and
+a guest cannot be removed from a group once added.
+
 ## Android
 
-**v1.2.0 is built and waiting.** `1.2.0+12`, signed with the release key
-(CN=Kushal Girdhar), on the Desktop as `Lekha-v1.2.0.apk`. **Nothing is
-published** — a release always waits for an explicit go.
+**v1.2.1 is released** — `1.2.1+13`, same signing key as 1.2.0, so it updates
+in place. Anyone on 1.1.6 or older still needs export → uninstall → install →
+sign in, because that is where the key changed.
+
+**One fix landed after the release** (`dabf5f9`, the "Shared with Kushal"
+description), so it is on the web but not in the APK. Not worth a release on its
+own; it rides along with whatever comes next.
 
 **It will not install over the current app** — the signing key changed. Export
 from Settings, uninstall, install, sign in; the cloud snapshot restores
