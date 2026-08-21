@@ -1,13 +1,16 @@
 import 'package:flutter/foundation.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/expense/expense_model.dart';
 import '../../models/share/shared_entry.dart';
 import '../../screens/debts/providers/people_balance_providers.dart';
+import '../../screens/debts/utils/simplify_debts.dart';
 import '../../screens/settings/providers/settings_providers.dart';
 import '../../screens/expenses/utils/split_helpers.dart';
 import '../../screens/expenses/utils/split_persistence.dart';
+import '../../services/storage/hive_service.dart' show kLocalPrefsBox;
 import '../../services/supabase/supabase_service.dart';
 import '../storage/storage_providers.dart';
 
@@ -33,16 +36,66 @@ class PinResetRequest {
   });
 }
 
+/// Whether you have copied or shared this person's link from this device.
+///
+/// Deliberately local: nothing on the server can know whether you actually
+/// sent the message, so this only records that you took the link — which is
+/// still the difference between "they have not opened it" and "you never sent
+/// it to them".
+bool shareLinkSent(String token) =>
+    Hive.isBoxOpen(kLocalPrefsBox) &&
+    Hive.box(kLocalPrefsBox).get('shareSent:$token') == true;
+
+Future<void> markShareLinkSent(String token) async {
+  if (!Hive.isBoxOpen(kLocalPrefsBox)) return;
+  await Hive.box(kLocalPrefsBox).put('shareSent:$token', true);
+}
+
+/// How far a person has got with the link you made for them.
+enum ShareProgress { notSent, sent, opened, joined }
+
+/// Read from what actually happened, not from assumptions.
+///
+/// [openedAt] and [joinedAt] come from the server — the page stamps
+/// `last_seen_at` whenever it loads, and `pin_set_at` when a PIN is chosen.
+/// [sent] is the one thing no server can know: it is recorded on this device
+/// when you tap Copy or Share, and says nothing about whether the message was
+/// actually delivered.
+ShareProgress shareProgressFor({
+  required bool sent,
+  DateTime? openedAt,
+  DateTime? joinedAt,
+}) {
+  if (joinedAt != null) return ShareProgress.joined;
+  if (openedAt != null) return ShareProgress.opened;
+  return sent ? ShareProgress.sent : ShareProgress.notSent;
+}
+
+String shareProgressLabel(ShareProgress progress) => switch (progress) {
+  ShareProgress.joined => 'Joined',
+  ShareProgress.opened => 'Opened it, no PIN yet',
+  ShareProgress.sent => 'Link copied, not opened yet',
+  ShareProgress.notSent => 'Not shared yet',
+};
+
 /// One person on a group, and the link that is theirs.
 class SharedGroupMember {
   final String personId;
   final String name;
   final String token;
 
+  /// Last time their page loaded, or null if it never has.
+  final DateTime? openedAt;
+
+  /// When they chose a PIN. Null means they have not joined.
+  final DateTime? joinedAt;
+
   const SharedGroupMember({
     required this.personId,
     required this.name,
     required this.token,
+    this.openedAt,
+    this.joinedAt,
   });
 
   String get link => '$kSharePageBase$token';
@@ -146,13 +199,13 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
       final peopleRows =
           await client
                   .from('shared_people')
-                  .select('id, name, pin_reset_requested_at')
+                  .select('id, name, pin_reset_requested_at, pin_set_at')
                   .eq('owner_id', userId)
               as List<dynamic>;
       final participantRows =
           await client
                   .from('shared_participants')
-                  .select('person_id, space_id, token')
+                  .select('person_id, space_id, token, last_seen_at')
                   .eq('owner_id', userId)
                   .isFilter('revoked_at', null)
               as List<dynamic>;
@@ -185,6 +238,12 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
         for (final r in peopleRows.cast<Map<String, dynamic>>())
           r['id'].toString(): r['name'] as String? ?? '',
       };
+      final joinedById = {
+        for (final r in peopleRows.cast<Map<String, dynamic>>())
+          r['id'].toString(): DateTime.tryParse(
+            r['pin_set_at']?.toString() ?? '',
+          ),
+      };
 
       final groups = <SharedGroup>[];
       for (final sp in spaceRows.cast<Map<String, dynamic>>()) {
@@ -200,6 +259,10 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
               personId: personId,
               name: nameById[personId] ?? '',
               token: part['token'].toString(),
+              openedAt: DateTime.tryParse(
+                part['last_seen_at']?.toString() ?? '',
+              ),
+              joinedAt: joinedById[personId],
             ),
           );
         }
@@ -681,3 +744,94 @@ Future<void> acceptSharedEntry({
   // they are already on the page as the guest's own entry.
   await inbox.decide(entry, 'accepted', linkedExpenseId: expenseId ?? entry.id);
 }
+
+/// A group as everyone on its page sees it: where each person stands, and the
+/// fewest payments that would clear the whole thing.
+///
+/// The owner has no share link and should not need one — they own the group.
+/// But that left them with nowhere at all to see its maths, since the group
+/// sheet only ever showed the links and whatever was waiting on them. This is
+/// that missing view, and it is what `simplifyDebts` was written for.
+class GroupLedger {
+  /// Owner first, then everyone else.
+  final List<String> members;
+
+  /// Positive means that person is owed.
+  final Map<String, double> balances;
+  final List<Transfer> transfers;
+  final List<SharedEntry> entries;
+
+  const GroupLedger({
+    required this.members,
+    required this.balances,
+    required this.transfers,
+    required this.entries,
+  });
+
+  double netFor(String name) => balances[name] ?? 0;
+}
+
+/// Fetched on demand rather than on the 60s tick: it is only ever looked at
+/// while the group sheet is open.
+final groupLedgerProvider = FutureProvider.family<GroupLedger?, String>((
+  ref,
+  spaceId,
+) async {
+  final inbox = ref.watch(sharedInboxProvider);
+  final group = inbox.groups.where((g) => g.id == spaceId).firstOrNull;
+  if (group == null) return null;
+  final ownerName = ref.read(settingsProvider).displayName.trim();
+  if (ownerName.isEmpty) return null;
+
+  final client = SupabaseService.client;
+  if (client.auth.currentUser == null) return null;
+
+  final rows =
+      await client
+              .from('shared_entries')
+              .select(
+                'id, space_id, kind, total, payer_name, shares, note, '
+                'occurred_on, author_person_id',
+              )
+              .eq('space_id', spaceId)
+              .neq('status', 'dismissed')
+              .order('occurred_on', ascending: false)
+          as List<dynamic>;
+
+  final nameById = {for (final m in group.members) m.personId: m.name};
+  final entries = <SharedEntry>[];
+  for (final row in rows.cast<Map<String, dynamic>>()) {
+    entries.add(
+      SharedEntry.fromRow(
+        row,
+        // The author. An entry the owner added themselves has no participant
+        // row behind it, so it falls back to whoever paid.
+        personName:
+            nameById[row['author_person_id']?.toString()] ??
+            (row['payer_name'] as String? ?? ownerName),
+      ),
+    );
+  }
+
+  // Same arithmetic the Edge Function does for the guests, so the app and the
+  // page cannot show different numbers: whoever paid is up by the whole bill,
+  // and everyone is down by their share.
+  final members = [ownerName, ...group.members.map((m) => m.name)];
+  final balances = <String, double>{for (final name in members) name: 0};
+  for (final entry in entries) {
+    balances[entry.payerName] = (balances[entry.payerName] ?? 0) + entry.total;
+    for (final share in entry.shares.entries) {
+      balances[share.key] = (balances[share.key] ?? 0) - share.value;
+    }
+  }
+  for (final name in balances.keys.toList()) {
+    balances[name] = (balances[name]! * 100).round() / 100;
+  }
+
+  return GroupLedger(
+    members: members,
+    balances: balances,
+    transfers: simplifyDebts(balances),
+    entries: entries,
+  );
+});

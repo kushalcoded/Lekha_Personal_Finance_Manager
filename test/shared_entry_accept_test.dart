@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:personal_expanse_tracker/models/share/shared_entry.dart';
+import 'package:personal_expanse_tracker/providers/share/share_providers.dart';
 import 'package:personal_expanse_tracker/screens/expenses/utils/split_helpers.dart';
 
 /// Accepting a guest's entry is the only place money enters the ledger on
@@ -265,6 +266,40 @@ void main() {
         occurredOn: DateTime(2026, 8, 18),
       );
       expect(entryInvolvesOwner(e, ownerName: owner), isTrue);
+    });
+  });
+
+  // Four states across a list of names, and only one of them is guesswork:
+  // the server knows when a page loaded and when a PIN was chosen; nothing can
+  // know whether the message was actually delivered.
+  group('shareProgressFor', () {
+    test('a PIN means joined, whatever else is true', () {
+      expect(
+        shareProgressFor(
+          sent: false,
+          openedAt: null,
+          joinedAt: DateTime(2026, 8, 21),
+        ),
+        ShareProgress.joined,
+      );
+    });
+
+    test('opened without a PIN is its own state', () {
+      expect(
+        shareProgressFor(sent: true, openedAt: DateTime(2026, 8, 21)),
+        ShareProgress.opened,
+      );
+    });
+
+    test('taking the link and them never opening it are different things', () {
+      expect(shareProgressFor(sent: true), ShareProgress.sent);
+      expect(shareProgressFor(sent: false), ShareProgress.notSent);
+    });
+
+    test('every state says something, none of them blank', () {
+      for (final p in ShareProgress.values) {
+        expect(shareProgressLabel(p), isNotEmpty, reason: p.name);
+      }
     });
   });
 

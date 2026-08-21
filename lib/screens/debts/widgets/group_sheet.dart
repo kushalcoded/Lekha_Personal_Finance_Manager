@@ -6,8 +6,10 @@ import 'package:share_plus/share_plus.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/people/people_providers.dart';
 import '../../../providers/share/share_providers.dart';
+import '../../../theme/app_theme.dart';
 import '../../../widgets/common/form_bits.dart';
 import '../../../widgets/common/glass.dart';
+import '../../../utils/formatters/formatters.dart';
 import '../../../widgets/common/person_menu.dart';
 import '../../../widgets/responsive/responsive_sheet.dart';
 import '../../settings/providers/settings_providers.dart';
@@ -251,6 +253,8 @@ class _GroupDetail extends ConsumerWidget {
               height: 1.4,
             ),
           ),
+          const SizedBox(height: 18),
+          _GroupStanding(spaceId: group.id),
           if (waiting.isNotEmpty) ...[
             const SizedBox(height: 20),
             const FieldLabel('Waiting for you'),
@@ -306,15 +310,44 @@ class _GroupDetail extends ConsumerWidget {
   }
 }
 
-class _MemberRow extends StatelessWidget {
+class _MemberRow extends ConsumerStatefulWidget {
   final SharedGroupMember member;
   final SharedGroup group;
 
   const _MemberRow({required this.member, required this.group});
 
   @override
+  ConsumerState<_MemberRow> createState() => _MemberRowState();
+}
+
+class _MemberRowState extends ConsumerState<_MemberRow> {
+  Future<void> _take(Future<void> Function() action, String done) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await action();
+    await markShareLinkSent(widget.member.token);
+    if (!mounted) return;
+    setState(() {});
+    messenger.showSnackBar(SnackBar(content: Text(done)));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final calm = CalmColors.of(context);
+    final m = widget.member;
+    final progress = shareProgressFor(
+      sent: shareLinkSent(m.token),
+      openedAt: m.openedAt,
+      joinedAt: m.joinedAt,
+    );
+    final color = switch (progress) {
+      ShareProgress.joined => calm.positive,
+      ShareProgress.opened => calm.warning,
+      ShareProgress.sent => cs.onSurfaceVariant,
+      ShareProgress.notSent => cs.error,
+    };
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: GlassCard(
@@ -322,40 +355,207 @@ class _MemberRow extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
+            // A dot rather than a word: four states across a list of names is
+            // a lot of text, and the colour is the thing you scan for.
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                member.name,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    m.name,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    shareProgressLabel(progress),
+                    style: theme.textTheme.bodySmall?.copyWith(color: color),
+                  ),
+                ],
               ),
             ),
             IconButton(
               tooltip: 'Copy link',
               icon: const Icon(Icons.copy_rounded, size: 18),
-              onPressed: () async {
-                await Clipboard.setData(ClipboardData(text: member.link));
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("${member.name}'s link copied")),
-                );
-              },
+              onPressed: () => _take(
+                () => Clipboard.setData(ClipboardData(text: m.link)),
+                "${m.name}'s link copied",
+              ),
             ),
             IconButton(
               tooltip: 'Share link',
               icon: const Icon(Icons.share_rounded, size: 18),
-              onPressed: () => SharePlus.instance.share(
-                ShareParams(
-                  text:
-                      '${group.title} — what everyone owes, kept up to date: '
-                      '${member.link}\n\n'
-                      'No app needed — you pick a 4-digit PIN the first time.',
+              onPressed: () => _take(
+                () => SharePlus.instance.share(
+                  ShareParams(
+                    text:
+                        '${widget.group.title} — what everyone owes, kept up '
+                        'to date: ${m.link}\n\n'
+                        'No app needed — you pick a 4-digit PIN the first time.',
+                  ),
                 ),
+                'Shared with ${m.name}',
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Where everyone stands, and the fewest payments that would settle it.
+///
+/// The owner has no share link, so without this the group's maths existed only
+/// on the guests' pages and the person who created it could not see it at all.
+class _GroupStanding extends ConsumerWidget {
+  final String spaceId;
+
+  const _GroupStanding({required this.spaceId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final calm = CalmColors.of(context);
+    final async = ref.watch(groupLedgerProvider(spaceId));
+    final you = ref.read(settingsProvider).displayName.trim();
+
+    return async.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(minHeight: 2),
+      ),
+      error: (e, _) => Text(
+        'Could not load the group just now.',
+        style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+      ),
+      data: (ledger) {
+        if (ledger == null) return const SizedBox.shrink();
+        final mine = ledger.netFor(you);
+        final color = mine > 0.009
+            ? calm.positive
+            : mine < -0.009
+            ? cs.error
+            : cs.onSurfaceVariant;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GlassCard(
+              radius: 12,
+              padding: const EdgeInsets.all(14),
+              color: color.withValues(alpha: 0.08),
+              border: Border.all(color: color.withValues(alpha: 0.30)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FieldLabel(
+                    mine > 0.009
+                        ? 'The group owes you'
+                        : mine < -0.009
+                        ? 'You owe the group'
+                        : "You're square",
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    AppFormatters.formatCurrency(mine.abs()),
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (ledger.transfers.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const FieldLabel('Who pays whom'),
+              const SizedBox(height: 6),
+              ...ledger.transfers.map(
+                (t) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${t.from == you ? 'You' : t.from} → '
+                          '${t.to == you ? 'you' : t.to}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                      Text(
+                        AppFormatters.formatCurrency(t.amount),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'The fewest payments that settle everyone.',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            const FieldLabel('Everyone'),
+            const SizedBox(height: 6),
+            ...ledger.members.map((name) {
+              final value = ledger.netFor(name);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        name == you ? '$name (you)' : name,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                    Text(
+                      value > 0.009
+                          ? 'is owed ${AppFormatters.formatCurrency(value)}'
+                          : value < -0.009
+                          ? 'owes ${AppFormatters.formatCurrency(-value)}'
+                          : 'square',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: value > 0.009
+                            ? calm.positive
+                            : value < -0.009
+                            ? cs.error
+                            : cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            if (ledger.entries.isEmpty) ...[
+              const SizedBox(height: 14),
+              Text(
+                'Nothing added yet. Anyone with a link can start.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
