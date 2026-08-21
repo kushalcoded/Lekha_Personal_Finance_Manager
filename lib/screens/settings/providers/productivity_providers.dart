@@ -237,9 +237,16 @@ class ExportNotifier extends StateNotifier<ExportState> {
             name: file.fileName,
           )
         : XFile(file.tempPath, mimeType: file.mimeType, name: file.fileName);
-    await SharePlus.instance.share(
-      ShareParams(files: [xFile], text: 'Lekha export: ${file.fileName}'),
-    );
+    try {
+      await SharePlus.instance.share(
+        ShareParams(files: [xFile], text: 'Lekha export: ${file.fileName}'),
+      );
+    } catch (e) {
+      // Surfaced through the same state the rest of this notifier uses, which
+      // Settings already renders. Without it a failing share sheet was a tap
+      // that did nothing at all.
+      state = state.copyWith(error: 'Could not share the export: $e');
+    }
   }
 
   List<Expense> _applyExpenseFilter(

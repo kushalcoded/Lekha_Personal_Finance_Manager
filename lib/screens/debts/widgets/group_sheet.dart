@@ -89,9 +89,7 @@ class _NewGroupFormState extends ConsumerState<_NewGroupForm> {
     final prefs = ref.watch(peoplePrefsProvider);
     final known = ref
         .watch(knownPeopleProvider)
-        .where(
-          (n) => !_people.any((p) => p.toLowerCase() == n.toLowerCase()),
-        )
+        .where((n) => !_people.any((p) => p.toLowerCase() == n.toLowerCase()))
         .toList();
     final canSave =
         _title.text.trim().isNotEmpty && _people.isNotEmpty && !_saving;
@@ -265,19 +263,35 @@ class _GroupDetail extends ConsumerWidget {
                   ownerName: ownerName,
                   onAccept: () async {
                     final messenger = ScaffoldMessenger.of(context);
-                    await acceptSharedEntry(
-                      ref: ref,
-                      entry: e,
-                      userId: ref.read(currentUserIdProvider) ?? localUserId,
-                      ownerName: ownerName,
-                    );
+                    try {
+                      await acceptSharedEntry(
+                        ref: ref,
+                        entry: e,
+                        userId: ref.read(currentUserIdProvider) ?? localUserId,
+                        ownerName: ownerName,
+                      );
+                    } catch (err) {
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('Could not add that: $err')),
+                      );
+                      return;
+                    }
                     messenger.showSnackBar(
                       const SnackBar(content: Text('Added')),
                     );
                   },
-                  onDismiss: () => ref
-                      .read(sharedInboxProvider.notifier)
-                      .decide(e, 'dismissed'),
+                  onDismiss: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      await ref
+                          .read(sharedInboxProvider.notifier)
+                          .decide(e, 'dismissed');
+                    } catch (err) {
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('Could not dismiss that: $err')),
+                      );
+                    }
+                  },
                 ),
               ),
             ),

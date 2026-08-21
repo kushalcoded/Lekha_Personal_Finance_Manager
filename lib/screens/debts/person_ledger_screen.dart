@@ -130,9 +130,7 @@ class PersonLedgerScreen extends ConsumerWidget {
                   entry: e,
                   ownerName: ref.read(settingsProvider).displayName,
                   onAccept: () => _acceptEntry(context, ref, e),
-                  onDismiss: () => ref
-                      .read(sharedInboxProvider.notifier)
-                      .decide(e, 'dismissed'),
+                  onDismiss: () => _decide(context, ref, e, 'dismissed'),
                 ),
               ),
             ),
@@ -288,13 +286,37 @@ class PersonLedgerScreen extends ConsumerWidget {
     SharedEntry entry,
   ) async {
     final messenger = ScaffoldMessenger.of(context);
-    await acceptSharedEntry(
-      ref: ref,
-      entry: entry,
-      userId: ref.read(currentUserIdProvider) ?? localUserId,
-      ownerName: ref.read(settingsProvider).displayName,
-    );
+    try {
+      await acceptSharedEntry(
+        ref: ref,
+        entry: entry,
+        userId: ref.read(currentUserIdProvider) ?? localUserId,
+        ownerName: ref.read(settingsProvider).displayName,
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Could not add that: $e')));
+      return;
+    }
     messenger.showSnackBar(const SnackBar(content: Text('Added')));
+  }
+
+  /// Dismissing has to be able to fail: the card is only forgotten once the
+  /// server agrees, otherwise it reappears on the next refresh having already
+  /// been reported as handled.
+  Future<void> _decide(
+    BuildContext context,
+    WidgetRef ref,
+    SharedEntry entry,
+    String status,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(sharedInboxProvider.notifier).decide(entry, status);
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not dismiss that: $e')),
+      );
+    }
   }
 
   Future<void> _allowReset(
@@ -304,10 +326,16 @@ class PersonLedgerScreen extends ConsumerWidget {
   ) async {
     final inbox = ref.read(sharedInboxProvider.notifier);
     final version = await inbox.pinVersionOf(request);
-    await inbox.allowReset(request, bumpTo: version + 1);
+    final ok = await inbox.allowReset(request, bumpTo: version + 1);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${request.name} can set a new PIN now')),
+      SnackBar(
+        content: Text(
+          ok
+              ? '${request.name} can set a new PIN now'
+              : "Could not reset that — their old PIN still works",
+        ),
+      ),
     );
   }
 
@@ -788,9 +816,9 @@ class _ShareLinkDialog extends StatelessWidget {
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: link));
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Link copied')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Link copied')));
           },
           style: OutlinedButton.styleFrom(
             foregroundColor: cs.onSurface,

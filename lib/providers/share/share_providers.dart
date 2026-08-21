@@ -243,7 +243,10 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
   /// The link for [person], creating the space and identity the first time.
   /// Returns null when signed out or the write fails — the caller says so
   /// rather than handing over a URL that leads nowhere.
-  Future<String?> shareLinkFor(String person, {required String ownerName}) async {
+  Future<String?> shareLinkFor(
+    String person, {
+    required String ownerName,
+  }) async {
     final userId = _userId;
     if (userId == null) return null;
     final client = SupabaseService.client;
@@ -251,41 +254,38 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
     final key = name.toLowerCase();
 
     try {
-      final personRow =
-          await client
-                  .from('shared_people')
-                  .upsert({
-                    'owner_id': userId,
-                    'name': name,
-                    'name_key': key,
-                  }, onConflict: 'owner_id,name_key')
-                  .select('id')
-                  .single();
+      final personRow = await client
+          .from('shared_people')
+          .upsert({
+            'owner_id': userId,
+            'name': name,
+            'name_key': key,
+          }, onConflict: 'owner_id,name_key')
+          .select('id')
+          .single();
       final personId = personRow['id'].toString();
 
       // ponytail: a person has exactly one space today, because only pairwise
       // shares exist. When groups land this needs to pick the space whose
       // title is null.
-      final existing =
-          await client
-                  .from('shared_participants')
-                  .select('token')
-                  .eq('person_id', personId)
-                  .isFilter('revoked_at', null)
-                  .limit(1)
-                  .maybeSingle();
+      final existing = await client
+          .from('shared_participants')
+          .select('token')
+          .eq('person_id', personId)
+          .isFilter('revoked_at', null)
+          .limit(1)
+          .maybeSingle();
 
       if (existing != null) {
         await _syncSpace(person);
         return '$kSharePageBase${existing['token']}';
       }
 
-      final spaceRow =
-          await client
-                  .from('shared_spaces')
-                  .insert({'owner_id': userId, 'owner_name': ownerName})
-                  .select('id')
-                  .single();
+      final spaceRow = await client
+          .from('shared_spaces')
+          .insert({'owner_id': userId, 'owner_name': ownerName})
+          .select('id')
+          .single();
 
       final token = _newToken();
       await client.from('shared_participants').insert({
@@ -321,16 +321,15 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
     if (userId == null || names.isEmpty) return false;
     final client = SupabaseService.client;
     try {
-      final space =
-          await client
-              .from('shared_spaces')
-              .insert({
-                'owner_id': userId,
-                'owner_name': ownerName,
-                'title': title.trim(),
-              })
-              .select('id')
-              .single();
+      final space = await client
+          .from('shared_spaces')
+          .insert({
+            'owner_id': userId,
+            'owner_name': ownerName,
+            'title': title.trim(),
+          })
+          .select('id')
+          .single();
       final spaceId = space['id'];
 
       for (final raw in names) {
@@ -502,7 +501,11 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
           })
           .eq('id', entry.id);
     } catch (e) {
+      // Rethrow rather than drop it from the list anyway. The row is still
+      // pending in Postgres, so hiding the card only means it reappears on the
+      // next refresh — after the user has been told it was dealt with.
       debugPrint('decide failed: $e');
+      rethrow;
     }
     state = SharedInbox(
       pending: state.pending.where((e) => e.id != entry.id).toList(),
@@ -515,7 +518,12 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
   /// Clear the PIN so the guest can set a new one, and bump `pin_version` so
   /// any device still holding a week-old session is signed out at the same
   /// moment.
-  Future<void> allowReset(PinResetRequest request, {required int bumpTo}) async {
+  /// Returns false when the reset did not go through, so the caller does not
+  /// promise the guest can set a new PIN when their old one still works.
+  Future<bool> allowReset(
+    PinResetRequest request, {
+    required int bumpTo,
+  }) async {
     try {
       await SupabaseService.client
           .from('shared_people')
@@ -531,7 +539,7 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
           .eq('id', request.personId);
     } catch (e) {
       debugPrint('reset failed: $e');
-      return;
+      return false;
     }
     state = SharedInbox(
       pending: state.pending,
@@ -540,18 +548,18 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
           .toList(),
       groups: state.groups,
     );
+    return true;
   }
 
   /// The current `pin_version`, so a reset can raise it by exactly one without
   /// a database-side expression.
   Future<int> pinVersionOf(PinResetRequest request) async {
     try {
-      final row =
-          await SupabaseService.client
-                  .from('shared_people')
-                  .select('pin_version')
-                  .eq('id', request.personId)
-                  .maybeSingle();
+      final row = await SupabaseService.client
+          .from('shared_people')
+          .select('pin_version')
+          .eq('id', request.personId)
+          .maybeSingle();
       return (row?['pin_version'] as int?) ?? 1;
     } catch (_) {
       return 1;
@@ -609,7 +617,11 @@ Future<void> acceptSharedEntry({
     } else {
       await ref
           .read(payablesProvider.notifier)
-          .settlePersonPayables(entry.personName, entry.total, note: entry.note);
+          .settlePersonPayables(
+            entry.personName,
+            entry.total,
+            note: entry.note,
+          );
     }
     await inbox.decide(entry, 'accepted');
     return;

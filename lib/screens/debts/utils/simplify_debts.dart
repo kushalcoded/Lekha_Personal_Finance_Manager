@@ -52,10 +52,7 @@ double _round2(double value) => (value * 100).round() / 100;
 // happens to net to zero on its own. Splitwise ships the same greedy. Worth
 // replacing with a subset-partition search only if a group ever passes ~10
 // people and somebody actually complains about the extra payment.
-List<Transfer> simplifyDebts(
-  Map<String, double> net, {
-  double epsilon = 0.01,
-}) {
+List<Transfer> simplifyDebts(Map<String, double> net, {double epsilon = 0.01}) {
   final creditors = <MapEntry<String, double>>[];
   final debtors = <MapEntry<String, double>>[];
   for (final entry in net.entries) {
@@ -75,9 +72,7 @@ List<Transfer> simplifyDebts(
 
     final owed = creditors.first;
     final owing = debtors.first;
-    final amount = _round2(
-      owed.value < owing.value ? owed.value : owing.value,
-    );
+    final amount = _round2(owed.value < owing.value ? owed.value : owing.value);
     if (amount <= epsilon) break;
 
     transfers.add(Transfer(owing.key, owed.key, amount));
