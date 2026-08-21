@@ -180,12 +180,7 @@ void main() {
         kind: 'expense',
         total: 1200,
         payerName: 'Meera',
-        shares: const {
-          'Rahul': 300,
-          'Meera': 300,
-          'Kushal': 300,
-          'Aman': 300,
-        },
+        shares: const {'Rahul': 300, 'Meera': 300, 'Kushal': 300, 'Aman': 300},
         note: 'Cab',
         occurredOn: DateTime(2026, 8, 18),
       );
@@ -220,6 +215,56 @@ void main() {
       expect(config.people, contains('Meera'));
       expect(config.exact['Meera'], 0);
       expect(config.paidBy, 'Meera');
+    });
+
+    // A group lets guests split between themselves. Those entries are real on
+    // the shared page and count there, but the owner has no stake in them, and
+    // accepting one writes nothing at all.
+    test('an entry between two guests is not the owner\'s business', () {
+      final e = SharedEntry(
+        id: 'g3',
+        spaceId: 's1',
+        personName: 'Rahul',
+        kind: 'expense',
+        total: 400,
+        payerName: 'Meera',
+        shares: const {'Rahul': 200, 'Meera': 200},
+        note: 'Their cab',
+        occurredOn: DateTime(2026, 8, 18),
+      );
+      expect(entryInvolvesOwner(e, ownerName: owner), isFalse);
+      // And it would indeed do nothing: no share for the owner to book.
+      expect(resolve(e).myShare, 0);
+    });
+
+    test('the owner having a share puts it back in their inbox', () {
+      final e = SharedEntry(
+        id: 'g4',
+        spaceId: 's1',
+        personName: 'Rahul',
+        kind: 'expense',
+        total: 600,
+        payerName: 'Meera',
+        shares: const {'Rahul': 300, 'Kushal': 300},
+        note: 'Tickets',
+        occurredOn: DateTime(2026, 8, 18),
+      );
+      expect(entryInvolvesOwner(e, ownerName: owner), isTrue);
+    });
+
+    test('the owner paying counts even with no share of their own', () {
+      final e = SharedEntry(
+        id: 'g5',
+        spaceId: 's1',
+        personName: 'Rahul',
+        kind: 'expense',
+        total: 600,
+        payerName: owner,
+        shares: const {'Rahul': 600},
+        note: 'Covered it',
+        occurredOn: DateTime(2026, 8, 18),
+      );
+      expect(entryInvolvesOwner(e, ownerName: owner), isTrue);
     });
   });
 

@@ -122,13 +122,22 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
 
       final people = await _peopleByIdFor(rows);
 
+      // Empty means we cannot tell who "the owner" is on an entry, so nothing
+      // is filtered — better an extra card than a hidden one.
+      final ownerName = _ref.read(settingsProvider).displayName.trim();
+
       final pending = <SharedEntry>[];
       for (final row in rows.cast<Map<String, dynamic>>()) {
         final name = people[row['author_person_id']?.toString()];
         // An entry whose author was deleted has nobody to owe; drop it rather
         // than render a card naming an empty string.
         if (name == null || name.isEmpty) continue;
-        pending.add(SharedEntry.fromRow(row, personName: name));
+        final entry = SharedEntry.fromRow(row, personName: name);
+        if (ownerName.isNotEmpty &&
+            !entryInvolvesOwner(entry, ownerName: ownerName)) {
+          continue;
+        }
+        pending.add(entry);
       }
 
       // Everything for this owner in one go, filtered here rather than with a

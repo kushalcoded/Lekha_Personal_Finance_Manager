@@ -133,3 +133,16 @@ String sharedEntryEffect(SharedEntry entry, {required String ownerName}) {
       ? '$bill · ${entry.personName} covered it, nothing owed'
       : '$bill · you would owe ${entry.personName} ${money(split.myShare)}';
 }
+
+/// Whether [entry] is any of the owner's business.
+///
+/// A group deliberately lets guests split things between themselves — two
+/// people sharing a cab the owner was not on is a real entry that counts on the
+/// shared page. It just never touches the owner's own books: their share is
+/// zero, so accepting it writes nothing and `createSplitDebts` returns early.
+/// Putting it in their inbox is a card whose only honest answer is Dismiss.
+///
+/// Pairwise entries always pass this — the Edge Function refuses to store one
+/// that excludes the owner, because a two-person ledger cannot represent it.
+bool entryInvolvesOwner(SharedEntry entry, {required String ownerName}) =>
+    entry.payerName == ownerName || entry.shares.containsKey(ownerName);
