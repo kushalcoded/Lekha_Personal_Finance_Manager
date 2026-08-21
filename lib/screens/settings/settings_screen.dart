@@ -1028,8 +1028,12 @@ String _iphoneSmsSubtitle(AsyncValue<DateTime?> health) {
   if (last == null) return 'Step-by-step Shortcuts setup guide';
   final ago = DateTime.now().difference(last);
   if (ago > _kIphoneSmsStaleAfter) {
-    return 'No SMS for ${AppFormatters.getRelativeTime(last)} — the iPhone '
-        'automation may have switched itself off';
+    // Not getRelativeTime: past seven days it returns a date, and this card
+    // only ever appears after three days of silence — so the sentence that
+    // actually shipped read "No SMS for Aug 12, 2026".
+    final days = ago.inDays;
+    return 'No SMS for $days ${AppFormatters.plural(days, 'day', 'days')} — '
+        'the iPhone automation may have switched itself off';
   }
   return 'Working · last SMS ${AppFormatters.getRelativeTime(last)}';
 }

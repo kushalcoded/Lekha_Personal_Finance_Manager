@@ -94,8 +94,11 @@ final budgetMetricsProvider = Provider.family<BudgetMetrics, String>((
     actualSavings: hasSalary ? salary - spent : 0.0,
     hasBudget: hasBudget,
     hasSalary: hasSalary,
-    isOverBudget: hasBudget && spent > budget,
-    isNearLimit: hasBudget && spent <= budget && percentSpent >= 0.8,
+    // A paisa of tolerance. Summing two-decimal amounts leaves float
+    // residue, so landing exactly on budget could make remaining a tiny
+    // negative — which flipped the bar red and printed "Overspent -₹0".
+    isOverBudget: hasBudget && spent > budget + 0.005,
+    isNearLimit: hasBudget && spent <= budget + 0.005 && percentSpent >= 0.8,
   );
 });
 

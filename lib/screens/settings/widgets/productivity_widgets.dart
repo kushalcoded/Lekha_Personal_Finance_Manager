@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../models/reminder/reminder_model.dart';
 import '../providers/productivity_providers.dart';
+import '../../../utils/formatters/formatters.dart';
 
 class ReminderCard extends StatelessWidget {
   final AppReminder reminder;
@@ -110,7 +111,7 @@ class BackupCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${backup.createdAt.toLocal()}',
+                  AppFormatters.formatDateTime(backup.createdAt),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),

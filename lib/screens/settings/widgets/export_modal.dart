@@ -5,6 +5,7 @@ import '../../../widgets/responsive/responsive_sheet.dart';
 import '../../expenses/providers/expenses_providers.dart';
 import '../providers/productivity_providers.dart';
 import '../providers/settings_providers.dart';
+import '../../../utils/formatters/formatters.dart';
 
 Future<void> showExportModal(BuildContext context) {
   return showResponsiveSheet(
@@ -101,7 +102,8 @@ class _ExportModalContentState extends ConsumerState<ExportModalContent> {
             subtitle: Text(
               _dateRange == null
                   ? 'All dates'
-                  : '${_dateRange!.start.toLocal()} - ${_dateRange!.end.toLocal()}',
+                  : '${AppFormatters.formatDate(_dateRange!.start)} - '
+                        '${AppFormatters.formatDate(_dateRange!.end)}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -246,7 +248,8 @@ class _ExportModalContentState extends ConsumerState<ExportModalContent> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${item.createdAt.toLocal()} · ${item.format.toUpperCase()}',
+                          '${AppFormatters.formatDateTime(item.createdAt)}'
+                          ' · ${item.format.toUpperCase()}',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: colorScheme.onSurfaceVariant),
                         ),
