@@ -13,6 +13,8 @@ import '../../../utils/formatters/formatters.dart';
 import '../../../widgets/common/person_menu.dart';
 import '../../../widgets/responsive/responsive_sheet.dart';
 import '../../settings/providers/settings_providers.dart';
+import '../person_ledger_screen.dart';
+import 'group_expense_sheet.dart';
 import 'shared_entry_card.dart';
 
 /// Start a group: a name and the people in it.
@@ -251,6 +253,14 @@ class _GroupDetail extends ConsumerWidget {
             style: theme.textTheme.bodySmall?.copyWith(
               color: cs.onSurfaceVariant,
               height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => showGroupExpenseSheet(context, group),
+              child: const Text('Add an expense'),
             ),
           ),
           const SizedBox(height: 18),
@@ -513,34 +523,62 @@ class _GroupStanding extends ConsumerWidget {
             ],
             const SizedBox(height: 16),
             const FieldLabel('Everyone'),
-            const SizedBox(height: 6),
+            const SizedBox(height: 2),
+            Text(
+              'Tap a name to settle up — group debts become ordinary '
+              'receivables and payables once they land.',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
             ...ledger.members.map((name) {
               final value = ledger.netFor(name);
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        name == you ? '$name (you)' : name,
-                        style: theme.textTheme.bodyMedium,
+              // Tapping opens their own ledger, which is where Record a
+              // payment already lives — a group's debts are ordinary
+              // receivables and payables once they land.
+              return InkWell(
+                onTap: name == you
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => PersonLedgerScreen(person: name),
+                        ),
                       ),
-                    ),
-                    Text(
-                      value > 0.009
-                          ? 'is owed ${AppFormatters.formatCurrency(value)}'
-                          : value < -0.009
-                          ? 'owes ${AppFormatters.formatCurrency(-value)}'
-                          : 'square',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: value > 0.009
-                            ? calm.positive
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name == you ? '$name (you)' : name,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                      Text(
+                        value > 0.009
+                            ? 'is owed ${AppFormatters.formatCurrency(value)}'
                             : value < -0.009
-                            ? cs.error
-                            : cs.onSurfaceVariant,
+                            ? 'owes ${AppFormatters.formatCurrency(-value)}'
+                            : 'square',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: value > 0.009
+                              ? calm.positive
+                              : value < -0.009
+                              ? cs.error
+                              : cs.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  ],
+                      if (name != you) ...[
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 16,
+                          color: cs.outline,
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               );
             }),

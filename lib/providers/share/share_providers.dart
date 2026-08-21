@@ -558,6 +558,30 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
     }
   }
 
+  /// Put an entry the owner typed onto the shared page.
+  ///
+  /// `author_person_id` is null, which is what marks it as the owner's rather
+  /// than a guest's — the same convention the pairwise projection uses.
+  Future<void> publishOwnEntry(SharedEntry entry, String linkedId) async {
+    final userId = _userId;
+    if (userId == null) return;
+    await SupabaseService.client.from('shared_entries').insert({
+      'id': entry.id,
+      'owner_id': userId,
+      'space_id': entry.spaceId,
+      'author_person_id': null,
+      'kind': entry.kind,
+      'total': entry.total,
+      'payer_name': entry.payerName,
+      'shares': entry.shares,
+      'note': entry.note,
+      'occurred_on': entry.occurredOn.toIso8601String().substring(0, 10),
+      'status': 'accepted',
+      'linked_expense_id': linkedId,
+      'decided_at': DateTime.now().toUtc().toIso8601String(),
+    });
+  }
+
   Future<void> decide(
     SharedEntry entry,
     String status, {
@@ -699,6 +723,32 @@ Future<void> acceptSharedEntry({
     return;
   }
 
+  final expenseId = await _writeEntryToLedger(
+    ref: ref,
+    entry: entry,
+    userId: userId,
+    ownerName: ownerName,
+  );
+
+  // Always a value, even when no expense was written: this is the id
+  // createSplitDebts tagged the debts with, and the projection reads it to know
+  // they are already on the page as the guest's own entry.
+  await inbox.decide(entry, 'accepted', linkedExpenseId: expenseId);
+}
+
+/// Write [entry] into the owner's own books and return the id the debts were
+/// tagged with.
+///
+/// Shared by accepting somebody else's entry and adding your own, because they
+/// are the same write — the only difference is who typed it. Everything still
+/// goes through computeSplit and createSplitDebts, so there remains exactly one
+/// way money enters this app.
+Future<String> _writeEntryToLedger({
+  required WidgetRef ref,
+  required SharedEntry entry,
+  required String userId,
+  required String ownerName,
+}) async {
   final config = splitConfigFor(entry, ownerName: ownerName);
   final split = computeSplit(
     total: entry.total,
@@ -708,8 +758,8 @@ Future<void> acceptSharedEntry({
   );
 
   String? expenseId;
-  // A bill the guest covered entirely is not the owner's spending, so it gets
-  // no expense row — only the debt, if there is one.
+  // A bill somebody else covered entirely is not the owner's spending, so it
+  // gets no expense row — only the debt, if there is one.
   if (split.myShare > 0) {
     final expense = Expense(
       id: const Uuid().v4(),
@@ -738,11 +788,49 @@ Future<void> acceptSharedEntry({
     date: entry.occurredOn,
     category: _shareCategory,
   );
+  return expenseId ?? entry.id;
+}
 
-  // Always a value, even when no expense was written: this is the id
-  // createSplitDebts tagged the debts with, and the projection reads it to know
-  // they are already on the page as the guest's own entry.
-  await inbox.decide(entry, 'accepted', linkedExpenseId: expenseId ?? entry.id);
+/// Add an expense to a group from the app.
+///
+/// The owner was read-only in their own group: they could approve what guests
+/// submitted and nothing else. This is the other half — it books the split into
+/// their ledger exactly as accepting would, then publishes the same entry so
+/// everyone's page shows it immediately.
+///
+/// Published as `accepted` because it is already in the owner's books by the
+/// time it lands; `status` on a group entry means "the owner has filed this",
+/// and this one was filed by definition.
+Future<void> addGroupEntry({
+  required WidgetRef ref,
+  required SharedGroup group,
+  required String userId,
+  required String ownerName,
+  required double total,
+  required String payerName,
+  required Map<String, double> shares,
+  required String? note,
+  required DateTime date,
+}) async {
+  final entry = SharedEntry(
+    id: const Uuid().v4(),
+    spaceId: group.id,
+    personName: payerName,
+    kind: 'expense',
+    total: total,
+    payerName: payerName,
+    shares: shares,
+    note: note,
+    occurredOn: date,
+  );
+  final linkedId = await _writeEntryToLedger(
+    ref: ref,
+    entry: entry,
+    userId: userId,
+    ownerName: ownerName,
+  );
+  await ref.read(sharedInboxProvider.notifier).publishOwnEntry(entry, linkedId);
+  ref.invalidate(groupLedgerProvider(group.id));
 }
 
 /// A group as everyone on its page sees it: where each person stands, and the
