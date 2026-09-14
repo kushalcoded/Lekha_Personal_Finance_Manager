@@ -52,11 +52,22 @@ class SyncNotifier extends StateNotifier<SyncState> {
   /// cloud change doesn't overwrite what the user just did.
   Future<SyncResult> syncNow({bool pushOnly = false}) {
     final running = _inFlight;
-    if (running != null) return running;
+    if (running != null) {
+      // A push-only sync never pulls, so a full one asked for meanwhile (the
+      // app coming back to the front) must still run after it — joining would
+      // quietly skip the pull that brings another device's changes in.
+      if (_inFlightPushOnly && !pushOnly) {
+        return running.then((_) => syncNow());
+      }
+      return running;
+    }
+    _inFlightPushOnly = pushOnly;
     final future = _serialize(() => _syncNow(pushOnly: pushOnly));
     _inFlight = future;
     return future.whenComplete(() => _inFlight = null);
   }
+
+  bool _inFlightPushOnly = false;
 
   Future<SyncResult> _syncNow({bool pushOnly = false}) async {
     // The flag every spinner in the app watches. It used to be written only to

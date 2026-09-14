@@ -65,6 +65,32 @@ void main() {
     expect(Hive.box<Map>('sync_state').get('__lastLocalMutationAt'), isNull);
   });
 
+  test('an edit made while uploading keeps the device dirty', () async {
+    // Sync reads the sequence before snapshotting. Clearing on success used
+    // to wipe the marker for an edit that landed mid-upload and was never in
+    // it, so the next pull reverted that edit.
+    final hive = HiveService();
+    await hive.addExpense(_expense('e4'));
+    final seqAtSnapshot = hive.mutationSeq;
+
+    await hive.addExpense(_expense('e5')); // arrives during the upload
+    await hive.clearLocalMutationMarker(ifSeq: seqAtSnapshot);
+    expect(hive.lastLocalMutationAt, isNotNull);
+
+    await hive.clearLocalMutationMarker(ifSeq: hive.mutationSeq);
+    expect(hive.lastLocalMutationAt, isNull);
+  });
+
+  test('restoring a chosen backup is a change of its own', () async {
+    // A restore runs with change notifications off. Before sync stopped
+    // uploading blindly that did not matter; now an unmarked restore would
+    // look clean and the cloud copy would be pulled straight back over it.
+    final hive = HiveService();
+    await hive.clearLocalMutationMarker();
+    hive.markLocalMutation();
+    expect(hive.lastLocalMutationAt, isNotNull);
+  });
+
   test('receiving an SMS detection does NOT mark the device dirty', () async {
     // Pinned separately in pending_dirty_flag_test: a device that merely
     // received a detection must still accept the other device's expenses.

@@ -56,26 +56,57 @@ class HiveService {
     return raw is String ? DateTime.tryParse(raw)?.toUtc() : null;
   }
 
+  /// Bumped on every mutation. Sync reads it before snapshotting and clears
+  /// the marker only if it is still the same number afterwards — an edit made
+  /// while the upload was in flight is not in that upload, and must keep the
+  /// device dirty. A counter, not a time: web clocks tick in milliseconds.
+  int get mutationSeq {
+    if (_memoryMutationSeq != null) return _memoryMutationSeq!;
+    if (!_initialized) return 0;
+    final raw = _syncStateBox.get(_mutationKey)?['seq'];
+    return raw is int ? raw : 0;
+  }
+
   DateTime? _memoryMutationAt;
+  int? _memoryMutationSeq;
   static const _mutationKey = '__lastLocalMutationAt';
 
   /// Called once a push succeeds: everything local is now in the cloud, so a
   /// later pull is safe again. Without this the device would never pull.
-  Future<void> clearLocalMutationMarker() async {
+  ///
+  /// Pass [ifSeq] (read before the snapshot was taken) so a mutation that
+  /// landed mid-upload is not wiped along with the ones that made it up.
+  Future<void> clearLocalMutationMarker({int? ifSeq}) async {
+    if (ifSeq != null && mutationSeq != ifSeq) return;
     _memoryMutationAt = null;
     if (!_initialized) return;
     await _syncStateBox.delete(_mutationKey);
+  }
+
+  /// For writes that bypass [_notifyChanged] on purpose — restoring a local
+  /// backup or importing a file runs under [_restoring] — but are still the
+  /// user's own change and must reach the cloud.
+  void markLocalMutation() {
+    final wasRestoring = _restoring;
+    _restoring = false;
+    _notifyChanged();
+    _restoring = wasRestoring;
   }
 
   void _notifyChanged() {
     // A restore IS the newest data — pushing it straight back up is noise.
     if (_restoring) return;
     final now = DateTime.now().toUtc();
+    final seq = mutationSeq + 1;
     _memoryMutationAt = now;
+    _memoryMutationSeq = seq;
     if (_initialized) {
       // Fire-and-forget: the in-memory value already answers this session, and
       // blocking every write on a disk round-trip isn't worth it.
-      _syncStateBox.put(_mutationKey, {'at': now.toIso8601String()});
+      _syncStateBox.put(_mutationKey, {
+        'at': now.toIso8601String(),
+        'seq': seq,
+      });
     }
     onDataChanged?.call();
   }
@@ -1291,6 +1322,8 @@ class HiveService {
     final map = Map<String, dynamic>.from(_settingsBox.get(userId) ?? {});
     map[key] = value;
     await _settingsBox.put(userId, map);
+    // It used to reach the cloud only because every sync uploaded blindly.
+    _notifyChanged();
   }
 
   static const _localDataOwnerKey = 'local_data_owner';

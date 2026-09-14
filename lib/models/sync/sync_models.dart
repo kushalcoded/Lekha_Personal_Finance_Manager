@@ -75,7 +75,15 @@ class SyncMetadata {
 @immutable
 class SyncState {
   final bool isSyncing;
+
+  /// When this device last finished a sync, on this device's clock. Display
+  /// only — never compared with anything another device wrote.
   final DateTime? lastSyncedAt;
+
+  /// The cloud row's `updated_at` as of our last sync, exactly as the server
+  /// returned it. "Has anyone else written since?" is an equality check on
+  /// this, so no two devices' clocks are ever compared.
+  final DateTime? remoteUpdatedAt;
   final DateTime? lastAttemptAt;
   final int uploadCount;
   final int downloadCount;
@@ -86,6 +94,7 @@ class SyncState {
   const SyncState({
     this.isSyncing = false,
     this.lastSyncedAt,
+    this.remoteUpdatedAt,
     this.lastAttemptAt,
     this.uploadCount = 0,
     this.downloadCount = 0,
@@ -97,6 +106,7 @@ class SyncState {
   SyncState copyWith({
     bool? isSyncing,
     DateTime? lastSyncedAt,
+    DateTime? remoteUpdatedAt,
     DateTime? lastAttemptAt,
     int? uploadCount,
     int? downloadCount,
@@ -107,6 +117,7 @@ class SyncState {
     return SyncState(
       isSyncing: isSyncing ?? this.isSyncing,
       lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      remoteUpdatedAt: remoteUpdatedAt ?? this.remoteUpdatedAt,
       lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
       uploadCount: uploadCount ?? this.uploadCount,
       downloadCount: downloadCount ?? this.downloadCount,
@@ -123,6 +134,7 @@ class SyncState {
       // local time; DateTime.parse still reads those as local, which is the
       // instant that was meant, so both shapes compare correctly.
       'lastSyncedAt': lastSyncedAt?.toUtc().toIso8601String(),
+      'remoteUpdatedAt': remoteUpdatedAt?.toUtc().toIso8601String(),
       'lastAttemptAt': lastAttemptAt?.toUtc().toIso8601String(),
       'uploadCount': uploadCount,
       'downloadCount': downloadCount,
@@ -138,6 +150,9 @@ class SyncState {
       lastSyncedAt: json['lastSyncedAt'] == null
           ? null
           : DateTime.parse(json['lastSyncedAt'] as String),
+      remoteUpdatedAt: json['remoteUpdatedAt'] == null
+          ? null
+          : DateTime.parse(json['remoteUpdatedAt'] as String),
       lastAttemptAt: json['lastAttemptAt'] == null
           ? null
           : DateTime.parse(json['lastAttemptAt'] as String),

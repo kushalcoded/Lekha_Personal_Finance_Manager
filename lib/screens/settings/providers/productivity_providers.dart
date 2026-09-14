@@ -415,6 +415,9 @@ class BackupNotifier extends StateNotifier<BackupState> {
         throw Exception('Backup not found: $backupId');
       }
       await _hiveService.restoreFromBackup(snapshot);
+      // The user chose this data; without the marker the next sync would see
+      // a clean device and pull the cloud copy straight back over it.
+      _hiveService.markLocalMutation();
       await loadBackups();
       state = state.copyWith(isLoading: false);
     } catch (e) {
@@ -464,6 +467,9 @@ class BackupNotifier extends StateNotifier<BackupState> {
       }
       final snapshot = await _backupFileService.readBackupPayload(path);
       await _hiveService.restoreFromBackup(snapshot);
+      // The user chose this data; without the marker the next sync would see
+      // a clean device and pull the cloud copy straight back over it.
+      _hiveService.markLocalMutation();
       await loadBackups();
       state = state.copyWith(isLoading: false);
     } catch (e) {

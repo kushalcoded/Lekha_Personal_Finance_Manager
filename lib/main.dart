@@ -457,13 +457,19 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
       _syncShare();
       _startPolling();
       _rescheduleReminder();
+      // Pick up what another device changed while this one was away. Without
+      // it a phone kept showing yesterday's data until something else synced.
+      if (ref.read(isAuthenticatedProvider)) {
+        ref.read(syncProvider.notifier).syncNow();
+      }
     } else {
       // Last chance to leave an accurate nudge behind: the notification text
       // is a snapshot, and this is the moment the data is freshest.
       _rescheduleReminder();
       _stopPolling();
-      // Leaving the foreground: push the latest snapshot up so another device
-      // gets this session's edits. push-only avoids clobbering them.
+      // Leaving the foreground: upload this session's edits, if there are any,
+      // so another device gets them. A device with no edits uploads nothing —
+      // uploading anyway is how a stale phone overwrote the web app's data.
       if (ref.read(isAuthenticatedProvider)) {
         ref.read(syncProvider.notifier).syncNow(pushOnly: true);
       }

@@ -337,14 +337,15 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
           .single();
       final personId = personRow['id'].toString();
 
-      // ponytail: a person has exactly one space today, because only pairwise
-      // shares exist. When groups land this needs to pick the space whose
-      // title is null.
+      // Their one-to-one space only. A person in a group has a participant row
+      // there too, and handing out that token would give them the group page
+      // under the name of your shared ledger.
       final existing = await client
           .from('shared_participants')
-          .select('token')
+          .select('token, shared_spaces!inner(title)')
           .eq('person_id', personId)
           .isFilter('revoked_at', null)
+          .isFilter('shared_spaces.title', null)
           .limit(1)
           .maybeSingle();
 
@@ -474,11 +475,15 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
         pid = row['id'].toString();
       }
       if (sid == null) {
+        // One-to-one spaces only. Landing on a group space here projected this
+        // person's debts into the group's totals, and the stale-row delete
+        // below then removed every expense published to that group.
         final row = await client
             .from('shared_participants')
-            .select('space_id')
+            .select('space_id, shared_spaces!inner(title)')
             .eq('person_id', pid)
             .isFilter('revoked_at', null)
+            .isFilter('shared_spaces.title', null)
             .limit(1)
             .maybeSingle();
         if (row == null) return;
@@ -537,6 +542,7 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
       await client
           .from('shared_participants')
           .update({'owner_net': net})
+          .eq('space_id', sid)
           .eq('person_id', pid);
 
       if (rows.isNotEmpty) {
@@ -544,11 +550,14 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
       }
       // Drop projected rows for debts that no longer exist locally — an upsert
       // on its own would leave a deleted debt on the page forever.
+      // Projected rows never carry a linked expense; anything that does was
+      // published on purpose and is not this function's to remove.
       var stale = client
           .from('shared_entries')
           .delete()
           .eq('space_id', sid)
-          .isFilter('author_person_id', null);
+          .isFilter('author_person_id', null)
+          .isFilter('linked_expense_id', null);
       if (rows.isNotEmpty) {
         stale = stale.not('id', 'in', '($ids)');
       }

@@ -11,11 +11,8 @@ import '../supabase/supabase_service.dart';
 /// EVERYTHING travels: expenses, receivables, payables, recurring, budgets,
 /// salary cycles + history, categories, pending SMS, settings, onboarding.
 ///
-/// ponytail: last-write-wins on the WHOLE snapshot (no per-record merge). Fine
-/// for one user across a couple of devices used one-at-a-time; if two devices
-/// edit offline simultaneously, the next sync keeps the newer snapshot and
-/// drops the other's unsynced edits. Upgrade to per-entity CRDT merge only if
-/// real concurrent multi-device editing shows up.
+/// A device uploads only what it changed and pulls only what it lacks; see
+/// [SupabaseSyncService.decide].
 class SupabaseSyncService {
   static const String _table = 'user_backups';
 
@@ -37,11 +34,15 @@ class SupabaseSyncService {
     : _hiveService = hiveService ?? HiveService(),
       _client = client ?? SupabaseService.client;
 
-  /// Pull if the cloud snapshot is newer than our last sync (or this device has
-  /// no data yet); otherwise push the local snapshot up. Pass [pushOnly] when
-  /// the local side is the fresh editor (e.g. app going to background) so a
-  /// concurrent cloud change doesn't clobber what the user just did.
-  Future<SyncResult> syncUser(String userId, {bool pushOnly = false}) async {
+  /// Decide what this device and the cloud each have that the other lacks,
+  /// then do only that — see [decide]. [pushOnly] is for moments the UI must
+  /// not change underneath the user (leaving the app, the edit debounce): it
+  /// still uploads real edits, but never pulls.
+  Future<SyncResult> syncUser(
+    String userId, {
+    bool pushOnly = false,
+    bool isRetry = false,
+  }) async {
     final startedAt = DateTime.now();
     final initial = _hiveService.getSyncState(userId);
     await _hiveService.saveSyncState(
@@ -56,110 +57,140 @@ class SupabaseSyncService {
 
     try {
       final remote = await _fetchRemoteSnapshot(userId);
-      final lastSynced = initial.lastSyncedAt;
-      final remoteNewer =
-          remote != null && remoteIsNewer(remote.updatedAt, lastSynced);
+      // Builds before this field existed stored the same server stamp in
+      // lastSyncedAt, so it is the right fallback for a first run after update.
+      final stamp = initial.remoteUpdatedAt ?? initial.lastSyncedAt;
+      final changed = remote != null && remoteChanged(remote.updatedAt, stamp);
       final localEmpty = _localIsEmpty(userId);
-      // Unsynced local edits (e.g. an expense added seconds ago, still inside
-      // the push debounce) must never be overwritten by a pull — push wins.
-      final mutatedAt = _hiveService.lastLocalMutationAt;
-      final localDirty =
-          mutatedAt != null &&
-          (lastSynced == null || mutatedAt.toUtc().isAfter(lastSynced.toUtc()));
+      // Dirty means "has edits the cloud has not seen", full stop. Comparing
+      // the mutation time with lastSyncedAt put another device's clock into
+      // the question after every pull.
+      final localDirty = _hiveService.lastLocalMutationAt != null;
+      final action = decide(
+        pushOnly: pushOnly,
+        hasRemote: remote != null,
+        remoteChanged: changed,
+        localEmpty: localEmpty,
+        localDirty: localDirty,
+      );
 
       var uploads = 0;
       var downloads = 0;
-      DateTime marker;
+      DateTime? serverStamp = remote?.updatedAt;
 
-      // `remote != null` inline so the branch keeps its null promotion.
-      if (remote != null &&
-          shouldPull(
-            pushOnly: pushOnly,
-            hasRemote: true,
-            remoteNewer: remoteNewer,
-            localEmpty: localEmpty,
-            localDirty: localDirty,
-          )) {
-        // PULL: adopt the cloud snapshot wholesale. If it holds fewer records
-        // than we do, stash what's here first so the data is recoverable from
-        // Settings even if the cloud copy turns out to be the wrong one.
-        if (_wouldLoseRecords(remote.snapshot, userId)) {
-          await _hiveService.saveLocalBackup(
-            _hiveService.createLocalBackupSnapshot(userId),
-          );
-        }
-        await _hiveService.restoreFromBackup(remote.snapshot);
-        downloads = 1;
-        marker = remote.updatedAt;
-      } else {
-        // PUSH — but first fold in any detected-SMS state the other device
-        // pushed since our last pull; a wholesale upload would silently
-        // drop it. Counted as a download so the UI refreshes.
-        if (remote != null) {
-          final merged = await _hiveService.mergeRemotePending(remote.snapshot);
-          if (merged) downloads = 1;
-        }
-        if (remote != null &&
-            refuseEmptyPush(
+      switch (action) {
+        case SyncAction.nothing:
+          break;
+        case SyncAction.pull:
+          // Adopt the cloud snapshot wholesale. If it holds fewer records than
+          // we do, stash what's here first so the data is recoverable from
+          // Settings even if the cloud copy turns out to be the wrong one.
+          if (_wouldLoseRecords(remote!.snapshot, userId)) {
+            await _hiveService.saveLocalBackup(
+              _hiveService.createLocalBackupSnapshot(userId),
+            );
+          }
+          await _hiveService.restoreFromBackup(remote.snapshot);
+          downloads = 1;
+        case SyncAction.merge:
+        case SyncAction.upload:
+          // ponytail: merge uploads like a plain push until record-level merge
+          // lands; both sides changed is the one case that can still lose data.
+          if (remote != null) {
+            // Fold in detected-SMS state the other device pushed since our
+            // last pull; a wholesale upload would silently drop it. Counted as
+            // a download so the UI refreshes.
+            final merged = await _hiveService.mergeRemotePending(
+              remote.snapshot,
+            );
+            if (merged) downloads = 1;
+            if (refuseEmptyPush(
               localEmpty: _localIsEmpty(userId),
               remoteHasData: !_snapshotIsEmpty(remote.snapshot),
               localDirty: localDirty,
             )) {
-          throw StateError(
-            'Refused to upload an empty snapshot over cloud data. Your data '
-            'is safe in the cloud — reopen the app, and use Settings → sync '
-            'if you meant to clear it.',
+              throw StateError(
+                'Refused to upload an empty snapshot over cloud data. Your data '
+                'is safe in the cloud — reopen the app, and use Settings → sync '
+                'if you meant to clear it.',
+              );
+            }
+            // Emptying the account on purpose IS allowed above, so keep the
+            // copy we are about to overwrite. Restoring it from Settings is
+            // then the undo for "I deleted the last thing and meant to keep it".
+            if (_localIsEmpty(userId) && !_snapshotIsEmpty(remote.snapshot)) {
+              await _hiveService.saveLocalBackup(remote.snapshot);
+            }
+          }
+          final seq = _hiveService.mutationSeq;
+          serverStamp = await _uploadSnapshot(
+            userId,
+            expectedRaw: remote?.rawUpdatedAt,
           );
-        }
-        // Emptying the account on purpose IS allowed above, so keep the copy
-        // we are about to overwrite. Restoring it from Settings is then the
-        // undo for "I deleted the last thing and meant to keep it".
-        if (remote != null &&
-            _localIsEmpty(userId) &&
-            !_snapshotIsEmpty(remote.snapshot)) {
-          await _hiveService.saveLocalBackup(remote.snapshot);
-        }
-        marker = await _uploadSnapshot(userId);
-        uploads = 1;
-        // Everything local now exists in the cloud, so a later pull is safe.
-        // Leaving the marker set would block every future pull.
-        await _hiveService.clearLocalMutationMarker();
+          uploads = 1;
+          // Everything up to [seq] is now in the cloud, so a later pull is
+          // safe. An edit made during the upload keeps the device dirty.
+          await _hiveService.clearLocalMutationMarker(ifSeq: seq);
       }
 
       final completedAt = DateTime.now();
-      await _saveSynced(userId, startedAt, marker, uploads, downloads);
+      await _saveSynced(userId, startedAt, serverStamp, uploads, downloads);
       return SyncResult(
         uploadCount: uploads,
         downloadCount: downloads,
         completedAt: completedAt,
         status: 'Synced',
       );
-    } catch (e) {
-      await _hiveService.saveSyncState(
+    } on _CloudMovedOn {
+      // Another device wrote between our read and our write. Our upload was
+      // refused rather than landing on top of theirs; start over from the
+      // copy that is actually there now.
+      if (!isRetry) {
+        return syncUser(userId, pushOnly: pushOnly, isRetry: true);
+      }
+      return _failed(
         userId,
-        initial.copyWith(
-          isSyncing: false,
-          lastAttemptAt: startedAt,
-          status: 'Sync failed',
-          error: e.toString(),
-        ),
+        initial,
+        startedAt,
+        'Another device is syncing at the same time. Try again in a moment.',
       );
-      return SyncResult(
-        uploadCount: 0,
-        downloadCount: 0,
-        completedAt: DateTime.now(),
-        status: 'Sync failed',
-        error: e.toString(),
-      );
+    } catch (e) {
+      return _failed(userId, initial, startedAt, e.toString());
     }
+  }
+
+  Future<SyncResult> _failed(
+    String userId,
+    SyncState initial,
+    DateTime startedAt,
+    String error,
+  ) async {
+    await _hiveService.saveSyncState(
+      userId,
+      initial.copyWith(
+        isSyncing: false,
+        lastAttemptAt: startedAt,
+        status: 'Sync failed',
+        error: error,
+      ),
+    );
+    return SyncResult(
+      uploadCount: 0,
+      downloadCount: 0,
+      completedAt: DateTime.now(),
+      status: 'Sync failed',
+      error: error,
+    );
   }
 
   /// Force-upload the local snapshot (used by the sign-in reconciler when the
   /// user chose "keep this device").
   Future<void> pushSnapshot(String userId) async {
     final startedAt = DateTime.now();
-    final marker = await _uploadSnapshot(userId);
-    await _saveSynced(userId, startedAt, marker, 1, 0);
+    final seq = _hiveService.mutationSeq;
+    final stamp = await _uploadSnapshot(userId, force: true);
+    await _hiveService.clearLocalMutationMarker(ifSeq: seq);
+    await _saveSynced(userId, startedAt, stamp, 1, 0);
   }
 
   /// Force-download and restore the cloud snapshot ("keep cloud" / new device).
@@ -175,28 +206,66 @@ class SupabaseSyncService {
   Future<bool> remoteExists(String userId) async =>
       (await _fetchRemoteSnapshot(userId)) != null;
 
-  Future<DateTime> _uploadSnapshot(String userId) async {
+  /// Upload and return the `updated_at` the server stored.
+  ///
+  /// Compare-and-swap: with [expectedRaw] the write only lands if the row
+  /// still carries the stamp we read, and with none it only lands if there is
+  /// no row yet. Either way a device that raced us makes this throw
+  /// [_CloudMovedOn] instead of silently overwriting it. [force] is the
+  /// sign-in reconciler's explicit "keep this device", which means overwrite.
+  Future<DateTime> _uploadSnapshot(
+    String userId, {
+    String? expectedRaw,
+    bool force = false,
+  }) async {
     final snapshot = _hiveService.createLocalBackupSnapshot(userId);
     // UTC, so the ISO string carries a 'Z'. Sending local wall time with no
     // offset into a timestamptz column made Postgres read it as UTC, so every
     // snapshot came back one UTC offset in the future — the remote always
     // looked newer, and every cold start pulled and overwrote local data.
-    final now = DateTime.now().toUtc();
-    await _client
-        .from(_table)
-        .upsert({
-          'user_id': userId,
-          'snapshot': snapshot,
-          'updated_at': now.toIso8601String(),
-        })
-        .timeout(_netTimeout, onTimeout: _timedOut);
-    return now;
+    final row = {
+      'user_id': userId,
+      'snapshot': snapshot,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+    final List<dynamic> written;
+    try {
+      if (force) {
+        written = await _client
+            .from(_table)
+            .upsert(row)
+            .select('updated_at')
+            .timeout(_netTimeout, onTimeout: _timedOut);
+      } else if (expectedRaw != null) {
+        written = await _client
+            .from(_table)
+            .update(row)
+            .eq('user_id', userId)
+            .eq('updated_at', expectedRaw)
+            .select('updated_at')
+            .timeout(_netTimeout, onTimeout: _timedOut);
+      } else {
+        written = await _client
+            .from(_table)
+            .insert(row)
+            .select('updated_at')
+            .timeout(_netTimeout, onTimeout: _timedOut);
+      }
+    } on PostgrestException catch (e) {
+      // 23505: another device created the row first.
+      if (e.code == '23505') throw const _CloudMovedOn();
+      rethrow;
+    }
+    if (written.isEmpty) throw const _CloudMovedOn();
+    final stored = DateTime.tryParse('${written.first['updated_at']}')?.toUtc();
+    if (stored == null) throw StateError('The server did not confirm the sync.');
+    return stored;
   }
 
   Future<void> _saveSynced(
     String userId,
     DateTime startedAt,
-    DateTime marker,
+    DateTime? serverStamp,
     int uploads,
     int downloads,
   ) async {
@@ -204,7 +273,8 @@ class SupabaseSyncService {
       userId,
       SyncState(
         isSyncing: false,
-        lastSyncedAt: marker,
+        lastSyncedAt: DateTime.now().toUtc(),
+        remoteUpdatedAt: serverStamp,
         lastAttemptAt: startedAt,
         uploadCount: uploads,
         downloadCount: downloads,
@@ -224,36 +294,34 @@ class SupabaseSyncService {
     final row = Map<String, dynamic>.from(rows.first);
     final snap = row['snapshot'];
     if (snap is! Map) return null;
+    final raw = row['updated_at']?.toString() ?? '';
     final updatedAt =
-        DateTime.tryParse(row['updated_at']?.toString() ?? '')?.toUtc() ??
+        DateTime.tryParse(raw)?.toUtc() ??
         DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
-    return _RemoteSnapshot(Map<String, dynamic>.from(snap), updatedAt);
+    return _RemoteSnapshot(Map<String, dynamic>.from(snap), updatedAt, raw);
   }
 
-  /// Whether the cloud snapshot post-dates what this device last synced.
+  /// What a sync should do, given what each side has.
   ///
-  /// Compares instants, never wall-clock strings. Both sides are normalised to
-  /// UTC because they arrive in different shapes: the remote is timezone-aware
-  /// from Postgres, while a `lastSyncedAt` written by an older build is a naive
-  /// local string. Dart parses that as local time, which is the instant that
-  /// was meant — so converting is safe, and forcing UTC on it would shift every
-  /// stored value by the device's offset.
-  /// Adopt the cloud copy wholesale, rather than uploading ours?
-  ///
-  /// `localDirty` vetoes a pull outright. It used to be `!localDirty ||
-  /// localEmpty`, and `localEmpty` is exactly what deleting your last record
-  /// makes you: the device looked factory-fresh, pulled, and the record came
-  /// back — reproducible by deleting the only expense in an account. Offline
-  /// the same delete stuck, which is what gave the game away.
-  static bool shouldPull({
+  /// The rule that caused real data loss was "upload whenever pushing": a
+  /// phone that had not been opened in a day uploaded its stale copy on the
+  /// way to the background, and the web app's next sync pulled that over the
+  /// expenses it had just added. Now a device uploads only what it changed,
+  /// and a device that changed nothing takes what the cloud has.
+  static SyncAction decide({
     required bool pushOnly,
     required bool hasRemote,
-    required bool remoteNewer,
+    required bool remoteChanged,
     required bool localEmpty,
     required bool localDirty,
   }) {
-    if (pushOnly || !hasRemote || localDirty) return false;
-    return remoteNewer || localEmpty;
+    if (!hasRemote) return SyncAction.upload;
+    if (localDirty) return remoteChanged ? SyncAction.merge : SyncAction.upload;
+    if (pushOnly) return SyncAction.nothing;
+    // A device that just deleted its last record is dirty and never gets
+    // here, so an empty device pulling is only ever a fresh one.
+    if (remoteChanged || localEmpty) return SyncAction.pull;
+    return SyncAction.nothing;
   }
 
   /// Block an upload that would flatten a populated cloud from an empty device.
@@ -270,9 +338,15 @@ class SupabaseSyncService {
     return localEmpty && remoteHasData && !localDirty;
   }
 
-  static bool remoteIsNewer(DateTime remoteUpdatedAt, DateTime? lastSynced) {
-    if (lastSynced == null) return true;
-    return remoteUpdatedAt.toUtc().isAfter(lastSynced.toUtc());
+  /// Has anyone written to the cloud since this device last synced?
+  ///
+  /// [stamp] is the server's own `updated_at` from our last sync, so this is
+  /// an equality test and no device's clock is ever compared with another's.
+  /// `isAtSameMomentAs`, not `==`: `==` also compares the UTC flag, and a
+  /// legacy stamp stored as naive local time would then always look changed.
+  static bool remoteChanged(DateTime remoteUpdatedAt, DateTime? stamp) {
+    if (stamp == null) return true;
+    return !remoteUpdatedAt.isAtSameMomentAs(stamp);
   }
 
   bool _localIsEmpty(String userId) {
@@ -313,9 +387,19 @@ class SupabaseSyncService {
   }
 }
 
+enum SyncAction { nothing, upload, pull, merge }
+
 class _RemoteSnapshot {
   final Map<String, dynamic> snapshot;
   final DateTime updatedAt;
 
-  const _RemoteSnapshot(this.snapshot, this.updatedAt);
+  /// Exactly as Postgres sent it, for the compare-and-swap filter. Re-encoding
+  /// the parsed value could round away the microseconds and never match.
+  final String rawUpdatedAt;
+
+  const _RemoteSnapshot(this.snapshot, this.updatedAt, this.rawUpdatedAt);
+}
+
+class _CloudMovedOn implements Exception {
+  const _CloudMovedOn();
 }
