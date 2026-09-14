@@ -12,6 +12,7 @@ import '../../models/recurring/recurring_expense_template.dart';
 import '../../models/receivable/receivable_hive_model.dart';
 import '../../models/receivable/receivable_model.dart';
 import '../../models/sync/sync_models.dart';
+import '../sync/snapshot_merge.dart';
 
 /// Device-local UI state (AI chat history, last open tab). Never synced,
 /// never backed up — each device keeps its own.
@@ -549,8 +550,186 @@ class HiveService {
 
   Future<void> saveSettings(String userId, Map<String, dynamic> values) async {
     if (!_initialized) throw Exception('HiveService not initialized');
+    final before = getSettings(userId);
     await _settingsBox.put(userId, values);
+    // Per key, because callers rewrite the whole map: without this a merge
+    // could not tell the key that changed from the dozen that were copied.
+    await _stampSettings(userId, changedSettingKeys(before, values));
     _notifyChanged();
+  }
+
+  String _settingsClockKey(String userId) => '__settingsClock::$userId';
+
+  Map<String, String> _settingsClock(String userId) => {
+    for (final e in (_syncStateBox.get(_settingsClockKey(userId)) ?? {}).entries)
+      '${e.key}': '${e.value}',
+  };
+
+  Future<void> _stampSettings(String userId, Iterable<String> keys) async {
+    if (keys.isEmpty) return;
+    final clock = _settingsClock(userId);
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (final key in keys) {
+      clock[key] = now;
+    }
+    await _syncStateBox.put(_settingsClockKey(userId), clock);
+  }
+
+  /// Every record change this device knows about, keyed `type:id`. Travels in
+  /// the snapshot so a merge on any device can tell an edit from a stale copy,
+  /// and a deletion from a record that was simply never there.
+  Map<String, dynamic> _recordClockSnapshot() => {
+    for (final raw in _syncMetadataBox.values)
+      '${raw['entityType']}:${raw['entityId']}': {
+        'at': raw['updatedAt'],
+        'deleted': raw['isDeleted'] == true,
+      },
+  };
+
+  /// Keep whichever clock is later for every record and settings key in
+  /// [snapshot]. Never removes one: a forgotten deletion brings the record back.
+  Future<void> _absorbClocks(
+    Map<String, dynamic> snapshot,
+    String userId,
+  ) async {
+    final records = snapshot['recordClock'];
+    if (records is Map) {
+      for (final e in records.entries) {
+        final incoming = ChangeClock.parse(e.value);
+        final parts = '${e.key}'.split(':');
+        if (incoming == null || parts.length < 2) continue;
+        final type = SyncEntityType.values
+            .where((t) => t.name == parts.first)
+            .firstOrNull;
+        if (type == null) continue;
+        final id = parts.sublist(1).join(':');
+        final existing = _syncMetadataBox.get(_syncKey(userId, type, id));
+        final current = existing == null
+            ? null
+            : DateTime.tryParse('${existing['updatedAt']}');
+        if (current != null && !incoming.at.isAfter(current.toUtc())) continue;
+        await saveSyncMetadata(
+          SyncMetadata(
+            entityId: id,
+            entityType: type,
+            userId: userId,
+            updatedAt: incoming.at,
+            syncedAt: DateTime.now(),
+            isDeleted: incoming.deleted,
+            deviceId: getDeviceId(),
+          ),
+        );
+      }
+    }
+    final settings = snapshot['settingsClock'];
+    if (settings is Map) {
+      final clock = _settingsClock(userId);
+      for (final e in settings.entries) {
+        final incoming = DateTime.tryParse('${e.value}');
+        final current = DateTime.tryParse(clock['${e.key}'] ?? '');
+        if (incoming == null) continue;
+        if (current == null || incoming.isAfter(current)) {
+          clock['${e.key}'] = incoming.toUtc().toIso8601String();
+        }
+      }
+      await _syncStateBox.put(_settingsClockKey(userId), clock);
+    }
+  }
+
+  /// Write a merged snapshot into the local stores record by record.
+  ///
+  /// Deliberately not [restoreFromBackup]: that clears every box first, so an
+  /// edit made during a merge would vanish, and a kill mid-restore would leave
+  /// an empty store for the next sync to upload. Here only records the merge
+  /// actually changed are touched, and the user's own writes keep marking the
+  /// device dirty throughout.
+  Future<void> applyMergedSnapshot(
+    Map<String, dynamic> merged,
+    String userId,
+  ) async {
+    if (!_initialized) throw Exception('HiveService not initialized');
+
+    Future<void> reconcile(
+      String key,
+      Map<String, Map<String, dynamic>> current,
+      Future<void> Function(String id, Map<String, dynamic> row) put,
+      Future<void> Function(String id) delete,
+    ) async {
+      final incoming = {
+        for (final row in (merged[key] as List? ?? const []).whereType<Map>())
+          '${row['id']}': Map<String, dynamic>.from(row),
+      };
+      for (final entry in incoming.entries) {
+        final mine = current[entry.key];
+        if (mine != null && jsonEncode(mine) == jsonEncode(entry.value)) {
+          continue;
+        }
+        await put(entry.key, entry.value);
+      }
+      for (final id in current.keys) {
+        if (!incoming.containsKey(id)) await delete(id);
+      }
+    }
+
+    await reconcile(
+      'expenses',
+      {for (final e in getAllExpenses(userId)) e.id: _expenseToMap(e)},
+      (id, row) => _expensesBox.put(id, _expenseToHive(_expenseFromMap(row))),
+      _expensesBox.delete,
+    );
+    await reconcile(
+      'receivables',
+      {for (final r in getAllReceivables(userId)) r.id: _receivableToMap(r)},
+      (id, row) =>
+          _receivablesBox.put(id, _receivableToHive(_receivableFromMap(row))),
+      _receivablesBox.delete,
+    );
+    await reconcile(
+      'payables',
+      {for (final p in getAllPayables(userId)) p.id: p.toJson()},
+      (id, row) => _payablesBox.put(id, Payable.fromJson(row).toJson()),
+      _payablesBox.delete,
+    );
+    await reconcile(
+      'recurringTemplates',
+      {for (final t in getRecurringTemplates(userId)) t.id: t.toJson()},
+      (id, row) => _recurringTemplatesBox.put(
+        id,
+        RecurringExpenseTemplate.fromJson(row).toJson(),
+      ),
+      _recurringTemplatesBox.delete,
+    );
+
+    final settings = merged['settings'];
+    if (settings is Map) {
+      final next = Map<String, dynamic>.from(settings);
+      if (changedSettingKeys(getSettings(userId), next).isNotEmpty) {
+        await _settingsBox.put(userId, next);
+      }
+    }
+    final budgets = merged['monthlyBudgets'];
+    if (budgets is Map) {
+      for (final e in budgets.entries) {
+        if (e.value is num) {
+          await _monthlyBudgetsBox.put('${e.key}', (e.value as num).toDouble());
+        }
+      }
+    }
+    final pending = merged['pendingTransactions'];
+    if (pending is List) {
+      for (final row in pending.whereType<Map>()) {
+        if (!_pendingBox.containsKey(row['id'])) {
+          await _pendingBox.put(row['id'], Map<String, dynamic>.from(row));
+        }
+      }
+    }
+    final seen = merged['smsSeen'];
+    if (seen is Map) {
+      for (final e in seen.entries) {
+        if (e.value == true) await _smsSeenBox.put('${e.key}', true);
+      }
+    }
+    await _absorbClocks(merged, userId);
   }
 
   // Custom expense categories (stored inside the per-user settings map).
@@ -910,6 +1089,8 @@ class HiveService {
       'pendingTransactions': pending,
       'smsSeen': smsSeen,
       'onboardingCompleted': isOnboardingCompleted(),
+      'recordClock': _recordClockSnapshot(),
+      'settingsClock': _settingsClock(userId),
     };
   }
 
@@ -948,6 +1129,9 @@ class HiveService {
     _restoring = true;
     try {
       await _restoreFromBackupUnsafe(snapshot, userId: userId);
+      // Without these a device that pulled a deletion would not remember it,
+      // and its next upload would let a third device bring the record back.
+      await _absorbClocks(snapshot, userId);
     } catch (e) {
       // Best-effort rollback to reduce corruption risk.
       try {
@@ -1186,7 +1370,11 @@ class HiveService {
       entityId: entityId,
       entityType: entityType,
       userId: userId,
-      updatedAt: updatedAt,
+      // The moment of the change on this device, not the record's own
+      // updatedAt: an add leaves that null, and a delete has nothing newer to
+      // offer. This is the clock a merge compares, so it must move on every
+      // write. [updatedAt] is kept for the call sites' readability only.
+      updatedAt: DateTime.now().toUtc(),
       syncedAt: null,
       isDeleted: isDeleted,
       deviceId: getDeviceId(),
@@ -1322,6 +1510,7 @@ class HiveService {
     final map = Map<String, dynamic>.from(_settingsBox.get(userId) ?? {});
     map[key] = value;
     await _settingsBox.put(userId, map);
+    await _stampSettings(userId, [key]);
     // It used to reach the cloud only because every sync uploaded blindly.
     _notifyChanged();
   }

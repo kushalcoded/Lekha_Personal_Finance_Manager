@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/sync/sync_models.dart';
 import '../storage/hive_service.dart';
 import '../supabase/supabase_service.dart';
+import 'snapshot_merge.dart';
 
 /// Whole-account sync via a single JSON snapshot per user.
 ///
@@ -94,8 +95,9 @@ class SupabaseSyncService {
           downloads = 1;
         case SyncAction.merge:
         case SyncAction.upload:
-          // ponytail: merge uploads like a plain push until record-level merge
-          // lands; both sides changed is the one case that can still lose data.
+          // Read before anything is snapshotted: an edit made from here on is
+          // not in what we upload, and must leave the device dirty.
+          final seq = _hiveService.mutationSeq;
           if (remote != null) {
             // Fold in detected-SMS state the other device pushed since our
             // last pull; a wholesale upload would silently drop it. Counted as
@@ -104,6 +106,19 @@ class SupabaseSyncService {
               remote.snapshot,
             );
             if (merged) downloads = 1;
+            if (action == SyncAction.merge) {
+              // Both sides changed. Keep every record either side added, honour
+              // deletions and the newer edit, then upload the result — rather
+              // than one side's snapshot silently replacing the other's.
+              await _hiveService.applyMergedSnapshot(
+                mergeSnapshots(
+                  _hiveService.createLocalBackupSnapshot(userId),
+                  remote.snapshot,
+                ),
+                userId,
+              );
+              downloads = 1;
+            }
             if (refuseEmptyPush(
               localEmpty: _localIsEmpty(userId),
               remoteHasData: !_snapshotIsEmpty(remote.snapshot),
@@ -122,7 +137,6 @@ class SupabaseSyncService {
               await _hiveService.saveLocalBackup(remote.snapshot);
             }
           }
-          final seq = _hiveService.mutationSeq;
           serverStamp = await _uploadSnapshot(
             userId,
             expectedRaw: remote?.rawUpdatedAt,

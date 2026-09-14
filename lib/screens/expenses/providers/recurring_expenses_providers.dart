@@ -157,7 +157,11 @@ class RecurringExpenseActions {
       return false;
     }
     final expense = Expense(
-      id: 'rec_${now.microsecondsSinceEpoch}',
+      // Derived from the template and the due date, so two devices generating
+      // the same bill make the same record and a merge keeps one, not both.
+      id:
+          'rec_${template.id}_'
+          '${template.nextDueDate.toIso8601String().substring(0, 10)}',
       userId: template.userId,
       amount: template.amount,
       category: template.category,
