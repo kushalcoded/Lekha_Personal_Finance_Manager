@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 // ignore: depend_on_referenced_packages
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:personal_expanse_tracker/models/ai/dashboard_insight.dart';
 import 'package:personal_expanse_tracker/models/expense/expense_model.dart';
 import 'package:personal_expanse_tracker/navigation/app_shell.dart';
 import 'package:personal_expanse_tracker/models/pending/pending_transaction.dart';
@@ -279,6 +280,29 @@ void main() {
         currentUserIdProvider.overrideWithValue(_userId),
         geminiConfiguredProvider.overrideWithValue(false),
         nowProvider.overrideWithValue(() => _qcNow),
+        // No session in the harness, so the real provider returns nothing and
+        // the card never renders. A fixed summary keeps it in every shot.
+        dashboardAiSummaryProvider.overrideWith(
+          (ref, userId) async => DashboardSummary(
+            generatedAt: DateTime.now(),
+            items: const [
+              DashboardInsight(
+                tone: InsightTone.alert,
+                text: '**3** receivables are overdue — follow up',
+                target: InsightTarget.debts,
+              ),
+              DashboardInsight(
+                tone: InsightTone.warn,
+                text: '**₹12,400** left in budget for 16 days',
+                target: InsightTarget.insights,
+              ),
+              DashboardInsight(
+                tone: InsightTone.good,
+                text: 'Spending is **8%** below last cycle',
+              ),
+            ],
+          ),
+        ),
       ],
     );
     // Disposed at the end of shoot(), not here. addTearDown runs AFTER the

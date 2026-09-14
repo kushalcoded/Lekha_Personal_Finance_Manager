@@ -89,16 +89,27 @@ class GeminiService {
     required int overdueDebtCount,
   }) async {
     return _generateText(
+      // Structured, so the card lays each point out itself: most urgent first,
+      // one idea per line, the number that matters in bold. A paragraph of
+      // prose was the thing people skimmed past.
       systemInstruction:
-          'You provide dashboard recommendations for a finance tracker. Be '
-          'concise and action-oriented. Reply as 2 to 3 short plain-text '
-          'sentences, one per line. Do not use markdown, asterisks, bold, '
-          'bullet symbols, numbering, or headings. Write any amount exactly '
-          'as it appears below.',
+          'You write the summary card on the home screen of a personal finance '
+          'app. Respond with ONLY compact JSON: {"items":[{"tone":'
+          '"alert"|"warn"|"good"|"info","text":string,"target":'
+          '"debts"|"expenses"|"insights"|null}]}. '
+          'Give 2 or 3 items, the most urgent first. Each text is one plain '
+          'sentence of at most 60 characters, starting with the fact, with the '
+          'key amount or count wrapped in double asterisks, e.g. '
+          '"**₹7,133** left in budget — go easy on extras". No other markdown. '
+          'Write amounts exactly as they appear below. '
+          'tone: alert = needs action now (overdue, over budget); warn = worth '
+          'watching; good = on track or money coming in; info = anything else. '
+          'target: debts for anything owed either way; insights for budget and '
+          'spending patterns; expenses for logging spends; null otherwise.',
       // Amounts go in pre-formatted: raw doubles came straight back, so the
       // dashboard card read "Allocate ₹20000.0 to your monthly budget".
       userPrompt:
-          'Give 2 to 3 short recommendations from this dashboard state.\n'
+          'Summarise this dashboard state.\n'
           'Cycle spend: ${AppFormatters.formatCurrency(cycleSpend)}\n'
           'Budget: ${AppFormatters.formatCurrency(budget)}\n'
           'Salary: ${AppFormatters.formatCurrency(salary)}\n'

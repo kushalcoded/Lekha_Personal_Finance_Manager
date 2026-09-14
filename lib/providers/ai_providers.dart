@@ -1,3 +1,4 @@
+import '../models/ai/dashboard_insight.dart';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -125,30 +126,31 @@ final analyticsAiSummaryProvider = FutureProvider.family<String?, String>((
   );
 });
 
-final dashboardAiSummaryProvider = FutureProvider.family<String?, String>((
-  ref,
-  userId,
-) async {
-  final service = ref.watch(geminiServiceProvider);
-  if (!service.isConfigured) {
-    return null;
-  }
-  final monthlySpend = ref.watch(monthlySpendProvider(userId));
-  final budgetMetrics = ref.watch(budgetMetricsProvider(userId));
-  final receivables = ref.watch(receivablesTotalProvider(userId));
-  final payables = ref.watch(totalPayablesProvider(userId));
-  final transactions = ref.watch(transactionCountProvider(userId));
-  final overdue = ref.watch(overdueDebtCountProvider(userId));
-  return service.summarizeDashboard(
-    cycleSpend: monthlySpend,
-    budget: budgetMetrics.budget,
-    salary: budgetMetrics.salary,
-    receivables: receivables,
-    payables: payables,
-    transactionCount: transactions,
-    overdueDebtCount: overdue,
-  );
-});
+final dashboardAiSummaryProvider =
+    FutureProvider.family<DashboardSummary?, String>((ref, userId) async {
+      final service = ref.watch(geminiServiceProvider);
+      if (!service.isConfigured) {
+        return null;
+      }
+      final monthlySpend = ref.watch(monthlySpendProvider(userId));
+      final budgetMetrics = ref.watch(budgetMetricsProvider(userId));
+      final receivables = ref.watch(receivablesTotalProvider(userId));
+      final payables = ref.watch(totalPayablesProvider(userId));
+      final transactions = ref.watch(transactionCountProvider(userId));
+      final overdue = ref.watch(overdueDebtCountProvider(userId));
+      final raw = await service.summarizeDashboard(
+        cycleSpend: monthlySpend,
+        budget: budgetMetrics.budget,
+        salary: budgetMetrics.salary,
+        receivables: receivables,
+        payables: payables,
+        transactionCount: transactions,
+        overdueDebtCount: overdue,
+      );
+      final items = parseDashboardInsights(raw);
+      if (items.isEmpty) return null;
+      return DashboardSummary(items: items, generatedAt: DateTime.now());
+    });
 
 final historyAiSummaryProvider =
     FutureProvider.family<String?, CycleHistorySnapshot>((ref, snapshot) async {

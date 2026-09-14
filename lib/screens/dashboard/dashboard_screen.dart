@@ -1,3 +1,4 @@
+import '../../models/ai/dashboard_insight.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -433,65 +434,6 @@ class _CycleHealthHero extends StatelessWidget {
   }
 }
 
-/// The ✦ icon + AI text (or its loading shimmer) — shared between the hero
-/// (mobile) and the sidebar card (desktop).
-class _AiSummaryRow extends StatelessWidget {
-  final String? aiText;
-
-  const _AiSummaryRow({required this.aiText});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 24,
-          height: 24,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: cs.primary.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(7),
-          ),
-          child: Text(
-            'AI',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
-              color: cs.primary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: aiText == null
-              ? Row(
-                  children: [
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Analyzing your finances…',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                )
-              : AiText(
-                  aiText!,
-                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
-                ),
-        ),
-      ],
-    );
-  }
-}
-
 /// Asks — around the salary day — whether to start a new cycle, because the
 /// cycle boundary is the thing every budget number is measured against and
 /// nothing else moves it. Deliberately a question with an editable date:
@@ -744,26 +686,140 @@ class _CycleRollPrompt extends ConsumerWidget {
 }
 
 /// AI summary card — mockup style: solid card with a 2px violet left edge.
-class _AiInsightCard extends StatelessWidget {
-  final AsyncValue<String?> aiSummary;
+/// The AI summary: two or three points, most urgent first, each with a dot
+/// that says at a glance whether it needs doing (red), watching (amber) or is
+/// fine (green), and a tap through to the screen it is about.
+///
+/// Deliberately a plain card. The accent rail and "AI" badge it had were
+/// decoration; the label says where the words came from.
+class _AiInsightCard extends ConsumerWidget {
+  final AsyncValue<DashboardSummary?> aiSummary;
   final double bottomGap;
 
   const _AiInsightCard({required this.aiSummary, this.bottomGap = 0});
 
   @override
-  Widget build(BuildContext context) {
-    final aiText = aiSummary.maybeWhen(
-      data: (t) => (t == null || t.trim().isEmpty) ? null : t.trim(),
-      orElse: () => null,
-    );
-    if (aiText == null && !aiSummary.isLoading) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = aiSummary.valueOrNull;
+    if (summary == null && !aiSummary.isLoading) {
       return const SizedBox.shrink();
     }
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final calm = CalmColors.of(context);
+    final userId = ref.read(currentUserIdProvider) ?? localUserId;
+
+    Color dot(InsightTone tone) => switch (tone) {
+      InsightTone.alert => cs.error,
+      InsightTone.warn => calm.warning,
+      InsightTone.good => calm.positive,
+      InsightTone.info => cs.onSurfaceVariant,
+    };
+
     return Padding(
       padding: EdgeInsets.only(bottom: bottomGap),
-      child: AccentEdgeCard(
-        padding: const EdgeInsets.all(14),
-        child: _AiSummaryRow(aiText: aiText),
+      child: GlassCard(
+        radius: 12,
+        padding: const EdgeInsets.fromLTRB(16, 6, 6, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const FieldLabel('AI summary'),
+                if (summary != null)
+                  Text(
+                    ' · ${AppFormatters.getRelativeTime(summary.generatedAt).toLowerCase()}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Refresh summary',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  onPressed: aiSummary.isLoading
+                      ? null
+                      : () =>
+                            ref.invalidate(dashboardAiSummaryProvider(userId)),
+                ),
+              ],
+            ),
+            if (summary == null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 4, 10, 6),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Reading this cycle…',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              )
+            else
+              for (final item in summary.items)
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: item.target == null
+                      ? null
+                      : () => ref.read(navigationProvider.notifier).navigateTo(
+                          switch (item.target!) {
+                            InsightTarget.debts => NavigationTab.debts,
+                            InsightTarget.expenses => NavigationTab.expenses,
+                            InsightTarget.insights => NavigationTab.insights,
+                          },
+                        ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 7, 4, 7),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          // Centres the dot on the first line of text.
+                          padding: const EdgeInsets.only(top: 7),
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: dot(item.tone),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: AiText(
+                            item.text,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              height: 1.4,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 24,
+                          child: item.target == null
+                              ? null
+                              : Icon(
+                                  Icons.chevron_right_rounded,
+                                  size: 18,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+          ],
+        ),
       ),
     );
   }
