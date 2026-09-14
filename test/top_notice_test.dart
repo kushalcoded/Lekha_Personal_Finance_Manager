@@ -47,9 +47,13 @@ void main() {
   testWidgets('Undo runs and closes the notice', (tester) async {
     await pumpApp(tester);
     var undone = false;
-    showNotice('Expense deleted', actionLabel: 'Undo', onAction: () {
-      undone = true;
-    });
+    showNotice(
+      'Expense deleted',
+      actionLabel: 'Undo',
+      onAction: () {
+        undone = true;
+      },
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Undo'));
     await tester.pumpAndSettle();

@@ -109,11 +109,73 @@ class SharedGroup {
   final String title;
   final List<SharedGroupMember> members;
 
+  /// What this group calls the owner, fixed when it was created. Shares are
+  /// keyed by it on the server, so using the current display name instead
+  /// would add a phantom member after a rename and flip settlements around.
+  final String ownerName;
+
   const SharedGroup({
     required this.id,
     required this.title,
     required this.members,
+    required this.ownerName,
   });
+
+  /// The member called [name], ignoring case, or null.
+  SharedGroupMember? memberNamed(String name) {
+    final key = name.trim().toLowerCase();
+    return members.where((m) => m.name.toLowerCase() == key).firstOrNull;
+  }
+}
+
+/// A split expense as it appears on a group page: the whole bill, who paid it,
+/// and everyone's share including the owner's.
+({double total, String payer, Map<String, double> shares}) groupEntryForSplit({
+  required String ownerName,
+  required SplitConfig config,
+  required SplitResult split,
+}) {
+  final shares = <String, double>{
+    if (split.myShare > 0) ownerName: split.myShare,
+    for (final s in split.others)
+      if (s.amount > 0) s.person: s.amount,
+  };
+  final total = ((split.myShare + split.othersTotal) * 100).round() / 100;
+  return (total: total, payer: config.paidBy ?? ownerName, shares: shares);
+}
+
+/// One id per expense, so publishing twice — a retry after a timeout that
+/// actually landed — updates the row instead of adding a second one. Derived
+/// rather than reused because not every expense id is a uuid.
+String groupEntryIdFor(String expenseId) =>
+    const Uuid().v5(Namespace.url.value, 'lekha:expense:$expenseId');
+
+/// What a one-to-one page shows: the open items between you and one person,
+/// and the balance they add up to.
+///
+/// Leaves out debts from a bill posted to a group — those are on the group's
+/// page, and showing them here too put the same bill on both and counted it in
+/// this balance as well — and debts the guest's own accepted entry created,
+/// which the page already shows as their submission.
+({double net, List<PersonLedgerItem> items}) pairwiseView({
+  required PersonBalance? balance,
+  required Set<String> inGroups,
+  required Set<String> fromShare,
+}) {
+  var net = balance?.net ?? 0;
+  final items = <PersonLedgerItem>[];
+  for (final item in balance?.items ?? const <PersonLedgerItem>[]) {
+    if (item.settled) continue;
+    final source =
+        item.receivable?.sourceExpenseId ?? item.payable?.sourceExpenseId;
+    if (source != null && inGroups.contains(source)) {
+      net -= item.isReceivable ? item.amount : -item.amount;
+      continue;
+    }
+    if (source != null && fromShare.contains(source)) continue;
+    items.add(item);
+  }
+  return (net: (net * 100).round() / 100, items: items);
 }
 
 class SharedInbox {
@@ -157,11 +219,31 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
   /// so using it here would fail every policy.
   String? get _userId => SupabaseService.client.auth.currentUser?.id;
 
+  /// Space id → the name that space knows the owner by.
+  final Map<String, String> _ownerNames = {};
+
+  String? ownerNameFor(String spaceId) => _ownerNames[spaceId];
+
   Future<void> refresh() async {
     final userId = _userId;
     if (userId == null) return;
     final client = SupabaseService.client;
     try {
+      await _flushPublishQueue();
+
+      // A space with a title is a group; one without is a pairwise share.
+      final spaceRows =
+          await client
+                  .from('shared_spaces')
+                  .select('id, title, owner_name')
+                  .eq('owner_id', userId)
+                  .isFilter('archived_at', null)
+              as List<dynamic>;
+      for (final sp in spaceRows.cast<Map<String, dynamic>>()) {
+        final name = (sp['owner_name'] as String?)?.trim() ?? '';
+        if (name.isNotEmpty) _ownerNames[sp['id'].toString()] = name;
+      }
+
       final rows =
           await client
                   .from('shared_entries')
@@ -177,7 +259,7 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
 
       // Empty means we cannot tell who "the owner" is on an entry, so nothing
       // is filtered — better an extra card than a hidden one.
-      final ownerName = _ref.read(settingsProvider).displayName.trim();
+      final displayName = _ref.read(settingsProvider).displayName.trim();
 
       final pending = <SharedEntry>[];
       for (final row in rows.cast<Map<String, dynamic>>()) {
@@ -186,6 +268,7 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
         // than render a card naming an empty string.
         if (name == null || name.isEmpty) continue;
         final entry = SharedEntry.fromRow(row, personName: name);
+        final ownerName = _ownerNames[entry.spaceId] ?? displayName;
         if (ownerName.isNotEmpty &&
             !entryInvolvesOwner(entry, ownerName: ownerName)) {
           continue;
@@ -225,15 +308,6 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
         );
       }
 
-      // A space with a title is a group; one without is a pairwise share.
-      final spaceRows =
-          await client
-                  .from('shared_spaces')
-                  .select('id, title')
-                  .eq('owner_id', userId)
-                  .isFilter('archived_at', null)
-              as List<dynamic>;
-
       final nameById = {
         for (final r in peopleRows.cast<Map<String, dynamic>>())
           r['id'].toString(): r['name'] as String? ?? '',
@@ -266,7 +340,14 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
             ),
           );
         }
-        groups.add(SharedGroup(id: id, title: title, members: members));
+        groups.add(
+          SharedGroup(
+            id: id,
+            title: title,
+            members: members,
+            ownerName: _ownerNames[id] ?? displayName,
+          ),
+        );
       }
 
       state = SharedInbox(pending: pending, resets: resets, groups: groups);
@@ -406,32 +487,229 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
       final spaceId = space['id'];
 
       for (final raw in names) {
-        final name = raw.trim();
-        if (name.isEmpty) continue;
-        final person = await client
-            .from('shared_people')
-            .upsert({
-              'owner_id': userId,
-              'name': name,
-              'name_key': name.toLowerCase(),
-            }, onConflict: 'owner_id,name_key')
-            .select('id')
-            .single();
-        await client.from('shared_participants').insert({
-          'token': _newToken(),
-          'owner_id': userId,
-          'space_id': spaceId,
-          'person_id': person['id'],
-          // Groups carry no opening balance: they start empty and the maths is
-          // derived from what gets added.
-          'owner_net': 0,
-        });
+        await _addParticipant(userId, spaceId.toString(), raw);
       }
       await refresh();
       return true;
     } catch (e) {
       debugPrint('create group failed: $e');
       return false;
+    }
+  }
+
+  /// Put [name] on [group], with a link of their own. Their existing identity
+  /// is reused, so a PIN they already set keeps working here too.
+  Future<bool> addGroupMember(SharedGroup group, String name) async {
+    final userId = _userId;
+    if (userId == null || name.trim().isEmpty) return false;
+    try {
+      await _addParticipant(userId, group.id, name);
+      await refresh();
+      return true;
+    } catch (e) {
+      debugPrint('add member failed: $e');
+      return false;
+    }
+  }
+
+  Future<void> _addParticipant(
+    String userId,
+    String spaceId,
+    String raw,
+  ) async {
+    final name = raw.trim();
+    if (name.isEmpty) return;
+    final client = SupabaseService.client;
+    final person = await client
+        .from('shared_people')
+        .upsert({
+          'owner_id': userId,
+          'name': name,
+          'name_key': name.toLowerCase(),
+        }, onConflict: 'owner_id,name_key')
+        .select('id')
+        .single();
+    await client.from('shared_participants').insert({
+      'token': _newToken(),
+      'owner_id': userId,
+      'space_id': spaceId,
+      'person_id': person['id'],
+      // Groups carry no opening balance: they start empty and the maths is
+      // derived from what gets added.
+      'owner_net': 0,
+    });
+  }
+
+  static const _publishQueueKey = 'groupPublishQueue';
+
+  /// Post a split expense to a group's page.
+  ///
+  /// Saving an expense works offline, so this has to as well: a publish that
+  /// fails is kept on this device and retried on the next refresh, rather
+  /// than the expense quietly never reaching the group. Returns whether it
+  /// went through now.
+  Future<bool> publishSplit({
+    required String groupId,
+    required String expenseId,
+    required double total,
+    required String payerName,
+    required Map<String, double> shares,
+    required String? note,
+    required DateTime date,
+  }) async {
+    final userId = _userId;
+    final row = <String, dynamic>{
+      'id': groupEntryIdFor(expenseId),
+      'owner_id': userId,
+      'space_id': groupId,
+      'author_person_id': null,
+      'kind': 'expense',
+      'total': total,
+      'payer_name': payerName,
+      'shares': shares,
+      'note': note,
+      'occurred_on': date.toIso8601String().substring(0, 10),
+      // Already in the owner's books by the time it is posted: on a group
+      // entry `status` means "the owner has filed this".
+      'status': 'accepted',
+      'linked_expense_id': expenseId,
+    };
+    if (userId == null) {
+      await _queuePublish(expenseId, row);
+      return false;
+    }
+    try {
+      await SupabaseService.client.from('shared_entries').upsert(row);
+      await _dequeuePublish(expenseId);
+      _ref.invalidate(groupLedgerProvider(groupId));
+      return true;
+    } catch (e) {
+      debugPrint('group publish failed, queued: $e');
+      await _queuePublish(expenseId, row);
+      return false;
+    }
+  }
+
+  /// Take a split expense off whichever group it was posted to.
+  Future<void> unpublishExpense(String expenseId) async {
+    await _dequeuePublish(expenseId);
+    if (_userId == null) return;
+    await SupabaseService.client
+        .from('shared_entries')
+        .delete()
+        .eq('linked_expense_id', expenseId)
+        .eq('kind', 'expense')
+        .isFilter('author_person_id', null);
+  }
+
+  /// The group [expenseId] was posted to, or null if none. Throws when the
+  /// server cannot be reached, so a caller never mistakes "offline" for "not
+  /// in a group" and takes it off one.
+  Future<String?> groupIdForExpense(String expenseId) async {
+    if (_userId == null) throw StateError('signed out');
+    final row = await SupabaseService.client
+        .from('shared_entries')
+        .select('space_id, shared_spaces!inner(title)')
+        .eq('linked_expense_id', expenseId)
+        .eq('kind', 'expense')
+        .isFilter('author_person_id', null)
+        .not('shared_spaces.title', 'is', null)
+        .limit(1)
+        .maybeSingle();
+    return row?['space_id']?.toString();
+  }
+
+  /// Every expense the owner has posted to a group, mapped to that group.
+  Future<Map<String, String>> groupLinkedExpenses() async {
+    if (_userId == null) return const {};
+    final rows =
+        await SupabaseService.client
+                .from('shared_entries')
+                .select(
+                  'linked_expense_id, space_id, shared_spaces!inner(title)',
+                )
+                .not('linked_expense_id', 'is', null)
+                .not('shared_spaces.title', 'is', null)
+            as List<dynamic>;
+    return {
+      for (final r in rows.cast<Map<String, dynamic>>())
+        r['linked_expense_id'].toString(): r['space_id'].toString(),
+    };
+  }
+
+  /// Every expense id linked to any shared entry at all, group or not.
+  Future<Set<String>> allLinkedExpenseIds() async {
+    if (_userId == null) return const {};
+    final rows =
+        await SupabaseService.client
+                .from('shared_entries')
+                .select('linked_expense_id')
+                .not('linked_expense_id', 'is', null)
+            as List<dynamic>;
+    return {
+      for (final r in rows.cast<Map<String, dynamic>>())
+        r['linked_expense_id'].toString(),
+    };
+  }
+
+  /// Record on a group's page that [payerName] paid [receiverName].
+  Future<void> publishSettlement({
+    required String groupId,
+    required String payerName,
+    required String receiverName,
+    required double amount,
+    required String? note,
+  }) async {
+    final userId = _userId;
+    if (userId == null || amount <= 0) return;
+    await SupabaseService.client.from('shared_entries').insert({
+      'id': const Uuid().v4(),
+      'owner_id': userId,
+      'space_id': groupId,
+      'author_person_id': null,
+      'kind': 'settlement',
+      'total': (amount * 100).round() / 100,
+      'payer_name': payerName,
+      'shares': {receiverName: (amount * 100).round() / 100},
+      'note': note,
+      'occurred_on': DateTime.now().toIso8601String().substring(0, 10),
+      'status': 'accepted',
+    });
+    _ref.invalidate(groupLedgerProvider(groupId));
+  }
+
+  Map<String, dynamic> _publishQueue() {
+    if (!Hive.isBoxOpen(kLocalPrefsBox)) return {};
+    final raw = Hive.box(kLocalPrefsBox).get(_publishQueueKey);
+    return raw is Map ? Map<String, dynamic>.from(raw) : {};
+  }
+
+  Future<void> _queuePublish(String expenseId, Map<String, dynamic> row) async {
+    if (!Hive.isBoxOpen(kLocalPrefsBox)) return;
+    final queue = _publishQueue()..[expenseId] = row;
+    await Hive.box(kLocalPrefsBox).put(_publishQueueKey, queue);
+  }
+
+  Future<void> _dequeuePublish(String expenseId) async {
+    if (!Hive.isBoxOpen(kLocalPrefsBox)) return;
+    final queue = _publishQueue();
+    if (queue.remove(expenseId) == null) return;
+    await Hive.box(kLocalPrefsBox).put(_publishQueueKey, queue);
+  }
+
+  Future<void> _flushPublishQueue() async {
+    final userId = _userId;
+    if (userId == null) return;
+    for (final entry in _publishQueue().entries) {
+      final row = Map<String, dynamic>.from(entry.value as Map)
+        ..['owner_id'] = userId;
+      try {
+        await SupabaseService.client.from('shared_entries').upsert(row);
+        await _dequeuePublish(entry.key);
+      } catch (e) {
+        debugPrint('queued group publish still failing: $e');
+        return;
+      }
     }
   }
 
@@ -490,7 +768,8 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
         sid = row['space_id'].toString();
       }
 
-      final ownerName = _ref.read(settingsProvider).displayName.trim();
+      final ownerName =
+          _ownerNames[sid] ?? _ref.read(settingsProvider).displayName.trim();
       if (ownerName.isEmpty) return;
 
       // Debts an accepted entry created are already on the page as the guest's
@@ -507,14 +786,19 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
           if (r['linked_expense_id'] != null) r['linked_expense_id'].toString(),
       };
 
-      final balance = _ref.read(personBalanceProvider(person));
-      final net = balance?.net ?? 0;
+      // Debts from an expense posted to a group are on that group's page.
+      // Projecting them here as well showed the same bill on both pages, and
+      // counted it in this page's balance too.
+      final inGroups = (await groupLinkedExpenses()).keys.toSet();
+
+      final view = pairwiseView(
+        balance: _ref.read(personBalanceProvider(person)),
+        inGroups: inGroups,
+        fromShare: fromShare,
+      );
+      final net = view.net;
       final rows = <Map<String, dynamic>>[];
-      for (final item in balance?.items ?? const <PersonLedgerItem>[]) {
-        if (item.settled) continue;
-        final source =
-            item.receivable?.sourceExpenseId ?? item.payable?.sourceExpenseId;
-        if (source != null && fromShare.contains(source)) continue;
+      for (final item in view.items) {
         rows.add({
           'id': item.id,
           'owner_id': userId,
@@ -565,30 +849,6 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
     } catch (e) {
       debugPrint('space sync failed: $e');
     }
-  }
-
-  /// Put an entry the owner typed onto the shared page.
-  ///
-  /// `author_person_id` is null, which is what marks it as the owner's rather
-  /// than a guest's — the same convention the pairwise projection uses.
-  Future<void> publishOwnEntry(SharedEntry entry, String linkedId) async {
-    final userId = _userId;
-    if (userId == null) return;
-    await SupabaseService.client.from('shared_entries').insert({
-      'id': entry.id,
-      'owner_id': userId,
-      'space_id': entry.spaceId,
-      'author_person_id': null,
-      'kind': entry.kind,
-      'total': entry.total,
-      'payer_name': entry.payerName,
-      'shares': entry.shares,
-      'note': entry.note,
-      'occurred_on': entry.occurredOn.toIso8601String().substring(0, 10),
-      'status': 'accepted',
-      'linked_expense_id': linkedId,
-      'decided_at': DateTime.now().toUtc().toIso8601String(),
-    });
   }
 
   Future<void> decide(
@@ -709,34 +969,71 @@ Future<void> acceptSharedEntry({
   required String ownerName,
 }) async {
   final inbox = ref.read(sharedInboxProvider.notifier);
-
-  if (entry.isSettlement) {
-    if (settlementPaysOwner(entry, ownerName: ownerName)) {
-      await ref
-          .read(receivablesProvider.notifier)
-          .settlePersonReceivables(
-            entry.personName,
-            entry.total,
-            note: entry.note,
-          );
-    } else {
-      await ref
-          .read(payablesProvider.notifier)
-          .settlePersonPayables(
-            entry.personName,
-            entry.total,
-            note: entry.note,
-          );
-    }
-    await inbox.decide(entry, 'accepted');
-    return;
-  }
-
+  // The name this space knows the owner by, which is what its shares use.
+  ownerName = inbox.ownerNameFor(entry.spaceId) ?? ownerName;
   final group = ref
       .read(sharedInboxProvider)
       .groups
       .where((g) => g.id == entry.spaceId)
       .firstOrNull;
+
+  if (entry.isSettlement) {
+    // Between the two people it names. It used to settle against whoever
+    // typed it, which is wrong the moment one guest records a payment
+    // between others.
+    final between = settlementWith(entry, ownerName: ownerName);
+    // In a group, the group's own debts are paid down first: the group page
+    // already counts this payment, and spending it on unrelated debts would
+    // leave the group owing on the owner's books and settled on the page.
+    final linked = group == null || between == null
+        ? const <String>{}
+        : {
+            for (final e in (await inbox.groupLinkedExpenses()).entries)
+              if (e.value == group.id) e.key,
+          };
+    bool inGroup(String? source) => source != null && linked.contains(source);
+
+    if (between != null && between.toOwner) {
+      final notifier = ref.read(receivablesProvider.notifier);
+      var left = entry.total;
+      if (linked.isNotEmpty) {
+        left = await notifier.settlePersonReceivables(
+          between.person,
+          left,
+          note: entry.note,
+          only: inGroup,
+        );
+      }
+      if (left > 0.009) {
+        await notifier.settlePersonReceivables(
+          between.person,
+          left,
+          note: entry.note,
+        );
+      }
+    } else if (between != null) {
+      final notifier = ref.read(payablesProvider.notifier);
+      var left = entry.total;
+      if (linked.isNotEmpty) {
+        left = await notifier.settlePersonPayables(
+          between.person,
+          left,
+          note: entry.note,
+          only: inGroup,
+        );
+      }
+      if (left > 0.009) {
+        await notifier.settlePersonPayables(
+          between.person,
+          left,
+          note: entry.note,
+        );
+      }
+    }
+    await inbox.decide(entry, 'accepted');
+    return;
+  }
+
   final expenseId = await _writeEntryToLedger(
     ref: ref,
     entry: entry,
@@ -812,49 +1109,6 @@ Future<String> _writeEntryToLedger({
   return expenseId ?? entry.id;
 }
 
-/// Add an expense to a group from the app.
-///
-/// The owner was read-only in their own group: they could approve what guests
-/// submitted and nothing else. This is the other half — it books the split into
-/// their ledger exactly as accepting would, then publishes the same entry so
-/// everyone's page shows it immediately.
-///
-/// Published as `accepted` because it is already in the owner's books by the
-/// time it lands; `status` on a group entry means "the owner has filed this",
-/// and this one was filed by definition.
-Future<void> addGroupEntry({
-  required WidgetRef ref,
-  required SharedGroup group,
-  required String userId,
-  required String ownerName,
-  required double total,
-  required String payerName,
-  required Map<String, double> shares,
-  required String? note,
-  required DateTime date,
-}) async {
-  final entry = SharedEntry(
-    id: const Uuid().v4(),
-    spaceId: group.id,
-    personName: payerName,
-    kind: 'expense',
-    total: total,
-    payerName: payerName,
-    shares: shares,
-    note: note,
-    occurredOn: date,
-  );
-  final linkedId = await _writeEntryToLedger(
-    ref: ref,
-    entry: entry,
-    userId: userId,
-    ownerName: ownerName,
-    sharedWith: group.title,
-  );
-  await ref.read(sharedInboxProvider.notifier).publishOwnEntry(entry, linkedId);
-  ref.invalidate(groupLedgerProvider(group.id));
-}
-
 /// A group as everyone on its page sees it: where each person stands, and the
 /// fewest payments that would clear the whole thing.
 ///
@@ -890,7 +1144,7 @@ final groupLedgerProvider = FutureProvider.family<GroupLedger?, String>((
   final inbox = ref.watch(sharedInboxProvider);
   final group = inbox.groups.where((g) => g.id == spaceId).firstOrNull;
   if (group == null) return null;
-  final ownerName = ref.read(settingsProvider).displayName.trim();
+  final ownerName = group.ownerName;
   if (ownerName.isEmpty) return null;
 
   final client = SupabaseService.client;

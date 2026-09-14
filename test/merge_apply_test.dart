@@ -81,7 +81,9 @@ void main() {
           .toList()
       ..['recordClock'] = {
         'expense:doomed': {
-          'at': DateTime.now().toUtc().add(const Duration(minutes: 1))
+          'at': DateTime.now()
+              .toUtc()
+              .add(const Duration(minutes: 1))
               .toIso8601String(),
           'deleted': true,
         },
@@ -93,7 +95,10 @@ void main() {
 
   test('saving settings stamps only the key that changed', () async {
     final hive = HiveService();
-    await hive.saveSettings('u2', {'salary': 50000, 'categories': ['Food']});
+    await hive.saveSettings('u2', {
+      'salary': 50000,
+      'categories': ['Food'],
+    });
     final first = Map.of(
       hive.createLocalBackupSnapshot('u2')['settingsClock'] as Map,
     );

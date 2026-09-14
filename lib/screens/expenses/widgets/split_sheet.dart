@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/people/people_providers.dart';
+import '../../../providers/share/share_providers.dart';
 import '../../../theme/app_theme.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../../../widgets/common/form_bits.dart';
 import '../../../widgets/common/person_menu.dart';
+import '../../../widgets/common/top_notice.dart';
 import '../utils/split_helpers.dart';
 
 /// Configure how a bill is split. Returns the new [SplitConfig], or a config
@@ -47,6 +49,8 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
   late List<String> _people;
   late String? _paidBy;
   late SplitMode _mode;
+  String? _groupId;
+  bool _addingMember = false;
   final _nameController = TextEditingController();
   final Map<String, TextEditingController> _exactControllers = {};
 
@@ -56,6 +60,7 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
     _people = [...widget.initial.people];
     _paidBy = widget.initial.paidBy;
     _mode = widget.initial.mode;
+    _groupId = widget.initial.groupId;
     for (final p in _people) {
       _exactControllers[p] = TextEditingController(
         text: widget.initial.exact[p]?.toString() ?? '',
@@ -72,14 +77,89 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
     super.dispose();
   }
 
-  void _addPerson(String raw) {
-    final name = raw.trim();
+  SharedGroup? get _group => ref
+      .read(sharedInboxProvider)
+      .groups
+      .where((g) => g.id == _groupId)
+      .firstOrNull;
+
+  Future<void> _addPerson(String raw) async {
+    var name = raw.trim();
     if (name.isEmpty) return;
+    final group = _group;
+    if (group != null) {
+      final member = group.memberNamed(name);
+      if (member != null) {
+        // The group's spelling: shares are matched by exact name on its page.
+        name = member.name;
+      } else if (!await _confirmAddToGroup(group, name)) {
+        return;
+      }
+    }
+    if (!mounted) return;
     if (_people.any((p) => p.toLowerCase() == name.toLowerCase())) return;
     setState(() {
       _people.add(name);
       _exactControllers[name] = TextEditingController();
       _nameController.clear();
+    });
+  }
+
+  /// Everyone on a group's bill has to be on the group, or its page would show
+  /// a total nobody can account for. So adding an outsider asks first.
+  Future<bool> _confirmAddToGroup(SharedGroup group, String name) async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Add $name to ${group.title}?'),
+        content: Text(
+          '$name gets their own link to the group, and this expense shows on '
+          'everyone\'s page.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Add to group'),
+          ),
+        ],
+      ),
+    );
+    if (yes != true || !mounted) return false;
+    setState(() => _addingMember = true);
+    final ok = await ref
+        .read(sharedInboxProvider.notifier)
+        .addGroupMember(group, name);
+    if (mounted) setState(() => _addingMember = false);
+    if (!ok) {
+      showNotice(
+        'Could not add $name to ${group.title}. Check your connection.',
+      );
+    }
+    return ok;
+  }
+
+  /// Picking a group puts everyone on it into the split; tapping it again
+  /// takes the split off the group but leaves the people where they are.
+  void _toggleGroup(SharedGroup group) {
+    setState(() {
+      if (_groupId == group.id) {
+        _groupId = null;
+        return;
+      }
+      _groupId = group.id;
+      final names = group.members.map((m) => m.name).toList();
+      for (final removed in _people.where((p) => !names.contains(p))) {
+        _exactControllers.remove(removed)?.dispose();
+      }
+      _people = names;
+      for (final n in names) {
+        _exactControllers.putIfAbsent(n, TextEditingController.new);
+      }
+      if (_paidBy != null && !names.contains(_paidBy)) _paidBy = null;
     });
   }
 
@@ -105,11 +185,19 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final prefs = ref.watch(peoplePrefsProvider);
-    final known = ref
-        .watch(knownPeopleProvider)
-        .where((n) => !_people.any((p) => p.toLowerCase() == n.toLowerCase()))
-        .take(8)
-        .toList();
+    final groups = ref.watch(sharedInboxProvider).groups;
+    final group = groups.where((g) => g.id == _groupId).firstOrNull;
+    bool notPicked(String n) =>
+        !_people.any((p) => p.toLowerCase() == n.toLowerCase());
+    // With a group picked, anyone on it who was unticked comes first, so
+    // putting them back is one tap.
+    final known = [
+      ...?group?.members.map((m) => m.name).where(notPicked),
+      ...ref
+          .watch(knownPeopleProvider)
+          .where(notPicked)
+          .where((n) => group?.memberNamed(n) == null),
+    ].take(8).toList();
 
     final result = computeSplit(
       total: widget.total,
@@ -146,6 +234,35 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
           ),
           const SizedBox(height: 18),
 
+          if (groups.isNotEmpty) ...[
+            const FieldLabel('Group'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final g in groups)
+                  ChoicePill(
+                    label: g.title,
+                    icon: Icons.groups_rounded,
+                    selected: g.id == _groupId,
+                    onTap: () => _toggleGroup(g),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              group == null
+                  ? 'Pick one to also show this bill on its page.'
+                  : 'Also shows on ${group.title}\'s page. Untick anyone who '
+                        'wasn\'t on this one.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 18),
+          ],
+
           const FieldLabel('With'),
           const SizedBox(height: 8),
           if (_people.isNotEmpty) ...[
@@ -160,6 +277,10 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
                   .toList(),
             ),
             const SizedBox(height: 10),
+          ],
+          if (_addingMember) ...[
+            const LinearProgressIndicator(minHeight: 2),
+            const SizedBox(height: 8),
           ],
           TextField(
             controller: _nameController,
@@ -299,6 +420,7 @@ class _SplitSheetState extends ConsumerState<_SplitSheet> {
                       paidBy: _paidBy,
                       mode: _mode,
                       exact: _exactAmounts,
+                      groupId: _groupId,
                     ),
                   ),
                 ),

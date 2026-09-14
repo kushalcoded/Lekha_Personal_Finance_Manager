@@ -104,6 +104,24 @@ SplitConfig splitConfigFor(SharedEntry entry, {required String ownerName}) {
   );
 }
 
+/// Who the owner settled up with, and which way the money went — read from
+/// the payer and the receiver the entry names, never from who typed it. Null
+/// when the owner is neither: in a group two guests can pay each other.
+({String person, bool toOwner})? settlementWith(
+  SharedEntry entry, {
+  required String ownerName,
+}) {
+  final receiver = entry.shares.keys.firstOrNull;
+  if (receiver == null) return null;
+  if (receiver == ownerName && entry.payerName != ownerName) {
+    return (person: entry.payerName, toOwner: true);
+  }
+  if (entry.payerName == ownerName && receiver != ownerName) {
+    return (person: receiver, toOwner: false);
+  }
+  return null;
+}
+
 /// True when accepting this settlement means money came *to* the owner, which
 /// is what decides whether it pays down receivables or payables.
 bool settlementPaysOwner(SharedEntry entry, {required String ownerName}) =>

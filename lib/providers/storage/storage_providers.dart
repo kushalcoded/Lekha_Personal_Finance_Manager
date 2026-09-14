@@ -252,10 +252,16 @@ class ReceivablesNotifier extends StateNotifier<ReceivablesState> {
 
   /// Apply a lump payment across [person]'s open receivables, oldest first.
   /// Returns any amount left over (they paid more than they owed you).
+  ///
+  /// [only] narrows it to debts whose source expense passes — used to pay a
+  /// group's own debts first. [onApplied] reports each source expense paid
+  /// down and by how much, so a group page can be told about it.
   Future<double> settlePersonReceivables(
     String person,
     double amount, {
     String? note,
+    bool Function(String? sourceExpenseId)? only,
+    void Function(String? sourceExpenseId, double paid)? onApplied,
   }) async {
     var left = amount;
     final open =
@@ -263,7 +269,8 @@ class ReceivablesNotifier extends StateNotifier<ReceivablesState> {
             .where(
               (r) =>
                   r.fromPerson.toLowerCase() == person.toLowerCase() &&
-                  r.remaining > 0,
+                  r.remaining > 0 &&
+                  (only == null || only(r.sourceExpenseId)),
             )
             .toList()
           ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
@@ -271,6 +278,7 @@ class ReceivablesNotifier extends StateNotifier<ReceivablesState> {
       if (left <= 0) break;
       final pay = left > r.remaining ? r.remaining : left;
       await addReceivableSettlement(r.id, pay, note: note);
+      onApplied?.call(r.sourceExpenseId, pay);
       left -= pay;
     }
     return left;
@@ -427,10 +435,13 @@ class PayablesNotifier extends StateNotifier<PayablesState> {
   }
 
   /// Apply a lump payment across [person]'s open payables, oldest first.
+  /// [only] and [onApplied] as on [ReceivablesNotifier.settlePersonReceivables].
   Future<double> settlePersonPayables(
     String person,
     double amount, {
     String? note,
+    bool Function(String? sourceExpenseId)? only,
+    void Function(String? sourceExpenseId, double paid)? onApplied,
   }) async {
     var left = amount;
     final open =
@@ -438,7 +449,8 @@ class PayablesNotifier extends StateNotifier<PayablesState> {
             .where(
               (p) =>
                   p.toPerson.toLowerCase() == person.toLowerCase() &&
-                  p.remainingAmount > 0,
+                  p.remainingAmount > 0 &&
+                  (only == null || only(p.sourceExpenseId)),
             )
             .toList()
           ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
@@ -446,6 +458,7 @@ class PayablesNotifier extends StateNotifier<PayablesState> {
       if (left <= 0) break;
       final pay = left > p.remainingAmount ? p.remainingAmount : left;
       await addSettlement(p.id, pay, note: note);
+      onApplied?.call(p.sourceExpenseId, pay);
       left -= pay;
     }
     return left;

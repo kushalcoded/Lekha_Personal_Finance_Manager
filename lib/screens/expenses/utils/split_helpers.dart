@@ -42,11 +42,16 @@ class SplitConfig {
   /// Per-person amounts when [mode] is [SplitMode.exact].
   final Map<String, double> exact;
 
+  /// The group this expense is also posted to, if any. The debts are the same
+  /// either way; this only decides whether the group's page shows the bill.
+  final String? groupId;
+
   const SplitConfig({
     this.people = const [],
     this.paidBy,
     this.mode = SplitMode.equal,
     this.exact = const {},
+    this.groupId,
   });
 
   bool get isActive => people.isNotEmpty;
@@ -58,12 +63,15 @@ class SplitConfig {
     bool clearPaidBy = false,
     SplitMode? mode,
     Map<String, double>? exact,
+    String? groupId,
+    bool clearGroup = false,
   }) {
     return SplitConfig(
       people: people ?? this.people,
       paidBy: clearPaidBy ? null : (paidBy ?? this.paidBy),
       mode: mode ?? this.mode,
       exact: exact ?? this.exact,
+      groupId: clearGroup ? null : (groupId ?? this.groupId),
     );
   }
 }

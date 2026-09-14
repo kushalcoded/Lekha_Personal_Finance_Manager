@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/payment/payment_method_providers.dart';
+import '../../../providers/share/share_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../../../widgets/common/form_bits.dart';
@@ -97,6 +98,12 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
   SplitLinks? _links;
   bool _splitDirty = false;
 
+  /// The group this expense was posted to, once the server has said. Until it
+  /// has — offline, or still loading — the group row is left exactly as it is,
+  /// so being offline never takes an expense off its group.
+  String? _postedGroupId;
+  bool _groupKnown = false;
+
   @override
   void initState() {
     super.initState();
@@ -118,6 +125,23 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
     if (recon != null) {
       _split = recon.config;
       _amountController.text = recon.total.toStringAsFixed(2);
+      _loadPostedGroup();
+    }
+  }
+
+  Future<void> _loadPostedGroup() async {
+    try {
+      final id = await ref
+          .read(sharedInboxProvider.notifier)
+          .groupIdForExpense(widget.expense.id);
+      if (!mounted) return;
+      setState(() {
+        _postedGroupId = id;
+        _groupKnown = true;
+        if (!_splitDirty && id != null) _split = _split.copyWith(groupId: id);
+      });
+    } catch (_) {
+      // Unknown, not "none": see [_groupKnown].
     }
   }
 
@@ -355,6 +379,7 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
             category: _selectedCategory!,
           );
         }
+        await _updateGroupPage(split);
       }
       if (!mounted) return;
       showNotice('Expense updated successfully');
@@ -362,6 +387,42 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
     } catch (e) {
       if (!mounted) return;
       showNotice('Error updating expense: $e');
+    }
+  }
+
+  /// Keep the group's page matching the split that was just rewritten.
+  Future<void> _updateGroupPage(SplitResult? split) async {
+    final inbox = ref.read(sharedInboxProvider.notifier);
+    final group = ref
+        .read(sharedInboxProvider)
+        .groups
+        .where((g) => g.id == _split.groupId)
+        .firstOrNull;
+    if (split != null && group != null) {
+      final entry = groupEntryForSplit(
+        ownerName: group.ownerName,
+        config: _split,
+        split: split,
+      );
+      final typed = _notesController.text
+          .trim()
+          .replaceAll(RegExp(r'\s*·?\s*Split ₹[\d,]+(\.\d+)?$'), '')
+          .trim();
+      await inbox.publishSplit(
+        groupId: group.id,
+        expenseId: widget.expense.id,
+        total: entry.total,
+        payerName: entry.payer,
+        shares: entry.shares,
+        note: typed.isEmpty ? _selectedCategory : typed,
+        date: _selectedDate,
+      );
+    } else if (_groupKnown && _postedGroupId != null) {
+      try {
+        await inbox.unpublishExpense(widget.expense.id);
+      } catch (_) {
+        // Stays on the group until the next edit; the books are already right.
+      }
     }
   }
 

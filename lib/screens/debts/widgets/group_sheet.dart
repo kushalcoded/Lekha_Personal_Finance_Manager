@@ -14,7 +14,11 @@ import '../../../widgets/common/person_menu.dart';
 import '../../../widgets/responsive/responsive_sheet.dart';
 import '../../settings/providers/settings_providers.dart';
 import '../person_ledger_screen.dart';
-import 'group_expense_sheet.dart';
+import '../../expenses/utils/split_helpers.dart';
+import '../../expenses/utils/split_persistence.dart';
+import '../../expenses/widgets/add_expense_modal.dart';
+import '../../../models/expense/expense_model.dart';
+import '../../../providers/storage/storage_providers.dart';
 import 'shared_entry_card.dart';
 import '../../../widgets/common/top_notice.dart';
 
@@ -257,12 +261,29 @@ class _GroupDetail extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => showGroupExpenseSheet(context, group),
-              child: const Text('Add an expense'),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  // The same form as every other expense, opened already split
+                  // with the group — so it gets a category, a payment method
+                  // and the budget check, and there is one way to add a bill.
+                  onPressed: () => showAddExpenseModal(
+                    context,
+                    initialSplit: SplitConfig(
+                      people: group.members.map((m) => m.name).toList(),
+                      groupId: group.id,
+                    ),
+                  ),
+                  child: const Text('Add an expense'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: () => showPastSplitsSheet(context, group),
+                child: const Text('Add past splits'),
+              ),
+            ],
           ),
           const SizedBox(height: 18),
           _GroupStanding(spaceId: group.id),
@@ -584,6 +605,233 @@ class _GroupStanding extends ConsumerWidget {
               ),
             ],
           ],
+        );
+      },
+    );
+  }
+}
+
+/// Split expenses from before the group existed, posted to it in a tap.
+///
+/// Nothing is re-entered and nothing in your books changes: the debts already
+/// exist, and this only puts the bills on the group's page.
+Future<void> showPastSplitsSheet(BuildContext context, SharedGroup group) {
+  return showResponsiveSheet(
+    context,
+    mobileChild: _PastSplits(group: group),
+    desktopChild: _PastSplits(group: group),
+  );
+}
+
+/// A split expense that could go on [group], rebuilt from the debts it made.
+class _Candidate {
+  final Expense expense;
+  final SplitConfig config;
+  final SplitResult split;
+
+  const _Candidate(this.expense, this.config, this.split);
+}
+
+class _PastSplits extends ConsumerStatefulWidget {
+  final SharedGroup group;
+
+  const _PastSplits({required this.group});
+
+  @override
+  ConsumerState<_PastSplits> createState() => _PastSplitsState();
+}
+
+class _PastSplitsState extends ConsumerState<_PastSplits> {
+  late final Future<Set<String>> _linked = ref
+      .read(sharedInboxProvider.notifier)
+      .allLinkedExpenseIds();
+  final Set<String> _picked = {};
+  bool _saving = false;
+
+  /// Everyone on it must be on the group — the page could not show a share for
+  /// somebody who is not — and anything already settled is left alone, since
+  /// the group page would show it owing with no way to record that payment.
+  List<_Candidate> _candidates(Set<String> linked) {
+    final out = <_Candidate>[];
+    final expenses = [...ref.read(expensesProvider).expenses]
+      ..sort((a, b) => b.date.compareTo(a.date));
+    for (final expense in expenses) {
+      if (linked.contains(expense.id)) continue;
+      final links = findSplitLinks(ref, expense.id);
+      if (links.isEmpty || links.anySettled) continue;
+      final recon = reconstructSplit(links, expense.amount);
+      if (recon == null) continue;
+
+      final names = <String>[];
+      for (final person in recon.config.people) {
+        final member = widget.group.memberNamed(person);
+        if (member == null) break;
+        names.add(member.name);
+      }
+      if (names.length != recon.config.people.length) continue;
+
+      // Rebuilt with the group's spelling of every name, since its page
+      // matches shares by exact name.
+      final byGroupName = {
+        for (var i = 0; i < names.length; i++)
+          names[i]: recon.config.exact[recon.config.people[i]] ?? 0.0,
+      };
+      final payer = recon.config.paidBy == null
+          ? null
+          : widget.group.memberNamed(recon.config.paidBy!)?.name;
+      final config = SplitConfig(
+        people: names,
+        paidBy: payer,
+        mode: SplitMode.exact,
+        exact: byGroupName,
+        groupId: widget.group.id,
+      );
+      final split = computeSplit(
+        total: recon.total,
+        people: names,
+        mode: SplitMode.exact,
+        exactAmounts: byGroupName,
+      );
+      out.add(_Candidate(expense, config, split));
+    }
+    return out;
+  }
+
+  Future<void> _post(List<_Candidate> all) async {
+    setState(() => _saving = true);
+    final inbox = ref.read(sharedInboxProvider.notifier);
+    var queued = 0;
+    for (final c in all.where((c) => _picked.contains(c.expense.id))) {
+      final entry = groupEntryForSplit(
+        ownerName: widget.group.ownerName,
+        config: c.config,
+        split: c.split,
+      );
+      final note = (c.expense.description ?? '')
+          .replaceAll(RegExp(r'\s*·?\s*Split ₹[\d,]+(\.\d+)?$'), '')
+          .trim();
+      final ok = await inbox.publishSplit(
+        groupId: widget.group.id,
+        expenseId: c.expense.id,
+        total: entry.total,
+        payerName: entry.payer,
+        shares: entry.shares,
+        note: note.isEmpty ? c.expense.category : note,
+        date: c.expense.date,
+      );
+      if (!ok) queued++;
+    }
+    if (!mounted) return;
+    final count = _picked.length;
+    Navigator.of(context).pop();
+    showNotice(
+      queued > 0
+          ? '$count ${AppFormatters.plural(count, 'bill', 'bills')} saved · '
+                'they go on ${widget.group.title} when you are back online'
+          : 'Added $count ${AppFormatters.plural(count, 'bill', 'bills')} '
+                'to ${widget.group.title}',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return FutureBuilder<Set<String>>(
+      future: _linked,
+      builder: (context, snap) {
+        final Widget body;
+        List<_Candidate> candidates = const [];
+        if (snap.hasError) {
+          body = Text(
+            'Could not check which bills are already on a group. '
+            'Check your connection and try again.',
+            style: theme.textTheme.bodyMedium,
+          );
+        } else if (!snap.hasData) {
+          body = const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        } else {
+          candidates = _candidates(snap.data!);
+          body = candidates.isEmpty
+              ? Text(
+                  'No earlier splits with only people from '
+                  '${widget.group.title}.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                )
+              : Column(
+                  children: [
+                    for (final c in candidates)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _picked.contains(c.expense.id),
+                        onChanged: _saving
+                            ? null
+                            : (on) => setState(
+                                () => on == true
+                                    ? _picked.add(c.expense.id)
+                                    : _picked.remove(c.expense.id),
+                              ),
+                        title: Text(
+                          (c.expense.description ?? c.expense.category)
+                              .replaceAll(
+                                RegExp(r'\s*·?\s*Split ₹[\d,]+(\.\d+)?$'),
+                                '',
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          '${AppFormatters.formatDate(c.expense.date)} · '
+                          '${AppFormatters.formatCurrency(c.split.myShare + c.split.othersTotal)}'
+                          ' with ${c.config.people.join(', ')}',
+                        ),
+                      ),
+                  ],
+                );
+        }
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Add past splits',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontFamily: 'Space Grotesk',
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Bills you already split with people in '
+                '${widget.group.title}. Ticking them puts them on the group '
+                'page; what you are owed stays the same.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              body,
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _picked.isEmpty || _saving
+                    ? null
+                    : () => _post(candidates),
+                child: Text(
+                  _picked.isEmpty
+                      ? 'Pick bills to add'
+                      : 'Add ${_picked.length} to ${widget.group.title}',
+                ),
+              ),
+            ],
+          ),
         );
       },
     );

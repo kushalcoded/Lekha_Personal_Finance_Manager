@@ -463,14 +463,60 @@ class PersonLedgerScreen extends ConsumerWidget {
     if (amount <= 0) return;
     final note = noteCtrl.text.trim().isEmpty ? null : noteCtrl.text.trim();
 
+    // Which of this person's debts came from bills posted to a group, so the
+    // part of this payment that clears them can be shown on that group's page
+    // too. Without it the group kept saying they owed what they had paid.
+    final inbox = ref.read(sharedInboxProvider.notifier);
+    Map<String, String> inGroups;
+    try {
+      inGroups = await inbox.groupLinkedExpenses();
+    } catch (_) {
+      inGroups = const {}; // ponytail: offline, the group page is not told
+    }
+    final paidPerGroup = <String, double>{};
+    void track(String? source, double paid) {
+      final groupId = source == null ? null : inGroups[source];
+      if (groupId == null) return;
+      paidPerGroup[groupId] = (paidPerGroup[groupId] ?? 0) + paid;
+    }
+
     if (theyOweYou) {
       await ref
           .read(receivablesProvider.notifier)
-          .settlePersonReceivables(balance.name, amount, note: note);
+          .settlePersonReceivables(
+            balance.name,
+            amount,
+            note: note,
+            onApplied: track,
+          );
     } else {
       await ref
           .read(payablesProvider.notifier)
-          .settlePersonPayables(balance.name, amount, note: note);
+          .settlePersonPayables(
+            balance.name,
+            amount,
+            note: note,
+            onApplied: track,
+          );
+    }
+
+    final groups = ref.read(sharedInboxProvider).groups;
+    for (final entry in paidPerGroup.entries) {
+      final group = groups.where((g) => g.id == entry.key).firstOrNull;
+      if (group == null) continue;
+      final them = group.memberNamed(balance.name)?.name ?? balance.name;
+      try {
+        await inbox.publishSettlement(
+          groupId: group.id,
+          payerName: theyOweYou ? them : group.ownerName,
+          receiverName: theyOweYou ? group.ownerName : them,
+          amount: entry.value,
+          note: note,
+        );
+      } catch (_) {
+        // The payment is in your books either way; the page catches up when
+        // the next one is recorded.
+      }
     }
     if (!context.mounted) return;
     showNotice('Payment recorded');

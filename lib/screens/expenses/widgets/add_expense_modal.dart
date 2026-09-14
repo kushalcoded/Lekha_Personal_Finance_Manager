@@ -22,6 +22,7 @@ import '../utils/split_persistence.dart';
 import '../../../widgets/common/form_bits.dart';
 import 'expense_notes_field.dart';
 import 'split_sheet.dart';
+import '../../../providers/share/share_providers.dart';
 import '../../../widgets/common/top_notice.dart';
 
 Future<void> showAddExpenseModal(
@@ -30,6 +31,8 @@ Future<void> showAddExpenseModal(
   double? initialAmount,
   DateTime? initialDate,
   String? sourceLabel,
+  SplitConfig? initialSplit,
+  String? initialNote,
   void Function(Expense expense)? onSaved,
 }) {
   final isDesktop = MediaQuery.of(context).size.width >= 900;
@@ -56,6 +59,8 @@ Future<void> showAddExpenseModal(
               initialAmount: initialAmount,
               initialDate: initialDate,
               sourceLabel: sourceLabel,
+              initialSplit: initialSplit,
+              initialNote: initialNote,
               onSaved: onSaved,
             ),
           ),
@@ -84,6 +89,8 @@ Future<void> showAddExpenseModal(
             initialAmount: initialAmount,
             initialDate: initialDate,
             sourceLabel: sourceLabel,
+            initialSplit: initialSplit,
+            initialNote: initialNote,
             onSaved: onSaved,
           ),
         ),
@@ -101,6 +108,12 @@ class AddExpenseForm extends ConsumerStatefulWidget {
   /// Provenance line shown above the form (e.g. "Detected from SMS · Mon
   /// 28 Jul") so a prefilled sheet says why it is prefilled.
   final String? sourceLabel;
+
+  /// Opens already split, e.g. with a group's members when adding from it.
+  final SplitConfig? initialSplit;
+
+  /// Prefilled note, e.g. the merchant a detected payment went to.
+  final String? initialNote;
   final void Function(Expense expense)? onSaved;
 
   const AddExpenseForm({
@@ -110,6 +123,8 @@ class AddExpenseForm extends ConsumerStatefulWidget {
     this.initialAmount,
     this.initialDate,
     this.sourceLabel,
+    this.initialSplit,
+    this.initialNote,
     this.onSaved,
   });
 
@@ -126,7 +141,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
   String? _selectedCategory;
   String? _selectedPaymentMethod;
   DateTime _selectedDate = DateTime.now();
-  SplitConfig _split = const SplitConfig();
+  late SplitConfig _split = widget.initialSplit ?? const SplitConfig();
   bool _showValidation = false;
   bool _suggestingCategory = false;
   bool _parsing = false;
@@ -142,6 +157,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       _showValidation = true;
     }
     if (widget.initialDate != null) _selectedDate = widget.initialDate!;
+    if (widget.initialNote != null) _notesController.text = widget.initialNote!;
     // Most spends go the same way every time; preselecting the user's default
     // takes a tap out of the common case. They can still change it.
     _selectedPaymentMethod = ref.read(defaultPaymentMethodProvider);
@@ -427,6 +443,8 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       await ref.read(expensesProvider.notifier).addExpense(expense);
       // Same short note as the expense: what it was for + the real bill. The
       // person's name is already the ledger you're looking at, so no names.
+      String? postedTo;
+      var postedNow = true;
       if (split != null) {
         await createSplitDebts(
           ref: ref,
@@ -438,12 +456,45 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
           date: _selectedDate,
           category: _selectedCategory!,
         );
+        final group = ref
+            .read(sharedInboxProvider)
+            .groups
+            .where((g) => g.id == _split.groupId)
+            .firstOrNull;
+        if (group != null) {
+          final entry = groupEntryForSplit(
+            ownerName: group.ownerName,
+            config: _split,
+            split: split,
+          );
+          final typed = _notesController.text.trim();
+          postedTo = group.title;
+          postedNow = await ref
+              .read(sharedInboxProvider.notifier)
+              .publishSplit(
+                groupId: group.id,
+                expenseId: expense.id,
+                total: entry.total,
+                payerName: entry.payer,
+                shares: entry.shares,
+                // The page already shows the bill and every share, so the
+                // "· Split ₹X" marker the expense row carries is just noise.
+                note: typed.isEmpty ? _selectedCategory : typed,
+                date: _selectedDate,
+              );
+        }
       }
       widget.onSaved?.call(expense);
       if (!mounted) {
         return;
       }
-      showNotice('Expense saved successfully');
+      showNotice(
+        postedTo == null
+            ? 'Expense saved'
+            : postedNow
+            ? 'Saved · on $postedTo too'
+            : 'Saved · goes on $postedTo when you are back online',
+      );
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) {

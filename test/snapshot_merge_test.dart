@@ -72,7 +72,9 @@ void main() {
     final afterB = mergeSnapshots(
       snap(expenses: [expense('x2')]),
       snap(
-        recordClock: {'expense:x': clock('2026-09-14T10:00:00Z', deleted: true)},
+        recordClock: {
+          'expense:x': clock('2026-09-14T10:00:00Z', deleted: true),
+        },
       ),
     );
     final atC = mergeSnapshots(snap(expenses: [expense('x')]), afterB);
@@ -110,7 +112,8 @@ void main() {
       'id': 'r',
       'amount': 1000,
       'isPaid': false,
-      'remainingAmount': 1000 - settlements.fold<num>(0, (s, e) => s + e['amount']),
+      'remainingAmount':
+          1000 - settlements.fold<num>(0, (s, e) => s + e['amount']),
       'settlements': settlements,
     };
     final a = {'id': 's1', 'amount': 300, 'settledAt': '2026-09-14T09:00:00Z'};
@@ -118,11 +121,15 @@ void main() {
 
     final merged = mergeSnapshots(
       snap(
-        receivables: [receivable([a])],
+        receivables: [
+          receivable([a]),
+        ],
         recordClock: {'receivable:r': clock('2026-09-14T09:00:00Z')},
       ),
       snap(
-        receivables: [receivable([b])],
+        receivables: [
+          receivable([b]),
+        ],
         recordClock: {'receivable:r': clock('2026-09-14T10:00:00Z')},
       ),
     );
@@ -138,11 +145,17 @@ void main() {
       // back over the ones just changed elsewhere.
       final merged = mergeSnapshots(
         snap(
-          settings: {'categories': ['Food'], 'salary': 50000},
+          settings: {
+            'categories': ['Food'],
+            'salary': 50000,
+          },
           settingsClock: {'salary': '2026-09-14T09:00:00Z'},
         ),
         snap(
-          settings: {'categories': ['Food', 'Pets'], 'salary': 40000},
+          settings: {
+            'categories': ['Food', 'Pets'],
+            'salary': 40000,
+          },
           settingsClock: {'categories': '2026-09-14T10:00:00Z'},
         ),
       );
@@ -171,8 +184,16 @@ void main() {
     test('only keys whose value changed are stamped', () {
       expect(
         changedSettingKeys(
-          {'a': 1, 'list': [1, 2], 'gone': true},
-          {'a': 1, 'list': [1, 2, 3], 'new': 'x'},
+          {
+            'a': 1,
+            'list': [1, 2],
+            'gone': true,
+          },
+          {
+            'a': 1,
+            'list': [1, 2, 3],
+            'new': 'x',
+          },
         ),
         {'list', 'gone', 'new'},
       );

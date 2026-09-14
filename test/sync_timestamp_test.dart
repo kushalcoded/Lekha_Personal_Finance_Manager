@@ -43,7 +43,10 @@ void main() {
     });
 
     test('never synced means whatever is there is new to us', () {
-      expect(SupabaseSyncService.remoteChanged(DateTime.utc(2020), null), isTrue);
+      expect(
+        SupabaseSyncService.remoteChanged(DateTime.utc(2020), null),
+        isTrue,
+      );
     });
 
     test('a legacy naive-local stamp still matches its own instant', () {
