@@ -561,7 +561,8 @@ class HiveService {
   String _settingsClockKey(String userId) => '__settingsClock::$userId';
 
   Map<String, String> _settingsClock(String userId) => {
-    for (final e in (_syncStateBox.get(_settingsClockKey(userId)) ?? {}).entries)
+    for (final e
+        in (_syncStateBox.get(_settingsClockKey(userId)) ?? {}).entries)
       '${e.key}': '${e.value}',
   };
 

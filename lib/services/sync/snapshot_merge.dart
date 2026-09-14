@@ -234,8 +234,7 @@ ChangeClock? _later(ChangeClock? a, ChangeClock? b) {
 
 Map<String, ChangeClock> _clocks(Object? raw) => {
   if (raw is Map)
-    for (final e in raw.entries)
-      '${e.key}': ?ChangeClock.parse(e.value),
+    for (final e in raw.entries) '${e.key}': ?ChangeClock.parse(e.value),
 };
 
 Map<String, DateTime> _stamps(Object? raw) => {

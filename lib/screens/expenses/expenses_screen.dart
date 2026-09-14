@@ -21,6 +21,7 @@ import 'widgets/expense_details_sheet.dart';
 import 'widgets/expense_filters_sheet.dart';
 import 'widgets/expense_section_header.dart';
 import 'widgets/expenses_widgets.dart';
+import '../../widgets/common/top_notice.dart';
 
 /// Expenses — the transaction ledger.
 class ExpensesScreen extends ConsumerStatefulWidget {
@@ -305,9 +306,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   /// Mockup SMS flow state 4: brief green confirmation once saved.
   void _confirmAdded() {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('✓ Added — synced to all devices')),
-    );
+    showNotice('✓ Added — synced to all devices');
   }
 
   void _dismissPending(PendingTransaction txn) {
@@ -402,32 +401,22 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
   /// immediately — a failed write left the row on screen under a snackbar
   /// claiming it was gone, offering an Undo for something that never happened.
   Future<void> _deleteExpenseWithUndo(Expense expense) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(expensesProvider.notifier).deleteExpense(expense.id);
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Could not delete that expense: $e')),
-      );
+      showNotice('Could not delete that expense: $e');
       return;
     }
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: const Text('Expense deleted'),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () async {
-            try {
-              await ref.read(expensesProvider.notifier).addExpense(expense);
-            } catch (e) {
-              messenger.showSnackBar(
-                SnackBar(content: Text('Could not undo that: $e')),
-              );
-            }
-          },
-        ),
-      ),
+    showNotice(
+      'Expense deleted',
+      actionLabel: 'Undo',
+      onAction: () async {
+        try {
+          await ref.read(expensesProvider.notifier).addExpense(expense);
+        } catch (e) {
+          showNotice('Could not undo that: $e');
+        }
+      },
     );
   }
 }
@@ -783,16 +772,23 @@ class _DetectedCard extends StatelessWidget {
                 fontSize: 11.5,
               ),
             ),
-            if (!selectMode) ...[
-              const SizedBox(height: 10),
-              Row(
+            const SizedBox(height: 10),
+            // Hidden, not removed, while selecting. Removing it shrank every
+            // card by its height, so the card you long-pressed slid up by that
+            // much for each card above it and the page appeared to scroll.
+            Visibility(
+              visible: !selectMode,
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: Row(
                 children: [
                   SmsActionPill(label: 'Add', primary: true, onTap: onAdd),
                   const SizedBox(width: 8),
                   SmsActionPill(label: 'Dismiss', onTap: onDismiss),
                 ],
               ),
-            ],
+            ),
             const SizedBox(height: 2),
           ],
         ),

@@ -272,7 +272,9 @@ class SupabaseSyncService {
     }
     if (written.isEmpty) throw const _CloudMovedOn();
     final stored = DateTime.tryParse('${written.first['updated_at']}')?.toUtc();
-    if (stored == null) throw StateError('The server did not confirm the sync.');
+    if (stored == null) {
+      throw StateError('The server did not confirm the sync.');
+    }
     return stored;
   }
 

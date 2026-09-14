@@ -4,6 +4,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 
 import '../../../providers/payment/payment_method_providers.dart';
 import '../../../widgets/common/glass.dart';
+import '../../../widgets/common/top_notice.dart';
 
 /// Add, rename, reorder and delete the payment methods offered when adding an
 /// expense, and pick the one used when nobody can be asked — the notification
@@ -102,9 +103,7 @@ class ManagePaymentMethodsScreen extends ConsumerWidget {
         ? await notifier.add(name)
         : await notifier.rename(existing, name);
     if (ok || !context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('That method already exists.')),
-    );
+    showNotice('That method already exists.');
   }
 
   Future<void> _confirmDelete(

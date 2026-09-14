@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/budget/budget_providers.dart';
 import '../../settings/providers/settings_providers.dart';
+import '../../../widgets/common/top_notice.dart';
 
 Future<void> showBudgetSettingsModal(BuildContext context) {
   return _showCycleAmountSettingsModal(
@@ -133,9 +134,7 @@ class _CycleAmountSettingsFormState
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$_labelPrefix updated for the current cycle')),
-    );
+    showNotice('$_labelPrefix updated for the current cycle');
     Navigator.of(context).pop();
   }
 
@@ -149,9 +148,7 @@ class _CycleAmountSettingsFormState
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$_labelPrefix reset for the current cycle')),
-    );
+    showNotice('$_labelPrefix reset for the current cycle');
     Navigator.of(context).pop();
   }
 

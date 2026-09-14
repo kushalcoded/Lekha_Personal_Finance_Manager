@@ -22,6 +22,7 @@ import '../utils/split_persistence.dart';
 import '../../../widgets/common/form_bits.dart';
 import 'expense_notes_field.dart';
 import 'split_sheet.dart';
+import '../../../widgets/common/top_notice.dart';
 
 Future<void> showAddExpenseModal(
   BuildContext context, {
@@ -178,11 +179,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       _applyParsed(result);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not understand that. Try rephrasing.'),
-          ),
-        );
+        showNotice('Could not understand that. Try rephrasing.');
       }
     } finally {
       if (mounted) setState(() => _parsing = false);
@@ -227,9 +224,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     final available = await _speech.initialize();
     if (!available) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Speech recognition unavailable.')),
-        );
+        showNotice('Speech recognition unavailable.');
       }
       return;
     }
@@ -448,23 +443,13 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Expense saved successfully'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showNotice('Expense saved successfully');
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error saving expense: $e'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      showNotice('Error saving expense: $e');
     }
   }
 
@@ -778,9 +763,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
 
   Future<void> _openSplit() async {
     if (_total <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter the total amount first')),
-      );
+      showNotice('Enter the total amount first');
       return;
     }
     final result = await showSplitSheet(

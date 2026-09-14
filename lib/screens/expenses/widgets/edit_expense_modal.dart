@@ -19,6 +19,7 @@ import 'expense_date_picker.dart';
 import 'payment_method_selector.dart';
 import 'expense_notes_field.dart';
 import 'save_expense_button.dart';
+import '../../../widgets/common/top_notice.dart';
 
 Future<void> showEditExpenseModal(
   BuildContext context, {
@@ -164,9 +165,7 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
 
   Future<void> _openSplit() async {
     if (_total <= 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Enter the amount first')));
+      showNotice('Enter the amount first');
       return;
     }
     final result = await showSplitSheet(
@@ -358,21 +357,11 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
         }
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Expense updated successfully'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      showNotice('Expense updated successfully');
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating expense: $e'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      showNotice('Error updating expense: $e');
     }
   }
 

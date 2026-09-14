@@ -38,6 +38,7 @@ import '../settings/settings_screen.dart';
 import 'providers/dashboard_providers.dart';
 import 'widgets/budget_settings_modal.dart';
 import 'widgets/setup_checklist_card.dart';
+import '../../widgets/common/top_notice.dart';
 
 /// Home tab — a calm, glass "cycle health" overview.
 class DashboardScreen extends ConsumerWidget {
@@ -792,9 +793,7 @@ class _DetectedSmsCard extends ConsumerWidget {
           ref
               .read(pendingTransactionsProvider.notifier)
               .markAdded(txn.id, expense.id);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('✓ Added — synced to all devices')),
-          );
+          showNotice('✓ Added — synced to all devices');
         },
       );
     }
@@ -983,69 +982,91 @@ class _CategoryBreakdown extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          ...categories.map((entry) {
-            final style = CategoryStyles.of(entry.key);
-            final fraction = max > 0
-                ? (entry.value / max).clamp(0.06, 1.0)
-                : 0.0;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 9),
-              child: Row(
-                children: [
-                  SizedBox(
-                    // Fits the longest built-in category ("Entertainment")
-                    // without ellipsis.
-                    width: 104,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: style.color,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Flexible(
-                          child: Text(
-                            entry.key,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: fraction,
-                        minHeight: 7,
-                        backgroundColor: Colors.white.withValues(alpha: 0.05),
-                        valueColor: AlwaysStoppedAnimation(style.color),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 9),
-                  Text(
-                    AppFormatters.formatCurrency(entry.value),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
+          // 12 above the first bar, with the row's own 4.5 of padding.
+          const SizedBox(height: 7.5),
+          // A table, not a row per category: the amount column is as wide as
+          // the widest amount, so every track starts and ends at the same x.
+          // As rows, each track was squeezed by its own amount's width, and
+          // "₹5,120.90" visibly shortened its bar next to "₹456".
+          Table(
+            columnWidths: const {
+              // Fits the longest built-in category ("Entertainment") without
+              // ellipsis, plus the gap before the track.
+              0: FixedColumnWidth(113),
+              1: FlexColumnWidth(),
+              2: IntrinsicColumnWidth(),
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            children: [
+              for (final entry in categories) _categoryRow(context, entry, max),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  TableRow _categoryRow(
+    BuildContext context,
+    MapEntry<String, double> entry,
+    double max,
+  ) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final style = CategoryStyles.of(entry.key);
+    final fraction = max > 0 ? (entry.value / max).clamp(0.06, 1.0) : 0.0;
+    const cell = EdgeInsets.symmetric(vertical: 4.5);
+    return TableRow(
+      children: [
+        Padding(
+          padding: cell.copyWith(right: 9),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: style.color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  entry.key,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: cell,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 7,
+              backgroundColor: Colors.white.withValues(alpha: 0.05),
+              valueColor: AlwaysStoppedAnimation(style.color),
+            ),
+          ),
+        ),
+        Padding(
+          padding: cell.copyWith(left: 9),
+          child: Text(
+            AppFormatters.formatCurrency(entry.value),
+            textAlign: TextAlign.right,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1170,26 +1191,20 @@ String _cycleAge(DateTime started) {
 /// there is — the "Synced just now" chip lives in a sidebar that needs a
 /// 1280px window and so never renders on Android at all.
 Future<void> _syncWithFeedback(BuildContext context, WidgetRef ref) async {
-  final messenger = ScaffoldMessenger.of(context);
   final result = await ref.read(syncProvider.notifier).syncNow();
   final changed = result.uploadCount + result.downloadCount;
-  messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(
-    SnackBar(
-      content: Text(
-        result.error != null
-            ? 'Sync failed — ${result.error}'
-            : changed == 0
-            ? 'Already up to date'
-            : 'Synced · $changed ${changed == 1 ? 'change' : 'changes'}',
-      ),
-      action: result.error == null
-          ? null
-          : SnackBarAction(
-              label: 'Retry',
-              onPressed: () => _syncWithFeedback(context, ref),
-            ),
-    ),
+  showNotice(
+    result.error != null
+        ? 'Sync failed — ${result.error}'
+        : changed == 0
+        ? 'Already up to date'
+        : 'Synced · $changed ${changed == 1 ? 'change' : 'changes'}',
+    actionLabel: result.error == null ? null : 'Retry',
+    onAction: result.error == null
+        ? null
+        : () {
+            if (context.mounted) _syncWithFeedback(context, ref);
+          },
   );
 }
 

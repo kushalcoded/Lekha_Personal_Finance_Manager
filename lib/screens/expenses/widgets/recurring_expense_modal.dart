@@ -13,6 +13,7 @@ import 'expense_date_picker.dart';
 import 'expense_notes_field.dart';
 import 'payment_method_selector.dart';
 import 'save_expense_button.dart';
+import '../../../widgets/common/top_notice.dart';
 
 Future<void> showRecurringExpenseModal(
   BuildContext context, {
@@ -150,11 +151,7 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
 
     final userId = ref.read(currentUserIdProvider);
     if (userId == null || userId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please sign in to save recurring templates.'),
-        ),
-      );
+      showNotice('Please sign in to save recurring templates.');
       return;
     }
 

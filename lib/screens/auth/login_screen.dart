@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
+import '../../widgets/common/top_notice.dart';
 
 /// Sign-in / create-account screen. Signing in is required — it powers cloud
 /// backup, cross-device sync, and iPhone SMS capture. Shown as the home gate
@@ -43,30 +44,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     if (ok && _createMode && !ref.read(isAuthenticatedProvider)) {
       // Sign-up succeeded but email confirmation is on — nothing to pop yet.
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Check your email to confirm, then log in.'),
-        ),
-      );
+      showNotice('Check your email to confirm, then log in.');
     }
   }
 
   Future<void> _forgotPassword() async {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Enter your email first.')));
+      showNotice('Enter your email first.');
       return;
     }
     final ok = await ref.read(authStateProvider.notifier).resetPassword(email);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok ? 'Password reset email sent.' : 'Could not send reset email.',
-        ),
-      ),
+    showNotice(
+      ok ? 'Password reset email sent.' : 'Could not send reset email.',
     );
   }
 

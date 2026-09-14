@@ -11,6 +11,7 @@ import '../../expenses/widgets/expense_date_picker.dart';
 import '../../expenses/widgets/expense_notes_field.dart';
 import '../../expenses/widgets/save_expense_button.dart';
 import '../../settings/providers/settings_providers.dart';
+import '../../../widgets/common/top_notice.dart';
 
 /// Add an expense to a group from the app.
 ///
@@ -97,7 +98,6 @@ class _GroupExpenseFormState extends ConsumerState<_GroupExpenseForm> {
       _saving = true;
       _error = null;
     });
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await addGroupEntry(
         ref: ref,
@@ -120,7 +120,7 @@ class _GroupExpenseFormState extends ConsumerState<_GroupExpenseForm> {
     }
     if (!mounted) return;
     Navigator.of(context).pop();
-    messenger.showSnackBar(const SnackBar(content: Text('Added to the group')));
+    showNotice('Added to the group');
   }
 
   @override

@@ -31,6 +31,7 @@ import 'widgets/manage_category_budgets_screen.dart';
 import 'widgets/manage_payment_methods_screen.dart';
 import 'widgets/manage_people_screen.dart';
 import '../../providers/payment/payment_method_providers.dart';
+import '../../widgets/common/top_notice.dart';
 
 /// Latest Android APK lives on the GitHub release page.
 const _androidAppUrl =
@@ -54,34 +55,24 @@ class SettingsScreen extends ConsumerWidget {
 
     ref.listen(backupProvider, (previous, next) {
       if (next.error != null && next.error != previous?.error) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(next.error!)));
+        showNotice(next.error!);
       }
       if (previous?.isLoading == true &&
           next.isLoading == false &&
           next.error == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Backup operation completed')),
-        );
+        showNotice('Backup operation completed');
       }
     });
 
     ref.listen(exportProvider, (previous, next) {
       if (next.error != null && next.error != previous?.error) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(next.error!)));
+        showNotice(next.error!);
       }
       if (previous?.isRunning == true &&
           next.isRunning == false &&
           next.error == null &&
           next.lastFile != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Export generated: ${next.lastFile!.fileName}'),
-          ),
-        );
+        showNotice('Export generated: ${next.lastFile!.fileName}');
       }
     });
 
@@ -860,14 +851,10 @@ Future<void> _showSimulateSmsDialog(BuildContext context, WidgetRef ref) async {
   final added = await ref.read(smsCaptureServiceProvider).simulate(body.trim());
   ref.read(pendingTransactionsProvider.notifier).refresh();
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(
-        added
-            ? 'Detected — see the "Detected" section in Expenses.'
-            : 'Not a debit, or no amount found.',
-      ),
-    ),
+  showNotice(
+    added
+        ? 'Detected — see the "Detected" section in Expenses.'
+        : 'Not a debit, or no amount found.',
   );
 }
 
@@ -881,13 +868,7 @@ Future<void> _setSmsNotify(BuildContext context, WidgetRef ref, bool on) async {
   await ref.read(settingsProvider.notifier).setSmsNotifyEnabled(on);
   final allowed = await ref.read(smsCaptureServiceProvider).setNotify(on);
   if (!on || allowed || !context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text(
-        'Allow notifications for Lekha in system settings to get these.',
-      ),
-    ),
-  );
+  showNotice('Allow notifications for Lekha in system settings to get these.');
 }
 
 /// Turning reminders on is what asks for the Android 13 notification
@@ -906,11 +887,7 @@ Future<void> _setReminders(BuildContext context, WidgetRef ref, bool on) async {
   if (granted) return;
   await notifier.setRemindersEnabled(false);
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Notifications are off for Lekha in Android settings'),
-    ),
-  );
+  showNotice('Notifications are off for Lekha in Android settings');
 }
 
 String _categoryBudgetsSubtitle(Map<String, double> budgets) {

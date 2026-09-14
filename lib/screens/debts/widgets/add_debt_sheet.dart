@@ -16,6 +16,7 @@ import '../../expenses/widgets/amount_input.dart';
 import '../../expenses/widgets/expense_date_picker.dart';
 import '../../expenses/widgets/expense_notes_field.dart';
 import '../../expenses/widgets/save_expense_button.dart';
+import '../../../widgets/common/top_notice.dart';
 
 /// Who the money came from. The ledger has no direction of its own — it is a
 /// receivable or a payable — so this is the one thing the form has to ask.
@@ -166,24 +167,18 @@ class _AddDebtFormState extends ConsumerState<AddDebtForm> {
             );
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            debtSummaryLine(
-              name: name,
-              amount: draft.amount,
-              direction: _direction,
-            ),
-          ),
+      showNotice(
+        debtSummaryLine(
+          name: name,
+          amount: draft.amount,
+          direction: _direction,
         ),
       );
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not save the debt: $e')));
+      showNotice('Could not save the debt: $e');
     }
   }
 

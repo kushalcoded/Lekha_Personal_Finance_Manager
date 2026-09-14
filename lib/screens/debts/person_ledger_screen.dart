@@ -21,6 +21,7 @@ import '../receivables/widgets/receivable_settlement_modal.dart';
 import '../settings/providers/settings_providers.dart';
 import 'providers/people_balance_providers.dart';
 import 'widgets/shared_entry_card.dart';
+import '../../widgets/common/top_notice.dart';
 
 /// Everything you and one person owe each other, in one ledger.
 class PersonLedgerScreen extends ConsumerWidget {
@@ -246,25 +247,16 @@ class PersonLedgerScreen extends ConsumerWidget {
   Future<void> _shareLedger(BuildContext context, WidgetRef ref) async {
     final ownerName = ref.read(settingsProvider).displayName.trim();
     if (ownerName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Add your name in Settings first, so they know who shared it.',
-          ),
-        ),
+      showNotice(
+        'Add your name in Settings first, so they know who shared it.',
       );
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
     final link = await ref
         .read(sharedInboxProvider.notifier)
         .shareLinkFor(person, ownerName: ownerName);
     if (link == null) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Could not make a link. Check you are signed in.'),
-        ),
-      );
+      showNotice('Could not make a link. Check you are signed in.');
       return;
     }
     if (!context.mounted) return;
@@ -285,7 +277,6 @@ class PersonLedgerScreen extends ConsumerWidget {
     WidgetRef ref,
     SharedEntry entry,
   ) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await acceptSharedEntry(
         ref: ref,
@@ -294,10 +285,10 @@ class PersonLedgerScreen extends ConsumerWidget {
         ownerName: ref.read(settingsProvider).displayName,
       );
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Could not add that: $e')));
+      showNotice('Could not add that: $e');
       return;
     }
-    messenger.showSnackBar(const SnackBar(content: Text('Added')));
+    showNotice('Added');
   }
 
   /// Dismissing has to be able to fail: the card is only forgotten once the
@@ -309,13 +300,10 @@ class PersonLedgerScreen extends ConsumerWidget {
     SharedEntry entry,
     String status,
   ) async {
-    final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(sharedInboxProvider.notifier).decide(entry, status);
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Could not dismiss that: $e')),
-      );
+      showNotice('Could not dismiss that: $e');
     }
   }
 
@@ -328,14 +316,10 @@ class PersonLedgerScreen extends ConsumerWidget {
     final version = await inbox.pinVersionOf(request);
     final ok = await inbox.allowReset(request, bumpTo: version + 1);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? '${request.name} can set a new PIN now'
-              : "Could not reset that — their old PIN still works",
-        ),
-      ),
+    showNotice(
+      ok
+          ? '${request.name} can set a new PIN now'
+          : "Could not reset that — their old PIN still works",
     );
   }
 
@@ -489,9 +473,7 @@ class PersonLedgerScreen extends ConsumerWidget {
           .settlePersonPayables(balance.name, amount, note: note);
     }
     if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Payment recorded')));
+    showNotice('Payment recorded');
   }
 }
 
@@ -816,9 +798,7 @@ class _ShareLinkDialog extends StatelessWidget {
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: link));
             if (!context.mounted) return;
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('Link copied')));
+            showNotice('Link copied');
           },
           style: OutlinedButton.styleFrom(
             foregroundColor: cs.onSurface,

@@ -9,6 +9,7 @@ import '../../../utils/formatters/formatters.dart';
 import '../../expenses/widgets/amount_input.dart';
 import '../../expenses/widgets/expense_notes_field.dart';
 import '../../expenses/widgets/save_expense_button.dart';
+import '../../../widgets/common/top_notice.dart';
 
 Future<void> showPayableSettlementModal(
   BuildContext context, {
@@ -85,9 +86,7 @@ class _PayableSettlementFormState extends ConsumerState<PayableSettlementForm> {
 
     if (!mounted) return;
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Settlement recorded')));
+    showNotice('Settlement recorded');
   }
 
   @override

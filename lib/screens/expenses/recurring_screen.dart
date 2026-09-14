@@ -8,6 +8,7 @@ import '../settings/providers/settings_providers.dart';
 import 'providers/recurring_expenses_providers.dart';
 import 'widgets/recurring_expense_modal.dart';
 import 'widgets/recurring_expense_widgets.dart';
+import '../../widgets/common/top_notice.dart';
 
 /// Manage recurring expense templates (moved off the Expenses list).
 class RecurringScreen extends ConsumerWidget {
@@ -97,20 +98,14 @@ class RecurringScreen extends ConsumerWidget {
     bool enabled,
   ) async {
     if (!enabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Recurring quick-generate is disabled in settings.'),
-        ),
-      );
+      showNotice('Recurring quick-generate is disabled in settings.');
       return;
     }
     await ref
         .read(recurringExpenseActionsProvider)
         .generateExpenseFromTemplate(template);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Generated ${template.category} expense')),
-    );
+    showNotice('Generated ${template.category} expense');
   }
 
   Future<void> _confirmDelete(
@@ -145,8 +140,6 @@ class RecurringScreen extends ConsumerWidget {
         .read(recurringTemplatesProvider.notifier)
         .deleteTemplate(template.id);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Recurring template deleted')));
+    showNotice('Recurring template deleted');
   }
 }

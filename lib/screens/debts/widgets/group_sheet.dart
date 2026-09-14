@@ -16,6 +16,7 @@ import '../../settings/providers/settings_providers.dart';
 import '../person_ledger_screen.dart';
 import 'group_expense_sheet.dart';
 import 'shared_entry_card.dart';
+import '../../../widgets/common/top_notice.dart';
 
 /// Start a group: a name and the people in it.
 ///
@@ -276,7 +277,6 @@ class _GroupDetail extends ConsumerWidget {
                   entry: e,
                   ownerName: ownerName,
                   onAccept: () async {
-                    final messenger = ScaffoldMessenger.of(context);
                     try {
                       await acceptSharedEntry(
                         ref: ref,
@@ -285,25 +285,18 @@ class _GroupDetail extends ConsumerWidget {
                         ownerName: ownerName,
                       );
                     } catch (err) {
-                      messenger.showSnackBar(
-                        SnackBar(content: Text('Could not add that: $err')),
-                      );
+                      showNotice('Could not add that: $err');
                       return;
                     }
-                    messenger.showSnackBar(
-                      const SnackBar(content: Text('Added')),
-                    );
+                    showNotice('Added');
                   },
                   onDismiss: () async {
-                    final messenger = ScaffoldMessenger.of(context);
                     try {
                       await ref
                           .read(sharedInboxProvider.notifier)
                           .decide(e, 'dismissed');
                     } catch (err) {
-                      messenger.showSnackBar(
-                        SnackBar(content: Text('Could not dismiss that: $err')),
-                      );
+                      showNotice('Could not dismiss that: $err');
                     }
                   },
                 ),
@@ -332,12 +325,11 @@ class _MemberRow extends ConsumerStatefulWidget {
 
 class _MemberRowState extends ConsumerState<_MemberRow> {
   Future<void> _take(Future<void> Function() action, String done) async {
-    final messenger = ScaffoldMessenger.of(context);
     await action();
     await markShareLinkSent(widget.member.token);
     if (!mounted) return;
     setState(() {});
-    messenger.showSnackBar(SnackBar(content: Text(done)));
+    showNotice(done);
   }
 
   @override

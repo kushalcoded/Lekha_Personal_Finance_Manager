@@ -9,6 +9,7 @@ import '../../../widgets/responsive/responsive_sheet.dart';
 import '../../expenses/widgets/amount_input.dart';
 import '../../expenses/widgets/expense_notes_field.dart';
 import '../../expenses/widgets/save_expense_button.dart';
+import '../../../widgets/common/top_notice.dart';
 
 Future<void> showReceivableSettlementModal(
   BuildContext context, {
@@ -87,9 +88,7 @@ class _ReceivableSettlementFormState
 
     if (!mounted) return;
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Payment recorded')));
+    showNotice('Payment recorded');
   }
 
   @override

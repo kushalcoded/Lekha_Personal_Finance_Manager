@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../providers/update_providers.dart';
 import '../../services/update/update_installer.dart';
+import 'top_notice.dart';
 
 /// Download and install a release without leaving the app.
 ///
@@ -67,11 +68,10 @@ Future<void> runAppUpdate(BuildContext context, AppRelease release) async {
   } catch (error) {
     if (context.mounted && !dismissed) Navigator.of(context).pop();
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Update failed: $error'),
-        action: SnackBarAction(label: 'Browser', onPressed: _openReleasePage),
-      ),
+    showNotice(
+      'Update failed: $error',
+      actionLabel: 'Browser',
+      onAction: _openReleasePage,
     );
   } finally {
     progress.dispose();

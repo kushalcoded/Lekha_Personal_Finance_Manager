@@ -7,6 +7,7 @@ import '../../../models/category/expense_category.dart';
 import '../../../providers/ai_providers.dart';
 import '../../../providers/categories/category_providers.dart';
 import '../../../widgets/common/glass.dart';
+import '../../../widgets/common/top_notice.dart';
 
 /// Settings screen for managing expense categories: add, rename, restyle,
 /// and delete. Icons/colors can be auto-suggested by Gemini or picked by hand.
@@ -158,9 +159,7 @@ class ManageCategoriesScreen extends ConsumerWidget {
   }
 
   void _snack(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showNotice(message);
   }
 }
 
@@ -384,11 +383,7 @@ class _CategoryEditorDialogState extends ConsumerState<_CategoryEditorDialog> {
     } catch (_) {
       // Offline / not configured / bad response: keep manual selection.
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not get an AI suggestion. Pick manually.'),
-          ),
-        );
+        showNotice('Could not get an AI suggestion. Pick manually.');
       }
     } finally {
       if (mounted) setState(() => _suggesting = false);

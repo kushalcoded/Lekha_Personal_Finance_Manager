@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/sms/sms_providers.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/common/glass.dart';
+import '../../../widgets/common/top_notice.dart';
 
 /// Friendly, numbered walkthrough for wiring the iPhone Shortcuts automation
 /// that forwards bank SMS into Lekha (docs: SETUP_IOS_SMS.md).
@@ -344,9 +345,7 @@ class _Step extends StatelessWidget {
                       tooltip: 'Copy $copyLabel',
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: copyValue!));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('$copyLabel copied')),
-                        );
+                        showNotice('$copyLabel copied');
                       },
                     ),
                   ],
