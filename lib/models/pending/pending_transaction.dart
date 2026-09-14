@@ -18,6 +18,11 @@ class PendingTransaction {
   /// the card is real either way, this only marks it as not yet double-checked.
   final bool provisional;
 
+  /// Who the money went to — "Swiggy", "Kushal" — so the card says where you
+  /// paid. Only kept while the card waits: it goes into the expense's note when
+  /// added, and is cleared once the card is added or dismissed.
+  final String? merchant;
+
   const PendingTransaction({
     required this.id,
     required this.amount,
@@ -27,6 +32,7 @@ class PendingTransaction {
     this.linkedExpenseId,
     required this.createdAt,
     this.provisional = false,
+    this.merchant,
   });
 
   PendingTransaction copyWith({
@@ -35,6 +41,8 @@ class PendingTransaction {
     PendingStatus? status,
     String? linkedExpenseId,
     bool? provisional,
+    String? merchant,
+    bool clearMerchant = false,
   }) {
     return PendingTransaction(
       id: id,
@@ -45,6 +53,7 @@ class PendingTransaction {
       linkedExpenseId: linkedExpenseId ?? this.linkedExpenseId,
       createdAt: createdAt,
       provisional: provisional ?? this.provisional,
+      merchant: clearMerchant ? null : (merchant ?? this.merchant),
     );
   }
 
@@ -57,6 +66,7 @@ class PendingTransaction {
     'linkedExpenseId': linkedExpenseId,
     'createdAt': createdAt.toIso8601String(),
     'provisional': provisional,
+    'merchant': merchant,
   };
 
   factory PendingTransaction.fromJson(Map<dynamic, dynamic> json) {
@@ -74,6 +84,18 @@ class PendingTransaction {
       // Absent on rows written before local-first parsing — those were all
       // AI-parsed, so they're already confirmed.
       provisional: json['provisional'] as bool? ?? false,
+      merchant: cleanMerchant(json['merchant']),
     );
   }
+}
+
+/// A merchant name as the model or the server gave it, or null if there is
+/// nothing usable. Trimmed, and never the literal strings a model writes for
+/// "unknown".
+String? cleanMerchant(Object? raw) {
+  final value = raw?.toString().trim() ?? '';
+  if (value.isEmpty) return null;
+  const unknown = {'null', 'none', 'unknown', 'n/a', 'na', '-'};
+  if (unknown.contains(value.toLowerCase())) return null;
+  return value.length > 40 ? value.substring(0, 40).trim() : value;
 }

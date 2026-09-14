@@ -15,6 +15,7 @@ import '../../widgets/common/glass.dart';
 import 'providers/expenses_providers.dart';
 import 'recurring_screen.dart';
 import 'utils/expense_helpers.dart';
+import 'utils/screenshot_picker.dart';
 import 'widgets/add_expense_modal.dart';
 import 'widgets/edit_expense_modal.dart';
 import 'widgets/expense_details_sheet.dart';
@@ -55,6 +56,11 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         title: const Text('Expenses'),
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            tooltip: 'Add payments from a screenshot',
+            onPressed: () => importPaymentScreenshots(ref),
+          ),
           IconButton(
             icon: const Icon(Icons.repeat_rounded),
             tooltip: 'Recurring',
@@ -150,6 +156,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                       SliverToBoxAdapter(
                         child: _DetectedSection(
                           pending: pending,
+                          onImport: () => importPaymentScreenshots(ref),
                           onAdd: _addFromPending,
                           onDismiss: _dismissPending,
                           selectedIds: _selectedPending,
@@ -292,8 +299,11 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       context,
       initialAmount: txn.amount,
       initialDate: txn.dateTime,
+      // Where the money went, so the expense says it without retyping.
+      initialNote: txn.merchant,
       sourceLabel:
-          'Detected from SMS · ${DateFormat('EEE d MMM').format(txn.dateTime)}',
+          '${detectionSource(txn)} · '
+          '${DateFormat('EEE d MMM').format(txn.dateTime)}',
       onSaved: (expense) {
         ref
             .read(pendingTransactionsProvider.notifier)
@@ -339,7 +349,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       initialAmount: total,
       initialDate: latest,
       sourceLabel:
-          'Merged from ${chosen.length} SMS · '
+          'Merged from ${chosen.length} detected payments · '
           'latest ${DateFormat('EEE d MMM').format(latest)}',
       onSaved: (expense) {
         final notifier = ref.read(pendingTransactionsProvider.notifier);
@@ -613,6 +623,7 @@ class _DetectedSection extends StatelessWidget {
   final void Function(PendingTransaction) onToggleSelect;
   final VoidCallback onCancelSelect;
   final VoidCallback onAddSelected;
+  final VoidCallback onImport;
 
   const _DetectedSection({
     required this.pending,
@@ -622,6 +633,7 @@ class _DetectedSection extends StatelessWidget {
     required this.onToggleSelect,
     required this.onCancelSelect,
     required this.onAddSelected,
+    required this.onImport,
   });
 
   @override
@@ -645,13 +657,28 @@ class _DetectedSection extends StatelessWidget {
             color: selectMode ? cs.primary : null,
           ),
           const SizedBox(height: 4),
-          Text(
-            selectMode
-                ? 'Tap to pick, then merge into one expense.'
-                : 'Long-press to merge several into one.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: cs.onSurfaceVariant,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  selectMode
+                      ? 'Tap to pick, then merge into one expense.'
+                      : 'Long-press to merge several into one.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              if (!selectMode)
+                TextButton.icon(
+                  onPressed: onImport,
+                  icon: const Icon(
+                    Icons.add_photo_alternate_outlined,
+                    size: 16,
+                  ),
+                  label: const Text('From screenshot'),
+                ),
+            ],
           ),
           const SizedBox(height: 10),
           ...pending.map(
@@ -746,7 +773,9 @@ class _DetectedCard extends StatelessWidget {
                 ],
                 Expanded(
                   child: Text(
-                    smsSenderLabel(txn.rawBody),
+                    // Where you paid is what you remember; the bank goes
+                    // underneath.
+                    txn.merchant ?? smsSenderLabel(txn.rawBody),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium?.copyWith(
@@ -766,7 +795,9 @@ class _DetectedCard extends StatelessWidget {
             ),
             const SizedBox(height: 3),
             Text(
-              when,
+              txn.merchant == null
+                  ? when
+                  : '${smsSenderLabel(txn.rawBody)} · $when',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: cs.onSurfaceVariant,
                 fontSize: 11.5,

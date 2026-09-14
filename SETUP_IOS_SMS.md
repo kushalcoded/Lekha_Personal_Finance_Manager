@@ -90,6 +90,11 @@ create table if not exists public.detected_transactions (
 create index if not exists detected_transactions_user_status_idx
   on public.detected_transactions (user_id, status, occurred_at desc);
 
+-- Who the money went to ("Swiggy", "Kushal"), read while the SMS is still
+-- whole. Only kept while the card waits: the app clears it on add or dismiss.
+-- Added later, so it is its own statement and safe to run on an existing table.
+alter table public.detected_transactions add column if not exists merchant text;
+
 alter table public.detected_transactions enable row level security;
 
 drop policy if exists "Users manage their own detected transactions"

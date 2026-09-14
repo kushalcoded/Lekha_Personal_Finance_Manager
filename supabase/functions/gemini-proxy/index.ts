@@ -71,10 +71,14 @@ async function bumpUsage(userId: string): Promise<number | null> {
   }
 }
 
+type Image = { mimeType: string; data: string };
+
 async function askGemini(
   system: string,
   prompt: string,
   temperature: number,
+  maxTokens: number,
+  image: Image | null,
 ): Promise<string | null> {
   if (!KEY) return null;
   try {
@@ -85,12 +89,19 @@ async function askGemini(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           system_instruction: { parts: [{ text: system }] },
-          contents: [{ parts: [{ text: prompt }] }],
+          contents: [{
+            parts: image
+              ? [
+                { inline_data: { mime_type: image.mimeType, data: image.data } },
+                { text: prompt },
+              ]
+              : [{ text: prompt }],
+          }],
           generationConfig: {
             temperature,
             topK: 32,
             topP: 0.95,
-            maxOutputTokens: 220,
+            maxOutputTokens: maxTokens,
           },
         }),
       },
@@ -157,6 +168,19 @@ serve(async (req) => {
     const system = String(payload?.system ?? "");
     const prompt = String(payload?.prompt ?? "");
     const temperature = Number(payload?.temperature ?? 0.4);
+    // A list of transactions read off a screenshot needs far more than the
+    // one-line answers everything else asks for. Capped so nobody can ask for
+    // an unbounded reply.
+    const maxTokens = Math.min(
+      Math.max(Number(payload?.maxTokens ?? 220) || 220, 1),
+      2048,
+    );
+    const rawImage = payload?.image;
+    const image: Image | null = rawImage &&
+        typeof rawImage.data === "string" &&
+        /^image\/(png|jpe?g|webp|heic|heif)$/.test(String(rawImage.mimeType))
+      ? { mimeType: String(rawImage.mimeType), data: rawImage.data }
+      : null;
     if (!prompt.trim()) {
       return new Response(JSON.stringify({ error: "missing prompt" }), {
         status: 400,
@@ -177,8 +201,10 @@ serve(async (req) => {
       }
     }
 
-    const text = (await askGemini(system, prompt, temperature)) ??
-      (await askGroq(system, prompt, temperature));
+    // Groq only reads text. Given an image request it would answer from the
+    // prompt alone and invent transactions, so pictures get Gemini or nothing.
+    const text = (await askGemini(system, prompt, temperature, maxTokens, image)) ??
+      (image ? null : await askGroq(system, prompt, temperature));
     if (!text) {
       return new Response(
         JSON.stringify({ error: "all AI providers failed" }),

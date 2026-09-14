@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 import 'package:uuid/uuid.dart';
 
 import '../../models/category/expense_category.dart';
@@ -17,6 +18,7 @@ import '../ai_providers.dart';
 import '../auth/auth_provider.dart';
 import '../payment/payment_method_providers.dart';
 import '../storage/storage_providers.dart';
+import 'screenshot_import.dart';
 
 const _channel = MethodChannel('lekha/sms');
 
@@ -249,9 +251,9 @@ class SmsCaptureService {
       if (client.auth.currentUser == null) return 0;
       rows = await client
           .from('detected_transactions')
-          .select(
-            'id, amount, occurred_at, raw_body, status, linked_expense_id',
-          )
+          // Everything, not a column list: `merchant` arrived later, and naming
+          // it would fail on a database that has not had the column added.
+          .select()
           .order('occurred_at', ascending: false)
           .limit(100);
     } catch (_) {
@@ -305,6 +307,7 @@ class SmsCaptureService {
           dateTime: occurred,
           rawBody: body,
           createdAt: DateTime.now(),
+          merchant: cleanMerchant(row['merchant']),
         ),
       );
       added++;
@@ -335,12 +338,24 @@ class SmsCaptureService {
               'raw_body': smsSenderLabel(t.rawBody),
               'status': t.status.name,
               'linked_expense_id': t.linkedExpenseId,
+              // Where you paid, and only while it waits for you. Once decided
+              // it is sent as null, which clears it on the server too.
+              'merchant': t.status == PendingStatus.pending ? t.merchant : null,
               'updated_at': DateTime.now().toIso8601String(),
             },
           )
           .toList();
       if (rows.isEmpty) return;
-      await client.from('detected_transactions').upsert(rows);
+      try {
+        await client.from('detected_transactions').upsert(rows);
+      } on PostgrestException catch (e) {
+        // PGRST204: the merchant column has not been added to this database
+        // yet. Sync the detections without it rather than not at all.
+        if (e.code != 'PGRST204') rethrow;
+        await client.from('detected_transactions').upsert([
+          for (final r in rows) Map.of(r)..remove('merchant'),
+        ]);
+      }
     } catch (_) {
       // Offline or table missing — the next sync retries.
     }
@@ -590,6 +605,7 @@ class SmsCaptureService {
         dateTime: when,
         rawBody: body,
         createdAt: DateTime.now(),
+        merchant: cleanMerchant(parsed['merchant']),
       );
       if (autoAdd) {
         await _bookExpense(pending);
@@ -601,6 +617,42 @@ class SmsCaptureService {
       // Offline / bad response: leave it unseen so the next open retries it.
       return false;
     }
+  }
+
+  /// Read a payments-app screenshot and add what is new to the detected list.
+  ///
+  /// Returns how many payments it found and how many of those were new.
+  /// Throws when the screenshot could not be read at all, so the caller can
+  /// say so instead of reporting that it found nothing.
+  Future<({int found, int added})> importScreenshot(
+    Uint8List image, {
+    required String mimeType,
+  }) async {
+    if (!_gemini.isConfigured) {
+      throw StateError('Sign in to read screenshots.');
+    }
+    final now = DateTime.now();
+    final reply = await _gemini.parsePaymentScreenshot(
+      image,
+      mimeType: mimeType,
+    );
+    final payments = paymentsFromScreenshot(reply, now: now);
+    final hive = HiveService();
+    final result = pendingFromScreenshot(
+      payments,
+      app: '${reply['app'] ?? ''}',
+      existing: hive.getPendingTransactions(),
+      expenses: _ref.read(expensesProvider).expenses,
+      now: now,
+    );
+    for (final txn in result.fresh) {
+      await hive.markSmsSeen(txn.id);
+      await hive.savePendingTransaction(txn);
+    }
+    _ref.read(pendingTransactionsProvider.notifier).refresh();
+    // Other devices get them on the next sync, like any detection.
+    if (result.fresh.isNotEmpty) unawaited(_pushDetected());
+    return (found: payments.length, added: result.fresh.length);
   }
 
   /// How many rows are verified at once. Enough to clear a burst quickly
@@ -662,6 +714,7 @@ class SmsCaptureService {
             fallback: current.dateTime,
           ),
           provisional: false,
+          merchant: cleanMerchant(parsed['merchant']) ?? current.merchant,
         ),
       );
     } catch (_) {
@@ -741,6 +794,7 @@ class PendingTransactionsNotifier
       matches.first.copyWith(
         status: PendingStatus.added,
         linkedExpenseId: expenseId,
+        clearMerchant: true,
       ),
     );
     refresh();
@@ -752,7 +806,10 @@ class PendingTransactionsNotifier
     );
     if (matches.isEmpty) return;
     await HiveService().savePendingTransaction(
-      matches.first.copyWith(status: PendingStatus.dismissed),
+      matches.first.copyWith(
+        status: PendingStatus.dismissed,
+        clearMerchant: true,
+      ),
     );
     refresh();
   }

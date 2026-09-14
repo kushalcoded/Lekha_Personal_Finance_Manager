@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -201,7 +202,7 @@ class GeminiService {
           'and, when the message states it, when it happened. '
           'Respond with ONLY compact JSON: '
           '{"isFinancial":bool,"isDebit":bool,"amount":number,'
-          '"when":string|null}. '
+          '"when":string|null,"merchant":string|null}. '
           'isFinancial=false for OTP, promotional, balance-only, EMI-due, or '
           'delivery messages. isDebit=true only when money LEFT the account '
           '(debited / spent / paid / sent / withdrawn); false for credits, '
@@ -210,8 +211,48 @@ class GeminiService {
           '"when" is the transaction date (and time if given) as an ISO 8601 '
           'string, resolving 2-digit years and formats like 01-08-26 or '
           '"on 30Jul25 14:22"; today is $today. Use null when the message '
-          'does not state a date — never guess.',
+          'does not state a date — never guess. '
+          '"merchant" is who the money went to as the message names it — a '
+          'shop, a person, or a UPI name, without words like "paid to" — or '
+          'null when it does not say.',
       userPrompt: 'SMS: $body\nReturn only the JSON.',
+    );
+    return jsonDecode(_extractJson(raw)) as Map<String, dynamic>;
+  }
+
+  /// Read a screenshot of a payments or bank app's transaction history.
+  /// Returns `{"app": string, "items": [{amount, merchant, date, time,
+  /// isDebit, status}]}` for every row visible.
+  Future<Map<String, dynamic>> parsePaymentScreenshot(
+    Uint8List image, {
+    required String mimeType,
+    String? todayIso,
+  }) async {
+    final today = todayIso ?? DateTime.now().toIso8601String().split('T').first;
+    final raw = await _generateText(
+      systemInstruction:
+          'You read ONE screenshot of a payments app or bank app — Google '
+          'Pay, PhonePe, Paytm, a bank — showing a list of transactions, or a '
+          'single payment receipt. List every transaction you can read. '
+          'Respond with ONLY compact JSON: {"app":string,"items":[{'
+          '"amount":number,"merchant":string,"date":"YYYY-MM-DD"|null,'
+          '"time":"HH:MM"|null,"isDebit":bool,"status":"success"|"failed"|'
+          '"pending"}]}. '
+          '"app" is the app or bank the screenshot is from. '
+          'isDebit=true only for money paid or sent; false for money received, '
+          'refunds and cashback. "merchant" is who the money went to exactly '
+          'as shown, without words like "Paid to". Today is $today: resolve '
+          '"Today" and "Yesterday" against it, and a date shown without a year '
+          'is the most recent such date that is not after today. Use null for '
+          'a date or time the screenshot does not show. Skip any row whose '
+          'amount you cannot read. Never invent a row.',
+      userPrompt: 'Return only the JSON for this screenshot.',
+      temperature: 0.1,
+      image: image,
+      imageMimeType: mimeType,
+      maxTokens: 2048,
+      // A picture and a long answer take far longer than a one-line SMS.
+      timeout: const Duration(seconds: 60),
     );
     return jsonDecode(_extractJson(raw)) as Map<String, dynamic>;
   }
@@ -295,6 +336,10 @@ class GeminiService {
     required String systemInstruction,
     required String userPrompt,
     double temperature = 0.4,
+    Uint8List? image,
+    String? imageMimeType,
+    int? maxTokens,
+    Duration timeout = const Duration(seconds: 20),
   }) async {
     final baseUrl = dotenv.env['SUPABASE_URL'];
     if (baseUrl == null || baseUrl.trim().isEmpty) {
@@ -328,9 +373,15 @@ class GeminiService {
                 'with the matching currency symbol.',
             'prompt': userPrompt,
             'temperature': temperature,
+            'maxTokens': ?maxTokens,
+            if (image != null)
+              'image': {
+                'mimeType': imageMimeType ?? 'image/png',
+                'data': base64Encode(image),
+              },
           }),
         )
-        .timeout(const Duration(seconds: 20));
+        .timeout(timeout);
 
     if (response.statusCode >= 400) {
       throw Exception('AI request failed: ${response.statusCode}');

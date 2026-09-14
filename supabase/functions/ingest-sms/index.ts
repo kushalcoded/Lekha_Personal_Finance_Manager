@@ -31,12 +31,18 @@ const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.1-flash-lite";
 const GROQ_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
 const GROQ_MODEL = Deno.env.get("GROQ_MODEL") ?? "llama-3.3-70b-versatile";
 
+function merchantFrom(raw: unknown): string | null {
+  const value = String(raw ?? "").trim();
+  if (!value || /^(null|none|unknown|n\/?a|-)$/i.test(value)) return null;
+  return value.slice(0, 40);
+}
+
 function systemPrompt(today: string): string {
   return (
     "You read ONE bank or UPI SMS and extract the transaction amount " +
     "and, when the message states it, when it happened. " +
     'Respond with ONLY compact JSON: {"isFinancial":bool,"isDebit":bool,' +
-    '"amount":number,"when":string|null}. ' +
+    '"amount":number,"when":string|null,"merchant":string|null}. ' +
     "isFinancial=false for OTP, promotional, balance-only, EMI-due, or " +
     "delivery messages. isDebit=true only when money LEFT the account " +
     "(debited / spent / paid / sent / withdrawn); false for credits, " +
@@ -45,7 +51,10 @@ function systemPrompt(today: string): string {
     '"when" is the transaction date (and time if given) as an ISO 8601 ' +
     "string, resolving 2-digit years and formats like 01-08-26 or " +
     `"on 30Jul25 14:22"; today is ${today}. Use null when the message does ` +
-    "not state a date — never guess."
+    "not state a date — never guess. " +
+    '"merchant" is who the money went to as the message names it — a shop, ' +
+    'a person, or a UPI name, without words like "paid to" — or null when it ' +
+    "does not say."
   );
 }
 
@@ -238,6 +247,10 @@ serve(async (req) => {
             amount,
             occurred_at: occurredAt(parsed["when"], receivedAt),
             raw_body: senderLabel(body),
+            // Read here, while the message is still whole — only the sender
+            // label is kept after this. The app clears it once the card is
+            // added or dismissed.
+            merchant: merchantFrom(parsed["merchant"]),
             status: "pending",
           }, { onConflict: "id" });
         if (detectErr) throw detectErr;

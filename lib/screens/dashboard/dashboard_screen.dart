@@ -787,8 +787,10 @@ class _DetectedSmsCard extends ConsumerWidget {
         context,
         initialAmount: txn.amount,
         initialDate: txn.dateTime,
+        initialNote: txn.merchant,
         sourceLabel:
-            'Detected from SMS · ${DateFormat('EEE d MMM').format(txn.dateTime)}',
+            '${detectionSource(txn)} · '
+            '${DateFormat('EEE d MMM').format(txn.dateTime)}',
         onSaved: (expense) {
           ref
               .read(pendingTransactionsProvider.notifier)
@@ -808,7 +810,7 @@ class _DetectedSmsCard extends ConsumerWidget {
           children: [
             FieldLabel(
               pending.length == 1
-                  ? 'Detected · SMS'
+                  ? 'Detected'
                   : 'Detected · ${pending.length} pending',
             ),
             const SizedBox(height: 10),
@@ -816,7 +818,10 @@ class _DetectedSmsCard extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Text(
-                    DateFormat('EEE d MMM · h:mm a').format(txn.dateTime),
+                    [
+                      ?txn.merchant,
+                      DateFormat('EEE d MMM · h:mm a').format(txn.dateTime),
+                    ].join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(

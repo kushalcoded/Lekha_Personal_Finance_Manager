@@ -1,3 +1,4 @@
+import '../../../models/pending/pending_transaction.dart';
 import '../../../models/expense/expense_model.dart';
 
 enum ExpenseWarningKind { none, duplicate, anomaly, overBudget }
@@ -212,3 +213,7 @@ String formatNotes(String? notes) {
   }
   return value;
 }
+
+/// Where a detected payment came from, for the line above a prefilled form.
+String detectionSource(PendingTransaction txn) =>
+    txn.id.startsWith('shot_') ? 'From a screenshot' : 'Detected from SMS';

@@ -10,7 +10,14 @@ import '../../main.dart' show navigatorKey;
 /// sat over the + button for their whole three seconds. Drawn on the root
 /// navigator's overlay, so callers need no BuildContext and nothing breaks
 /// when the sheet that asked for it has already closed.
-void showNotice(String message, {String? actionLabel, VoidCallback? onAction}) {
+void showNotice(
+  String message, {
+  String? actionLabel,
+  VoidCallback? onAction,
+
+  /// For "working on it" messages that the result will replace.
+  Duration? duration,
+}) {
   final overlay = navigatorKey.currentState?.overlay;
   if (overlay == null) return;
 
@@ -41,7 +48,7 @@ void showNotice(String message, {String? actionLabel, VoidCallback? onAction}) {
   overlay.insert(entry);
   _timer = Timer(
     // Long enough to reach an Undo.
-    Duration(seconds: actionLabel == null ? 3 : 5),
+    duration ?? Duration(seconds: actionLabel == null ? 3 : 5),
     hideNotice,
   );
 }
