@@ -182,15 +182,37 @@ Groups shipped in v1.2.0 and everything below came out of trying to use one.
 **Not done in groups:** exact amounts (equal among whoever is ticked only), and
 a guest cannot be removed from a group once added.
 
+### 10. Groups from the split sheet, and the sync that lost web expenses
+
+- [x] **Web expenses vanished under Android's copy** (`33e73a8`, `c4bf1b0`).
+      Leaving the app uploaded unconditionally and resuming never pulled, so a
+      stale phone overwrote the cloud. A clean device now never uploads; both
+      sides changed merges record by record; uploads are compare-and-swap.
+- [x] **`_syncSpace` could delete a group's entries** (`33e73a8`) by landing on
+      the group space for anyone in a group.
+- [x] **Split into a group while adding an expense** (`7569cb9`). Group row in
+      the split sheet, offer to add non-members, offline publish queue, "Add
+      past splits", payments recorded on a ledger reach the group page, and a
+      group bill no longer also shows on each member's one-to-one page. The
+      separate group expense sheet is deleted.
+- [x] Notices at the top instead of over the + button; uniform category bars;
+      no scroll jump when multi-selecting detected SMS (`e25efaa`).
+- [x] **Payments from a screenshot** and merchant names on detected cards
+      (`a352c19`); AI summary as status rows (`de2bb51`).
+
+**Needs you:** `alter table detected_transactions add column if not exists
+merchant text;`, then re-paste `gemini-proxy` and `ingest-sms`. Until the proxy
+is redeployed, screenshot import fails with "could not be read".
+
 ## Android
 
 **v1.2.1 is released** — `1.2.1+13`, same signing key as 1.2.0, so it updates
 in place. Anyone on 1.1.6 or older still needs export → uninstall → install →
 sign in, because that is where the key changed.
 
-**One fix landed after the release** (`dabf5f9`, the "Shared with Kushal"
-description), so it is on the web but not in the APK. Not worth a release on its
-own; it rides along with whatever comes next.
+**Everything from `dabf5f9` on is web-only.** The installed APK still uploads its
+whole snapshot every time it is backgrounded, so it can still overwrite the web
+app's data until a new APK is installed or the app is no longer opened.
 
 **It will not install over the current app** — the signing key changed. Export
 from Settings, uninstall, install, sign in; the cloud snapshot restores
