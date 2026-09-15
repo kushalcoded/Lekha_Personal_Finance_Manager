@@ -91,6 +91,11 @@ class SyncState {
   final String status;
   final String? error;
 
+  /// What the last sync saw and decided, in words — for the Sync details
+  /// readout in Settings. Without it two devices that disagree both just say
+  /// "up to date", and there is no way to tell which one is wrong.
+  final String? detail;
+
   const SyncState({
     this.isSyncing = false,
     this.lastSyncedAt,
@@ -101,6 +106,7 @@ class SyncState {
     this.pendingCount = 0,
     this.status = 'Idle',
     this.error,
+    this.detail,
   });
 
   SyncState copyWith({
@@ -113,6 +119,7 @@ class SyncState {
     int? pendingCount,
     String? status,
     String? error,
+    String? detail,
   }) {
     return SyncState(
       isSyncing: isSyncing ?? this.isSyncing,
@@ -124,6 +131,7 @@ class SyncState {
       pendingCount: pendingCount ?? this.pendingCount,
       status: status ?? this.status,
       error: error,
+      detail: detail ?? this.detail,
     );
   }
 
@@ -141,6 +149,7 @@ class SyncState {
       'pendingCount': pendingCount,
       'status': status,
       'error': error,
+      'detail': detail,
     };
   }
 
@@ -161,6 +170,7 @@ class SyncState {
       pendingCount: (json['pendingCount'] as num?)?.toInt() ?? 0,
       status: json['status'] as String? ?? 'Idle',
       error: json['error'] as String?,
+      detail: json['detail'] as String?,
     );
   }
 }

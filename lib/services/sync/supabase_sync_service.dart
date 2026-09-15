@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../models/sync/sync_models.dart';
@@ -56,6 +57,7 @@ class SupabaseSyncService {
       ),
     );
 
+    var detail = '';
     try {
       final remote = await _fetchRemoteSnapshot(userId);
       // Builds before this field existed stored the same server stamp in
@@ -74,6 +76,19 @@ class SupabaseSyncService {
         localEmpty: localEmpty,
         localDirty: localDirty,
       );
+      detail = [
+        '${pushOnly ? 'Leaving the app' : 'Full sync'} → ${action.name}',
+        'This device: ${localDirty ? 'had unsynced edits' : 'no unsynced edits'}'
+            ', ${_hiveService.getAllExpenses(userId).length} expenses',
+        remote == null
+            ? 'Cloud: empty'
+            : 'Cloud: ${changed ? 'changed' : 'unchanged'}, '
+                  '${(remote.snapshot['expenses'] as List?)?.length ?? 0} '
+                  'expenses',
+        'Cloud version ${_stampText(remote?.updatedAt)}',
+        'Last seen here ${_stampText(stamp)}',
+      ].join('\n');
+      debugPrint('[sync] ${detail.replaceAll('\n', ' | ')}');
 
       var uploads = 0;
       var downloads = 0;
@@ -155,7 +170,16 @@ class SupabaseSyncService {
       }
 
       final completedAt = DateTime.now();
-      await _saveSynced(userId, startedAt, serverStamp, uploads, downloads);
+      await _saveSynced(
+        userId,
+        startedAt,
+        serverStamp,
+        uploads,
+        downloads,
+        detail:
+            '$detail\nResult: $uploads up, $downloads down, now at '
+            '${_stampText(serverStamp)}',
+      );
       return SyncResult(
         uploadCount: uploads,
         downloadCount: downloads,
@@ -176,7 +200,14 @@ class SupabaseSyncService {
         'Another device is syncing at the same time. Try again in a moment.',
       );
     } catch (e) {
-      return _failed(userId, initial, startedAt, e.toString());
+      debugPrint('[sync] failed: $e');
+      return _failed(
+        userId,
+        initial,
+        startedAt,
+        e.toString(),
+        detail: '$detail\nFailed: $e',
+      );
     }
   }
 
@@ -184,8 +215,9 @@ class SupabaseSyncService {
     String userId,
     SyncState initial,
     DateTime startedAt,
-    String error,
-  ) async {
+    String error, {
+    String? detail,
+  }) async {
     await _hiveService.saveSyncState(
       userId,
       initial.copyWith(
@@ -193,6 +225,7 @@ class SupabaseSyncService {
         lastAttemptAt: startedAt,
         status: 'Sync failed',
         error: error,
+        detail: detail,
       ),
     );
     return SyncResult(
@@ -290,8 +323,9 @@ class SupabaseSyncService {
     DateTime startedAt,
     DateTime? serverStamp,
     int uploads,
-    int downloads,
-  ) async {
+    int downloads, {
+    String? detail,
+  }) async {
     await _hiveService.saveSyncState(
       userId,
       SyncState(
@@ -302,9 +336,13 @@ class SupabaseSyncService {
         uploadCount: uploads,
         downloadCount: downloads,
         status: 'Synced',
+        detail: detail,
       ),
     );
   }
+
+  static String _stampText(DateTime? at) =>
+      at == null ? 'none' : at.toUtc().toIso8601String();
 
   Future<_RemoteSnapshot?> _fetchRemoteSnapshot(String userId) async {
     final rows = await _client

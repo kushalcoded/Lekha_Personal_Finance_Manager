@@ -32,6 +32,8 @@ import 'widgets/manage_payment_methods_screen.dart';
 import 'widgets/manage_people_screen.dart';
 import '../../providers/payment/payment_method_providers.dart';
 import '../../widgets/common/top_notice.dart';
+import '../../models/sync/sync_models.dart';
+import '../../widgets/common/sync_feedback.dart';
 
 /// Latest Android APK lives on the GitHub release page.
 const _androidAppUrl =
@@ -151,6 +153,7 @@ class SettingsScreen extends ConsumerWidget {
                               icon: Icons.cloud_sync_rounded,
                               title: 'Sync',
                               subtitle: syncStatus,
+                              onTap: () => _showSyncDetails(context, sync),
                               trailing: sync.isSyncing
                                   ? const SizedBox(
                                       width: 18,
@@ -161,9 +164,7 @@ class SettingsScreen extends ConsumerWidget {
                                     )
                                   : _PillButton(
                                       label: 'Sync now',
-                                      onTap: () => ref
-                                          .read(syncProvider.notifier)
-                                          .syncNow(),
+                                      onTap: () => syncWithFeedback(ref),
                                     ),
                             ),
                           ],
@@ -1014,6 +1015,31 @@ String _iphoneSmsSubtitle(AsyncValue<DateTime?> health) {
         'the iPhone automation may have switched itself off';
   }
   return 'Working · last SMS ${AppFormatters.getRelativeTime(last)}';
+}
+
+/// What the last sync on this device saw and decided. Compared side by side
+/// across two devices, it shows which one is out of step and why.
+void _showSyncDetails(BuildContext context, SyncState sync) {
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Sync details'),
+      content: SelectableText(
+        [
+          if (sync.lastAttemptAt != null)
+            'Last attempt ${AppFormatters.formatDateTime(sync.lastAttemptAt!)}',
+          sync.detail ?? 'Nothing recorded yet. Tap Sync now, then look again.',
+        ].join('\n\n'),
+        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(height: 1.5),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _SettingRow extends StatelessWidget {
