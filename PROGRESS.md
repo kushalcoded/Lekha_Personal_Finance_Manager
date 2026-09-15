@@ -206,13 +206,14 @@ is redeployed, screenshot import fails with "could not be read".
 
 ## Android
 
-**v1.2.1 is released** — `1.2.1+13`, same signing key as 1.2.0, so it updates
-in place. Anyone on 1.1.6 or older still needs export → uninstall → install →
-sign in, because that is where the key changed.
+**v1.3.0 is released** (2026-09-15) — `1.3.0+14`, same signing key as
+v1.2.x (certificate digest checked against the v1.2.1 asset), so it updates in
+place, and the app's own updater offers it. It carries the merging sync, groups
+from the split sheet, screenshots and merchant names. Anyone on 1.1.6 or older
+still needs export → uninstall → install → sign in.
 
-**Everything from `dabf5f9` on is web-only.** The installed APK still uploads its
-whole snapshot every time it is backgrounded, so it can still overwrite the web
-app's data until a new APK is installed or the app is no longer opened.
+A phone still on v1.2.x uploads its whole snapshot on every backgrounding and
+can overwrite the other devices until it is updated.
 
 **It will not install over the current app** — the signing key changed. Export
 from Settings, uninstall, install, sign in; the cloud snapshot restores
