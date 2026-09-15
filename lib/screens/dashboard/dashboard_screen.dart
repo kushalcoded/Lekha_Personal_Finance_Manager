@@ -40,6 +40,7 @@ import 'providers/dashboard_providers.dart';
 import 'widgets/budget_settings_modal.dart';
 import 'widgets/setup_checklist_card.dart';
 import '../../widgets/common/top_notice.dart';
+import '../../widgets/common/sync_feedback.dart';
 
 /// Home tab — a calm, glass "cycle health" overview.
 class DashboardScreen extends ConsumerWidget {
@@ -85,7 +86,7 @@ class DashboardScreen extends ConsumerWidget {
         ),
       ),
       isSyncing: ref.watch(syncProvider.select((s) => s.isSyncing)),
-      onSync: () => _syncWithFeedback(context, ref),
+      onSync: () => syncWithFeedback(ref),
     );
     final hero = _CycleHealthHero(
       metrics: budgetMetrics,
@@ -1244,30 +1245,6 @@ String _cycleAge(DateTime started) {
   return ' — $days ${AppFormatters.plural(days, 'day', 'days')} ago';
 }
 
-/// Run a sync and say what happened.
-///
-/// The spinner alone tells you something is running; it never tells you it
-/// finished, or that it failed. On a phone this is the only sync feedback
-/// there is — the "Synced just now" chip lives in a sidebar that needs a
-/// 1280px window and so never renders on Android at all.
-Future<void> _syncWithFeedback(BuildContext context, WidgetRef ref) async {
-  final result = await ref.read(syncProvider.notifier).syncNow();
-  final changed = result.uploadCount + result.downloadCount;
-  showNotice(
-    result.error != null
-        ? 'Sync failed — ${result.error}'
-        : changed == 0
-        ? 'Already up to date'
-        : 'Synced · $changed ${changed == 1 ? 'change' : 'changes'}',
-    actionLabel: result.error == null ? null : 'Retry',
-    onAction: result.error == null
-        ? null
-        : () {
-            if (context.mounted) _syncWithFeedback(context, ref);
-          },
-  );
-}
-
 /// A line under the header, shown only when there is something to say: the
 /// stage while a sync runs, and the reason plus a way back when one failed.
 /// Silence the rest of the time — a permanent "everything is fine" banner is
@@ -1282,7 +1259,7 @@ class _SyncStatusLine extends ConsumerWidget {
       isSyncing: sync.isSyncing,
       status: sync.status,
       error: sync.error,
-      onRetry: () => _syncWithFeedback(context, ref),
+      onRetry: () => syncWithFeedback(ref),
     );
   }
 }

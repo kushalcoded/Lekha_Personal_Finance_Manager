@@ -255,6 +255,9 @@ class _LabeledSidebar extends ConsumerWidget {
 
     final syncLabel = sync.isSyncing
         ? 'Syncing…'
+        // A failure used to show as "Synced 2m ago", the last time it worked.
+        : sync.error != null
+        ? 'Sync failed'
         : sync.lastSyncedAt == null
         ? 'Not synced yet'
         : 'Synced ${AppFormatters.getRelativeTime(sync.lastSyncedAt!)}';

@@ -23,6 +23,7 @@ import 'widgets/expense_filters_sheet.dart';
 import 'widgets/expense_section_header.dart';
 import 'widgets/expenses_widgets.dart';
 import '../../widgets/common/top_notice.dart';
+import '../../widgets/common/sync_feedback.dart';
 
 /// Expenses — the transaction ledger.
 class ExpensesScreen extends ConsumerStatefulWidget {
@@ -80,7 +81,7 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
               : IconButton(
                   icon: const Icon(Icons.refresh),
                   tooltip: 'Sync now',
-                  onPressed: () => ref.read(syncProvider.notifier).syncNow(),
+                  onPressed: () => syncWithFeedback(ref),
                 ),
           const SizedBox(width: 6),
         ],

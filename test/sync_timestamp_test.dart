@@ -133,6 +133,35 @@ void main() {
     });
   });
 
+  group('stampAfterSkip', () {
+    final seen = DateTime.utc(2026, 9, 15, 11);
+    final newer = DateTime.utc(2026, 9, 15, 11, 30);
+
+    test('skipping a changed cloud does not count as having seen it', () {
+      // The phone left the app just after the web uploaded an expense. Its
+      // push-only sync skipped the download but remembered the new stamp, so
+      // every sync after that said "Already up to date" without the expense.
+      final kept = SupabaseSyncService.stampAfterSkip(
+        previous: seen,
+        remote: newer,
+        remoteChanged: true,
+      );
+      expect(kept, seen);
+      expect(SupabaseSyncService.remoteChanged(newer, kept), isTrue);
+    });
+
+    test('an unchanged cloud keeps its stamp', () {
+      expect(
+        SupabaseSyncService.stampAfterSkip(
+          previous: seen,
+          remote: seen,
+          remoteChanged: false,
+        ),
+        seen,
+      );
+    });
+  });
+
   group('refuseEmptyPush', () {
     test('an accidentally empty device cannot flatten the cloud', () {
       expect(

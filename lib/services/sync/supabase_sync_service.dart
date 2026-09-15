@@ -77,7 +77,13 @@ class SupabaseSyncService {
 
       var uploads = 0;
       var downloads = 0;
-      DateTime? serverStamp = remote?.updatedAt;
+      // What this device has actually taken in. Only a pull or an upload moves
+      // it; see [stampAfterSkip].
+      DateTime? serverStamp = stampAfterSkip(
+        previous: stamp,
+        remote: remote?.updatedAt,
+        remoteChanged: changed,
+      );
 
       switch (action) {
         case SyncAction.nothing:
@@ -92,6 +98,7 @@ class SupabaseSyncService {
             );
           }
           await _hiveService.restoreFromBackup(remote.snapshot);
+          serverStamp = remote.updatedAt;
           downloads = 1;
         case SyncAction.merge:
         case SyncAction.upload:
@@ -353,6 +360,20 @@ class SupabaseSyncService {
   }) {
     return localEmpty && remoteHasData && !localDirty;
   }
+
+  /// The cloud stamp to remember when this sync takes nothing in.
+  ///
+  /// A push-only sync that finds the cloud changed skips the download — and
+  /// used to record the new stamp anyway, as if it had been read. From then on
+  /// that device believed it was up to date and never pulled what another
+  /// device had written: an expense added on the web never reached a phone
+  /// that happened to leave the app just after. Skipped means not seen, so the
+  /// old stamp stays until something actually pulls it.
+  static DateTime? stampAfterSkip({
+    required DateTime? previous,
+    required DateTime? remote,
+    required bool remoteChanged,
+  }) => remoteChanged ? previous : (remote ?? previous);
 
   /// Has anyone written to the cloud since this device last synced?
   ///
