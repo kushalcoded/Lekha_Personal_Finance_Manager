@@ -299,8 +299,6 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
       context,
       initialAmount: txn.amount,
       initialDate: txn.dateTime,
-      // Where the money went, so the expense says it without retyping.
-      initialNote: txn.merchant,
       sourceLabel:
           '${detectionSource(txn)} · '
           '${DateFormat('EEE d MMM').format(txn.dateTime)}',

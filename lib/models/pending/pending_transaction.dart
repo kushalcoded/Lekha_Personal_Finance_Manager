@@ -19,8 +19,8 @@ class PendingTransaction {
   final bool provisional;
 
   /// Who the money went to — "Swiggy", "Kushal" — so the card says where you
-  /// paid. Only kept while the card waits: it goes into the expense's note when
-  /// added, and is cleared once the card is added or dismissed.
+  /// paid. Only kept while the card waits, and cleared once it is added or
+  /// dismissed. Deliberately not copied into the expense's note.
   final String? merchant;
 
   const PendingTransaction({

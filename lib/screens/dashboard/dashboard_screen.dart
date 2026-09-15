@@ -843,7 +843,6 @@ class _DetectedSmsCard extends ConsumerWidget {
         context,
         initialAmount: txn.amount,
         initialDate: txn.dateTime,
-        initialNote: txn.merchant,
         sourceLabel:
             '${detectionSource(txn)} · '
             '${DateFormat('EEE d MMM').format(txn.dateTime)}',

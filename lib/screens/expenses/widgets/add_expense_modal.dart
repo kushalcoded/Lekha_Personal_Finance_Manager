@@ -32,7 +32,6 @@ Future<void> showAddExpenseModal(
   DateTime? initialDate,
   String? sourceLabel,
   SplitConfig? initialSplit,
-  String? initialNote,
   void Function(Expense expense)? onSaved,
 }) {
   final isDesktop = MediaQuery.of(context).size.width >= 900;
@@ -60,7 +59,6 @@ Future<void> showAddExpenseModal(
               initialDate: initialDate,
               sourceLabel: sourceLabel,
               initialSplit: initialSplit,
-              initialNote: initialNote,
               onSaved: onSaved,
             ),
           ),
@@ -90,7 +88,6 @@ Future<void> showAddExpenseModal(
             initialDate: initialDate,
             sourceLabel: sourceLabel,
             initialSplit: initialSplit,
-            initialNote: initialNote,
             onSaved: onSaved,
           ),
         ),
@@ -112,8 +109,6 @@ class AddExpenseForm extends ConsumerStatefulWidget {
   /// Opens already split, e.g. with a group's members when adding from it.
   final SplitConfig? initialSplit;
 
-  /// Prefilled note, e.g. the merchant a detected payment went to.
-  final String? initialNote;
   final void Function(Expense expense)? onSaved;
 
   const AddExpenseForm({
@@ -124,7 +119,6 @@ class AddExpenseForm extends ConsumerStatefulWidget {
     this.initialDate,
     this.sourceLabel,
     this.initialSplit,
-    this.initialNote,
     this.onSaved,
   });
 
@@ -157,7 +151,6 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
       _showValidation = true;
     }
     if (widget.initialDate != null) _selectedDate = widget.initialDate!;
-    if (widget.initialNote != null) _notesController.text = widget.initialNote!;
     // Most spends go the same way every time; preselecting the user's default
     // takes a tap out of the common case. They can still change it.
     _selectedPaymentMethod = ref.read(defaultPaymentMethodProvider);
