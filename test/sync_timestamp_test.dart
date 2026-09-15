@@ -80,12 +80,14 @@ void main() {
       bool remoteChanged = false,
       bool localEmpty = false,
       bool localDirty = false,
+      bool matchesCloud = true,
     }) => SupabaseSyncService.decide(
       pushOnly: pushOnly,
       hasRemote: hasRemote,
       remoteChanged: remoteChanged,
       localEmpty: localEmpty,
       localDirty: localDirty,
+      matchesCloud: matchesCloud,
     );
 
     test('a device with no edits never uploads over the cloud', () {
@@ -120,6 +122,16 @@ void main() {
         decide(localEmpty: true, localDirty: true, remoteChanged: true),
         SyncAction.merge,
       );
+    });
+
+    test('a clean device missing records takes the cloud copy anyway', () {
+      // The phone had recorded the cloud version as seen without pulling it,
+      // so every sync said "Already up to date" — while holding one expense
+      // fewer than the 262 in the cloud.
+      expect(decide(matchesCloud: false), SyncAction.pull);
+      // Never over its own edits, and never on the way out of the app.
+      expect(decide(matchesCloud: false, localDirty: true), SyncAction.upload);
+      expect(decide(matchesCloud: false, pushOnly: true), SyncAction.nothing);
     });
 
     test('a genuinely fresh device still adopts the cloud', () {

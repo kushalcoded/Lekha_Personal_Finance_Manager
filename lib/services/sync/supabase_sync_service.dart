@@ -75,6 +75,7 @@ class SupabaseSyncService {
         remoteChanged: changed,
         localEmpty: localEmpty,
         localDirty: localDirty,
+        matchesCloud: remote == null || _sameCounts(remote.snapshot, userId),
       );
       detail = [
         '${pushOnly ? 'Leaving the app' : 'Full sync'} → ${action.name}',
@@ -375,6 +376,7 @@ class SupabaseSyncService {
     required bool remoteChanged,
     required bool localEmpty,
     required bool localDirty,
+    bool matchesCloud = true,
   }) {
     if (!hasRemote) return SyncAction.upload;
     if (localDirty) return remoteChanged ? SyncAction.merge : SyncAction.upload;
@@ -382,6 +384,10 @@ class SupabaseSyncService {
     // A device that just deleted its last record is dirty and never gets
     // here, so an empty device pulling is only ever a fresh one.
     if (remoteChanged || localEmpty) return SyncAction.pull;
+    // A device with no edits of its own should hold exactly what the cloud
+    // holds. If the counts disagree it has missed something — however it came
+    // to believe it was up to date — so it takes the cloud copy anyway.
+    if (!matchesCloud) return SyncAction.pull;
     return SyncAction.nothing;
   }
 
@@ -447,6 +453,20 @@ class SupabaseSyncService {
         count('receivables') == 0 &&
         count('payables') == 0 &&
         count('recurringTemplates') == 0;
+  }
+
+  /// Whether this device holds as many money records as [snapshot].
+  bool _sameCounts(Map<String, dynamic> snapshot, String userId) {
+    int count(String key) {
+      final value = snapshot[key];
+      return value is List ? value.length : 0;
+    }
+
+    return count('expenses') == _hiveService.getAllExpenses(userId).length &&
+        count('receivables') == _hiveService.getAllReceivables(userId).length &&
+        count('payables') == _hiveService.getAllPayables(userId).length &&
+        count('recurringTemplates') ==
+            _hiveService.getRecurringTemplates(userId).length;
   }
 
   /// True when adopting [snapshot] would drop money records this device has.
