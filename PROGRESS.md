@@ -144,13 +144,11 @@ Full design: `~/.claude/plans/swift-bubbling-conway.md`.
 
 ## What needs you, and when
 
-Everything on the web side is **done and live**. What is left:
-
 | What | Why it needs you |
 |---|---|
-| Cut the Android release | The APK is built locally and published under your account, and a release always waits for your explicit go |
-| A real trial with a friend | Whether someone who has never heard of Lekha opens the link and understands it |
-| Finish the PIN-reset test | One tap on "Allow reset" on Test's ledger — the last untested path |
+| Release v1.3.1 | Built and on your phone; a GitHub release always waits for your explicit go |
+| Drive a group split with a real member | Only a second person can confirm the group page shows it, once |
+| See the restore screen on a real reinstall | Needs a wiped device |
 
 ### 9. Fixes found by actually using groups
 
@@ -200,24 +198,50 @@ a guest cannot be removed from a group once added.
 - [x] **Payments from a screenshot** and merchant names on detected cards
       (`a352c19`); AI summary as status rows (`de2bb51`).
 
-**Needs you:** `alter table detected_transactions add column if not exists
-merchant text;`, then re-paste `gemini-proxy` and `ingest-sms`. Until the proxy
-is redeployed, screenshot import fails with "could not be read".
+Done on the live project (2026-09-15): the `merchant` column was added and
+`gemini-proxy` and `ingest-sms` re-pasted. Verified the column exists.
+
+### 11. Fixes found by using 1.3.0 on two devices (2026-09-15)
+
+- [x] **A skipped download counted as seen** (`fa418e1`). Leaving the app runs a
+      push-only sync; finding the cloud changed, it skipped the download but
+      recorded the new cloud stamp. The phone then said "Already up to date"
+      forever while missing an expense the web had uploaded. Diagnosed over adb:
+      phone 261 expenses, cloud 262, identical stamps.
+- [x] **Self-heal** (`160c206`): a clean device whose record counts differ from
+      the cloud pulls anyway. This is what repaired the phone.
+- [x] **Sync details** (`da76242`): tap the Sync row in Settings to see what the
+      last sync decided, counts here and in the cloud, and both stamps. Also
+      logged as `[sync] …` (readable with `adb logcat -s flutter`).
+- [x] Every Sync button reports its result; the sidebar says "Sync failed"
+      instead of the last success time.
+- [x] "Already here" on screenshot import says where (`7d8c767`): in Detected,
+      already an expense, or dismissed before.
+- [x] Insights chart labels no longer overlap (`00b3845`) — spaced by measured
+      label width, latest point always labelled.
+- [x] Detected payments no longer prefill the merchant into the expense note —
+      the user asked; merchant stays on the card only.
+- [x] **One summary card on Home** (`045cc8e`): Needs Attention removed at the
+      user's call, the AI summary kept. The app's alerts are fed into the AI
+      prompt, and the card shows those alerts itself when there is no AI answer.
+
+**Still unverified live:** the group split flow with a real member, and the
+restore screen on a real reinstall. Screenshot import was used once ("10
+already here"); the new breakdown message has not been seen yet.
 
 ## Android
 
-**v1.3.0 is released** (2026-09-15) — `1.3.0+14`, same signing key as
-v1.2.x (certificate digest checked against the v1.2.1 asset), so it updates in
-place, and the app's own updater offers it. It carries the merging sync, groups
-from the split sheet, screenshots and merchant names. Anyone on 1.1.6 or older
-still needs export → uninstall → install → sign in.
+**v1.3.0 is the latest GitHub release** (2026-09-15, `1.3.0+14`).
 
-A phone still on v1.2.x uploads its whole snapshot on every backgrounding and
-can overwrite the other devices until it is updated.
+**v1.3.1 (`1.3.1+15`) is built but NOT released** — the user said not to release
+it yet. It is installed on the user's phone over adb and sits on the Desktop as
+`Lekha-v1.3.1.apk`. It carries everything in section 11. Same signing key
+(certificate SHA-256 `748f8027…b920b3`), so it updates in place. The web app at
+lekhamoney.app already runs the same code.
 
-**It will not install over the current app** — the signing key changed. Export
-from Settings, uninstall, install, sign in; the cloud snapshot restores
-everything.
+A phone still on v1.2.x or v1.3.0 has sync bugs fixed since (blind uploads on
+v1.2.x; the skipped-download stamp on v1.3.0). The self-heal on 1.3.1 repairs a
+device that is already out of step.
 
 No new dependencies were added anywhere in this work, which matters on this
 machine: Gradle cannot fetch new artifacts through the TLS-inspecting proxy, so
