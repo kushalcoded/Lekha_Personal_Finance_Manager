@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../providers/sms/screenshot_import.dart';
 import '../../../providers/sms/sms_providers.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../../../widgets/common/top_notice.dart';
@@ -37,6 +38,7 @@ Future<void> importPaymentScreenshots(WidgetRef ref) async {
   var found = 0;
   var added = 0;
   var unreadable = 0;
+  final skipped = <AlreadyHere, int>{};
   for (final file in files) {
     try {
       final image = await shrinkForUpload(
@@ -49,6 +51,9 @@ Future<void> importPaymentScreenshots(WidgetRef ref) async {
       );
       found += result.found;
       added += result.added;
+      for (final e in result.skipped.entries) {
+        skipped[e.key] = (skipped[e.key] ?? 0) + e.value;
+      }
     } catch (_) {
       unreadable++;
     }
@@ -59,7 +64,12 @@ Future<void> importPaymentScreenshots(WidgetRef ref) async {
     if (added > 0)
       'Added $added ${AppFormatters.plural(added, 'payment', 'payments')} '
           'to Detected',
-    if (found > added) '${found - added} already here',
+    // Said by where, so it can be checked: a bare "10 already here" gave no
+    // way to tell a correct match from a payment wrongly swallowed.
+    if (skipped[AlreadyHere.waiting] case final n?) '$n already in Detected',
+    if (skipped[AlreadyHere.added] case final n?)
+      '$n already ${AppFormatters.plural(n, 'an expense', 'expenses')}',
+    if (skipped[AlreadyHere.dismissed] case final n?) '$n dismissed before',
     if (unreadable > 0)
       '$unreadable could not be read — try a sharper screenshot',
   ];

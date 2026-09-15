@@ -624,10 +624,8 @@ class SmsCaptureService {
   /// Returns how many payments it found and how many of those were new.
   /// Throws when the screenshot could not be read at all, so the caller can
   /// say so instead of reporting that it found nothing.
-  Future<({int found, int added})> importScreenshot(
-    Uint8List image, {
-    required String mimeType,
-  }) async {
+  Future<({int found, int added, Map<AlreadyHere, int> skipped})>
+  importScreenshot(Uint8List image, {required String mimeType}) async {
     if (!_gemini.isConfigured) {
       throw StateError('Sign in to read screenshots.');
     }
@@ -652,7 +650,11 @@ class SmsCaptureService {
     _ref.read(pendingTransactionsProvider.notifier).refresh();
     // Other devices get them on the next sync, like any detection.
     if (result.fresh.isNotEmpty) unawaited(_pushDetected());
-    return (found: payments.length, added: result.fresh.length);
+    return (
+      found: payments.length,
+      added: result.fresh.length,
+      skipped: result.where,
+    );
   }
 
   /// How many rows are verified at once. Enough to clear a burst quickly

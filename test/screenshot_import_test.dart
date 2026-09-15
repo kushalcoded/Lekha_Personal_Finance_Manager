@@ -25,7 +25,8 @@ void main() {
     'status': status,
   };
 
-  ({List<PendingTransaction> fresh, int known}) import(
+  ({List<PendingTransaction> fresh, int known, Map<AlreadyHere, int> where})
+  import(
     List<Map<String, dynamic>> rows, {
     List<PendingTransaction> existing = const [],
     List<Expense> expenses = const [],
@@ -103,6 +104,41 @@ void main() {
       ]);
       expect(result.fresh, hasLength(2));
       expect(result.fresh[0].id, isNot(result.fresh[1].id));
+    });
+
+    test('says where each skipped payment already is', () {
+      PendingTransaction detected(String id, double amount, PendingStatus s) =>
+          PendingTransaction(
+            id: id,
+            amount: amount,
+            dateTime: DateTime(2026, 9, 14, 9),
+            rawBody: 'HDFC Bank · UPI',
+            createdAt: now,
+            status: s,
+          );
+      final typed = Expense(
+        id: 'typed',
+        userId: 'u',
+        amount: 90,
+        category: 'Food',
+        date: DateTime(2026, 9, 14),
+        createdAt: now,
+      );
+      final result = import(
+        [row(20), row(50), row(80), row(90), row(344)],
+        existing: [
+          detected('a', 20, PendingStatus.pending),
+          detected('b', 50, PendingStatus.added),
+          detected('c', 80, PendingStatus.dismissed),
+        ],
+        expenses: [typed],
+      );
+      expect(result.where, {
+        AlreadyHere.waiting: 1,
+        AlreadyHere.added: 2,
+        AlreadyHere.dismissed: 1,
+      });
+      expect(result.fresh.single.amount, 344);
     });
 
     test('a payment already here from an SMS is not added again', () {

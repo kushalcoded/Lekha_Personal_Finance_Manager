@@ -66,6 +66,10 @@ List<ScreenshotPayment> paymentsFromScreenshot(
   return out;
 }
 
+/// Where a payment the import skipped already was, so "already here" can say
+/// where to look instead of asking to be taken on trust.
+enum AlreadyHere { waiting, added, dismissed }
+
 /// Which [payments] are new, as pending rows ready to store.
 ///
 /// Screenshots overlap — today's history repeats yesterday's — and the same
@@ -74,7 +78,8 @@ List<ScreenshotPayment> paymentsFromScreenshot(
 /// among detections (whatever became of them) and expenses not already
 /// linked to one. Counting rather than matching keeps two real ₹50 teas on the
 /// same day as two.
-({List<PendingTransaction> fresh, int known}) pendingFromScreenshot(
+({List<PendingTransaction> fresh, int known, Map<AlreadyHere, int> where})
+pendingFromScreenshot(
   List<ScreenshotPayment> payments, {
   required String app,
   required List<PendingTransaction> existing,
@@ -91,22 +96,34 @@ List<ScreenshotPayment> paymentsFromScreenshot(
     for (final t in existing)
       if (t.linkedExpenseId != null) t.linkedExpenseId!,
   };
-  final alreadyHere = <String, int>{};
+  AlreadyHere asWhere(PendingStatus status) => switch (status) {
+    PendingStatus.pending => AlreadyHere.waiting,
+    PendingStatus.added => AlreadyHere.added,
+    PendingStatus.dismissed => AlreadyHere.dismissed,
+  };
+  // What each day-and-amount already holds, in the order it is reported:
+  // still waiting first, since that is the one you can act on.
+  final alreadyHere = <String, List<AlreadyHere>>{};
   for (final t in existing) {
-    final k = slot(t.dateTime, t.amount);
-    alreadyHere[k] = (alreadyHere[k] ?? 0) + 1;
+    alreadyHere
+        .putIfAbsent(slot(t.dateTime, t.amount), () => [])
+        .add(asWhere(t.status));
   }
   for (final e in expenses) {
     if (linked.contains(e.id)) continue;
-    final k = slot(e.date, e.amount);
-    alreadyHere[k] = (alreadyHere[k] ?? 0) + 1;
+    alreadyHere
+        .putIfAbsent(slot(e.date, e.amount), () => [])
+        .add(AlreadyHere.added);
   }
-  final ids = {for (final t in existing) t.id};
+  for (final list in alreadyHere.values) {
+    list.sort((a, b) => a.index.compareTo(b.index));
+  }
+  final byId = {for (final t in existing) t.id: t};
 
   final label = _label(app);
   final seenInThisOne = <String, int>{};
   final fresh = <PendingTransaction>[];
-  var known = 0;
+  final where = <AlreadyHere, int>{};
   for (final p in payments) {
     final k = slot(p.when, p.amount);
     final nth = seenInThisOne[k] = (seenInThisOne[k] ?? 0) + 1;
@@ -114,8 +131,12 @@ List<ScreenshotPayment> paymentsFromScreenshot(
     final id =
         'shot_${dayKey(p.when)}_${p.amount.toStringAsFixed(2)}_'
         '${_slug(p.merchant)}_$nth';
-    if (ids.contains(id) || nth <= (alreadyHere[k] ?? 0)) {
-      known++;
+    final same = alreadyHere[k] ?? const [];
+    final match = byId[id] != null
+        ? asWhere(byId[id]!.status)
+        : (nth <= same.length ? same[nth - 1] : null);
+    if (match != null) {
+      where[match] = (where[match] ?? 0) + 1;
       continue;
     }
     fresh.add(
@@ -129,7 +150,11 @@ List<ScreenshotPayment> paymentsFromScreenshot(
       ),
     );
   }
-  return (fresh: fresh, known: known);
+  return (
+    fresh: fresh,
+    known: where.values.fold(0, (a, b) => a + b),
+    where: where,
+  );
 }
 
 /// "Google Pay · UPI": a shape the card's sender label shows exactly as it is.
