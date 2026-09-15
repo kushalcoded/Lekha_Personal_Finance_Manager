@@ -1,3 +1,4 @@
+import '../screens/settings/providers/reminder_providers.dart';
 import '../models/ai/dashboard_insight.dart';
 import 'dart:convert';
 
@@ -138,6 +139,7 @@ final dashboardAiSummaryProvider =
       final payables = ref.watch(totalPayablesProvider(userId));
       final transactions = ref.watch(transactionCountProvider(userId));
       final overdue = ref.watch(overdueDebtCountProvider(userId));
+      final alerts = ref.watch(upcomingRemindersProvider);
       final raw = await service.summarizeDashboard(
         cycleSpend: monthlySpend,
         budget: budgetMetrics.budget,
@@ -146,6 +148,7 @@ final dashboardAiSummaryProvider =
         payables: payables,
         transactionCount: transactions,
         overdueDebtCount: overdue,
+        alerts: [for (final a in alerts.take(3)) a.message],
       );
       final items = parseDashboardInsights(raw);
       if (items.isEmpty) return null;

@@ -87,6 +87,7 @@ class GeminiService {
     required double payables,
     required int transactionCount,
     required int overdueDebtCount,
+    List<String> alerts = const [],
   }) async {
     return _generateText(
       // Structured, so the card lays each point out itself: most urgent first,
@@ -116,7 +117,10 @@ class GeminiService {
           'Receivables: ${AppFormatters.formatCurrency(receivables)}\n'
           'Payables: ${AppFormatters.formatCurrency(payables)}\n'
           'Transaction count: $transactionCount\n'
-          'Overdue debt count: $overdueDebtCount',
+          'Overdue debt count: $overdueDebtCount'
+          // The app's own alerts — a recurring bill past due, a budget about to
+          // go. This card replaced the one that listed them, so none may drop.
+          '${alerts.isEmpty ? '' : '\nAlerts to cover first: ${alerts.join('; ')}'}',
     );
   }
 

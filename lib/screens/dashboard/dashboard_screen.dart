@@ -154,7 +154,6 @@ class DashboardScreen extends ConsumerWidget {
                       const _UpdatePrompt(),
                       const _CycleRollPrompt(),
                       const SetupChecklistCard(),
-                      const _RemindersCard(),
                       if (isWide)
                         // Desktop: hero + recent on the left, totals and
                         // categories in a right sidebar column.
@@ -515,96 +514,24 @@ class _UpdatePromptState extends ConsumerState<_UpdatePrompt> {
   }
 }
 
-/// What needs attention today — overdue receivables, a budget about to go, a
-/// recurring template past due. The provider behind this existed for months
-/// with no surface: five Settings switches turned reminders on and off, and
-/// nothing was ever shown.
-class _RemindersCard extends ConsumerWidget {
-  const _RemindersCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final reminders = ref.watch(upcomingRemindersProvider);
-    if (reminders.isEmpty) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final calm = CalmColors.of(context);
-
-    Color colorFor(ReminderSeverity severity) => switch (severity) {
-      ReminderSeverity.danger => cs.error,
-      ReminderSeverity.warning => calm.warning,
-      ReminderSeverity.success => calm.positive,
-      ReminderSeverity.info => cs.onSurfaceVariant,
-    };
-
-    // Three at most: this is a nudge on the way past, not a to-do list.
-    final shown = reminders.take(3).toList();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: AccentEdgeCard(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const FieldLabel('NEEDS ATTENTION'),
-            const SizedBox(height: 10),
-            for (final reminder in shown) ...[
-              if (reminder != shown.first) const SizedBox(height: 10),
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => _open(ref, reminder),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 5),
-                      child: Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          color: colorFor(reminder.severity),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        reminder.message,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: cs.onSurface,
-                          height: 1.35,
-                        ),
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 16,
-                      color: cs.outline,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// A reminder you can't act on is just a nag, so each one lands on the screen
-  /// that fixes it.
-  void _open(WidgetRef ref, AppReminder reminder) {
-    final tab = switch (reminder.type) {
-      ReminderType.overdueReceivable => NavigationTab.debts,
-      ReminderType.upcomingRecurringExpense => NavigationTab.expenses,
-      ReminderType.budgetWarning => NavigationTab.insights,
-      ReminderType.monthlyBudgetPrompt => NavigationTab.insights,
-    };
-    ref.read(navigationProvider.notifier).navigateTo(tab);
-  }
-}
+/// An app alert as a point on the summary card, for when the AI summary is
+/// not available — signed out, offline, or over the daily limit. The alerts
+/// used to have a card of their own saying the same things as this one.
+DashboardInsight _insightFromReminder(AppReminder reminder) => DashboardInsight(
+  tone: switch (reminder.severity) {
+    ReminderSeverity.danger => InsightTone.alert,
+    ReminderSeverity.warning => InsightTone.warn,
+    ReminderSeverity.success => InsightTone.good,
+    ReminderSeverity.info => InsightTone.info,
+  },
+  text: reminder.message,
+  target: switch (reminder.type) {
+    ReminderType.overdueReceivable => InsightTarget.debts,
+    ReminderType.upcomingRecurringExpense => InsightTarget.expenses,
+    ReminderType.budgetWarning => InsightTarget.insights,
+    ReminderType.monthlyBudgetPrompt => InsightTarget.insights,
+  },
+);
 
 class _CycleRollPrompt extends ConsumerWidget {
   const _CycleRollPrompt();
@@ -702,9 +629,18 @@ class _AiInsightCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = aiSummary.valueOrNull;
-    if (summary == null && !aiSummary.isLoading) {
+    // No AI answer, and none coming: fall back to the app's own alerts, so the
+    // card still says what needs doing.
+    final fallback = summary == null && !aiSummary.isLoading
+        ? [
+            for (final r in ref.watch(upcomingRemindersProvider).take(3))
+              _insightFromReminder(r),
+          ]
+        : const <DashboardInsight>[];
+    if (summary == null && !aiSummary.isLoading && fallback.isEmpty) {
       return const SizedBox.shrink();
     }
+    final items = summary?.items ?? fallback;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final calm = CalmColors.of(context);
@@ -727,7 +663,7 @@ class _AiInsightCard extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const FieldLabel('AI summary'),
+                FieldLabel(summary == null ? 'Needs attention' : 'AI summary'),
                 if (summary != null)
                   Text(
                     ' · ${AppFormatters.getRelativeTime(summary.generatedAt).toLowerCase()}',
@@ -747,7 +683,7 @@ class _AiInsightCard extends ConsumerWidget {
                 ),
               ],
             ),
-            if (summary == null)
+            if (summary == null && aiSummary.isLoading)
               Padding(
                 padding: const EdgeInsets.fromLTRB(0, 4, 10, 6),
                 child: Row(
@@ -766,7 +702,7 @@ class _AiInsightCard extends ConsumerWidget {
                 ),
               )
             else
-              for (final item in summary.items)
+              for (final item in items)
                 InkWell(
                   borderRadius: BorderRadius.circular(8),
                   onTap: item.target == null
