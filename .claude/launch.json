@@ -12,6 +12,20 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8322", "--directory", "build/web"],
       "port": 8322
+    },
+    {
+      "name": "app-web",
+      "runtimeExecutable": "flutter",
+      "runtimeArgs": [
+        "run",
+        "-d",
+        "web-server",
+        "--web-port",
+        "8323",
+        "--web-hostname",
+        "127.0.0.1"
+      ],
+      "port": 8323
     }
   ]
 }

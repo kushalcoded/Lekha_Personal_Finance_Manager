@@ -15,6 +15,16 @@ void main() {
     expect(ids.contains('receivables'), isFalse);
   });
 
+  test('swipe order and nav order are the same list', () {
+    // The pager maps page index → NavigationTab.values[index]; the bar renders
+    // navigationItems. Reorder one without the other and a swipe lands on a
+    // different screen than the tab that lights up.
+    expect(
+      navigationItems.map((item) => item.id).toList(),
+      NavigationTab.values.map((tab) => tab.name).toList(),
+    );
+  });
+
   testWidgets('budget progress card shows salary and savings metrics', (
     WidgetTester tester,
   ) async {

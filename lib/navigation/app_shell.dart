@@ -14,20 +14,67 @@ import '../screens/expenses/widgets/expenses_widgets.dart'
     show ExpenseSearchBar;
 import 'floating_glass_nav.dart';
 
+/// True while a text field owns focus — keyboard shortcuts must not fire
+/// when the user is typing an amount or note.
+bool _typing() {
+  final focus = FocusManager.instance.primaryFocus;
+  return focus?.context?.findAncestorStateOfType<EditableTextState>() != null;
+}
+
 /// App shell: the current tab under a floating glass navigation bar.
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
-  /// True while a text field owns focus — keyboard shortcuts must not fire
-  /// when the user is typing an amount or note.
-  static bool _typing() {
-    final focus = FocusManager.instance.primaryFocus;
-    return focus?.context?.findAncestorStateOfType<EditableTextState>() != null;
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  /// Phone layout pages between tabs, so a swipe moves Home → Expenses →
+  /// Insights → Debts. Desktop keeps a plain switch: drag-paging with a mouse
+  /// is wrong, and keys 1-4 already do this there.
+  late final PageController _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    // Built here rather than lazily: a lazy field is first touched in
+    // dispose() on layouts that never page (desktop), and reading ref after
+    // the widget is gone throws.
+    _pages = PageController(
+      initialPage: _indexOf(ref.read(navigationProvider).currentTab),
+    );
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  static int _indexOf(NavigationTab tab) => NavigationTab.values.indexOf(tab);
+
+  /// Keeps the pager and the nav bar pointing at the same tab. A nav tap
+  /// animates the pager; a swipe tells the provider. The equality guard is
+  /// what stops the two chasing each other in a loop.
+  void _syncPager(NavigationTab tab) {
+    final index = _indexOf(tab);
+    if (!_pages.hasClients || _pages.page?.round() == index) return;
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
+      _pages.jumpToPage(index);
+    } else {
+      _pages.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final navigationState = ref.watch(navigationProvider);
+    ref.listen(navigationProvider, (_, next) => _syncPager(next.currentTab));
     // Load custom categories once so their icons/colors apply app-wide.
     ref.watch(categoriesProvider);
 
@@ -95,7 +142,17 @@ class AppShell extends ConsumerWidget {
           // Content fills the screen and scrolls *under* the frosted nav;
           // each screen adds kNavBottomInset padding so nothing hides.
           Positioned.fill(
-            child: _buildScreenContent(navigationState.currentTab),
+            child: PageView.builder(
+              controller: _pages,
+              itemCount: NavigationTab.values.length,
+              // .builder keeps only the current and neighbouring tabs built,
+              // so launch stays as cheap as the old switch.
+              onPageChanged: (index) => ref
+                  .read(navigationProvider.notifier)
+                  .navigateTo(NavigationTab.values[index]),
+              itemBuilder: (_, index) =>
+                  _buildScreenContent(NavigationTab.values[index]),
+            ),
           ),
           const Align(
             alignment: Alignment.bottomCenter,
