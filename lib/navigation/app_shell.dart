@@ -144,6 +144,14 @@ class _AppShellState extends ConsumerState<AppShell> {
           Positioned.fill(
             child: PageView.builder(
               controller: _pages,
+              // Insights handles its own horizontal drags: a swipe there moves
+              // through the scopes first and only reaches the tabs once there
+              // is no scope left to move to. Two drag recognisers competing
+              // for the same gesture is a coin toss, so the outer one stands
+              // down and Insights asks for the tab change itself.
+              physics: navigationState.currentTab == NavigationTab.insights
+                  ? const NeverScrollableScrollPhysics()
+                  : null,
               itemCount: NavigationTab.values.length,
               // .builder keeps only the current and neighbouring tabs built,
               // so launch stays as cheap as the old switch.
