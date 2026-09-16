@@ -46,6 +46,7 @@ void showNotice(
   _current = entry;
   _currentKey = key;
   overlay.insert(entry);
+  _inOverlay.add(entry);
   _timer = Timer(
     // Long enough to reach an Undo.
     duration ?? Duration(seconds: actionLabel == null ? 3 : 5),
@@ -70,13 +71,24 @@ OverlayEntry? _current;
 GlobalKey<_NoticeState>? _currentKey;
 Timer? _timer;
 
+/// Entries this file has inserted and not yet taken out.
+///
+/// Not [OverlayEntry.mounted]: an entry only counts as mounted once a frame
+/// has built it. Saving a detected payment posts two notices back to back —
+/// the caller's, then the sheet's — so the second one arrived while the first
+/// was inserted but not yet built, the mounted check skipped it, and it was
+/// built a frame later with nothing left that would ever remove it. It then
+/// stayed on screen across every tab. Being in the overlay is the fact that
+/// matters, so that is what is tracked.
+final Set<OverlayEntry> _inOverlay = {};
+
 void _remove(OverlayEntry entry) {
   if (identical(_current, entry)) {
     _timer?.cancel();
     _current = null;
     _currentKey = null;
   }
-  if (entry.mounted) entry.remove();
+  if (_inOverlay.remove(entry)) entry.remove();
 }
 
 class _Notice extends StatefulWidget {
@@ -119,10 +131,10 @@ class _NoticeState extends State<_Notice> with SingleTickerProviderStateMixin {
       widget.onGone();
       return;
     }
-    // Going away must never depend on an animation finishing. Tickers stop
-    // while the app is in the background, so a notice whose three seconds ran
-    // out on the way out never completed its reverse — it came back still on
-    // screen, permanently, sitting over the header and swallowing taps.
+    // Going away should not depend on an animation finishing: tickers pause
+    // while the app is in the background, which would hold a timed-out notice
+    // on screen until the next frame. (This is not what stranded notices for
+    // good — that was the mounted check in _remove; see _inOverlay.)
     await Future.any([
       _controller.reverse(),
       Future<void>.delayed(const Duration(milliseconds: 400)),

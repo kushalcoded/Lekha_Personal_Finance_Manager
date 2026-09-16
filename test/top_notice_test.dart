@@ -27,6 +27,27 @@ void main() {
     expect(find.text('Expense saved'), findsNothing);
   });
 
+  testWidgets('two messages in the same frame do not strand the first', (
+    tester,
+  ) async {
+    // What saving a detected payment does: the caller's onSaved posts one
+    // notice and the sheet posts another straight after, before any frame
+    // has built the first. The first was skipped by a "mounted" check, then
+    // built a frame later with nothing left that would ever remove it — and
+    // stayed on screen across every tab.
+    await pumpApp(tester);
+    showNotice('✓ Added — synced to all devices');
+    showNotice('Expense saved');
+    await tester.pumpAndSettle();
+    expect(find.text('✓ Added — synced to all devices'), findsNothing);
+    expect(find.text('Expense saved'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    expect(find.text('Expense saved'), findsNothing);
+    expect(find.text('✓ Added — synced to all devices'), findsNothing);
+  });
+
   testWidgets('a new message replaces the old one', (tester) async {
     await pumpApp(tester);
     showNotice('First');
