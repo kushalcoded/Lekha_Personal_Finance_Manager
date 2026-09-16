@@ -146,7 +146,6 @@ Full design: `~/.claude/plans/swift-bubbling-conway.md`.
 
 | What | Why it needs you |
 |---|---|
-| Release v1.3.1 | Built and on your phone; a GitHub release always waits for your explicit go |
 | Drive a group split with a real member | Only a second person can confirm the group page shows it, once |
 | See the restore screen on a real reinstall | Needs a wiped device |
 
@@ -231,13 +230,10 @@ already here"); the new breakdown message has not been seen yet.
 
 ## Android
 
-**v1.3.0 is the latest GitHub release** (2026-09-15, `1.3.0+14`).
-
-**v1.3.1 (`1.3.1+15`) is built but NOT released** — the user said not to release
-it yet. It is installed on the user's phone over adb and sits on the Desktop as
-`Lekha-v1.3.1.apk`. It carries everything in section 11. Same signing key
-(certificate SHA-256 `748f8027…b920b3`), so it updates in place. The web app at
-lekhamoney.app already runs the same code.
+**v1.3.1 is the latest GitHub release** (2026-09-16, `1.3.1+15`). It carries
+everything in section 11. Same signing key (certificate SHA-256
+`748f8027…b920b3`), so it updates in place. The web app at lekhamoney.app runs
+the same code.
 
 A phone still on v1.2.x or v1.3.0 has sync bugs fixed since (blind uploads on
 v1.2.x; the skipped-download stamp on v1.3.0). The self-heal on 1.3.1 repairs a

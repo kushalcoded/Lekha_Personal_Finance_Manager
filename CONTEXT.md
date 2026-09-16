@@ -12,8 +12,7 @@ feature log; `MEMORY.md` (gitignored) is the long-form project memory; the
 | | State |
 |---|---|
 | Web (lekhamoney.app) | Live on `main`, deploys on every push via GitHub Pages (`gh run list`) |
-| Latest GitHub release | **v1.3.0** (`1.3.0+14`) |
-| Built, not released | **v1.3.1** (`1.3.1+15`) — on the user's phone via adb and on the Desktop as `Lekha-v1.3.1.apk`. **Do not release without an explicit go** |
+| Latest GitHub release | **v1.3.1** (`1.3.1+15`, released 2026-09-16, same signing key) |
 | Supabase | `detected_transactions.merchant` column added; `gemini-proxy` and `ingest-sms` redeployed with image + merchant support (2026-09-15). `share` unchanged |
 | Tests | 295 logic tests pass, analyzer clean. Design goldens (26) drift daily — see Known issues |
 | Devices | User's Android phone (Galaxy S20 FE, `SM_G781B`) still does SMS detection. The user is **moving to iPhone** and will use the web app in Safari there |
@@ -25,13 +24,12 @@ same cloud version; Home shows the single summary card.
 
 ## Open threads
 
-1. **Release v1.3.1** — waiting on the user.
-2. **Screenshot import** was used once and reported "10 already here". The
+1. **Screenshot import** was used once and reported "10 already here". The
    message now says where each skipped payment is; the user has not re-tried.
    If it names expenses they never added, the same-day-same-amount matching in
    `lib/providers/sms/screenshot_import.dart` is too loose.
-3. **Group split flow** has not been driven with a real member.
-4. **Restore screen** has never been seen on a real reinstall.
+2. **Group split flow** has not been driven with a real member.
+3. **Restore screen** has never been seen on a real reinstall.
 
 ## Ideas not yet started
 
