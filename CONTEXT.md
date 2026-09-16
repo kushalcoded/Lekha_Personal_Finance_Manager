@@ -56,6 +56,14 @@ npx --yes deno check supabase/functions/<fn>/index.ts
 Check a test run by its last line, not a pipe's exit code — `… | tail -1` hides
 failures.
 
+The real app on the `Pixel_7` AVD (onboarding → login, screenshots in
+`build/integration_screenshots/`). **Emulator only**: the run uninstalls the
+app afterwards, and a debug build replaces the release-signed one by
+uninstalling it first. Either way, on the phone that wipes local data.
+```
+flutter drive --driver=test_driver/integration_test.dart --target=integration_test/app_test.dart -d emulator-5554
+```
+
 **Releases** (only after an explicit go): bump `version:` in `pubspec.yaml`,
 build, verify with `apksigner verify --print-certs` (digest must be
 `748f8027d71c15912deba83f511348dab420faf8d13eb526a250ae9c8ab920b3`), copy to the

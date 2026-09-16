@@ -26,16 +26,6 @@ double committedPlanned({
   var total = 0.0;
   for (final template in activeTemplates) {
     if (kinds.of(template.category) != CategoryKind.committed) continue;
-    // A spread bill sets aside its share every cycle, whether or not it falls
-    // due in this one — that is the entire point of spreading it.
-    //
-    // ponytail: one share per cycle, not an accrued balance. Set a yearly bill
-    // up two months before it lands and the allowance behaves as if it were
-    // fully covered. Track paid-vs-reserved per template if that ever bites.
-    if (template.isSpread) {
-      total += template.cycleShare;
-      continue;
-    }
     var due = template.nextDueDate;
     var seen = 0;
     while (due.isBefore(cycleEnd) && seen < _maxOccurrences) {
@@ -47,37 +37,11 @@ double committedPlanned({
   return total;
 }
 
-/// How a cycle's budget divides once bills are taken out of it.
-///
-/// [committedReserved] is money already gone plus money still to go, so the
-/// everyday allowance is what is genuinely free to spend — not what is left
-/// before the rent lands.
-({
-  double committedReserved,
-  double everydayAllowance,
-  double everydayLeft,
-  bool isOverCommitted,
-})
-everydayAllowance({
-  required double budget,
-  required double committedSpent,
-  required double committedPlanned,
-  required double everydaySpent,
-  double spreadPaid = 0,
-}) {
-  // [spreadPaid] is what actually left for spread bills this cycle. It is real
-  // spending and stays in the totals, but the allowance already held back a
-  // share for it in this cycle and every earlier one, so charging the whole
-  // lump again here is what wrecking-the-month looked like.
-  final reserved = (committedSpent - spreadPaid) + committedPlanned;
-  // A paisa of tolerance, the same one the rest of the budget maths uses:
-  // summing two-decimal amounts leaves float residue.
-  final overCommitted = budget > 0 && reserved > budget + 0.005;
-  final allowance = budget <= 0 ? 0.0 : (budget - reserved).clamp(0.0, budget);
-  return (
-    committedReserved: reserved,
-    everydayAllowance: allowance,
-    everydayLeft: budget <= 0 ? 0.0 : allowance - everydaySpent,
-    isOverCommitted: overCommitted,
-  );
-}
+// The budget the user sets is the everyday allowance itself — food, fuel,
+// shopping, the part of spending they decide about week to week. Rent and
+// bills are tracked and shown, but never subtracted from it: an allowance
+// derived by arithmetic from a bigger number was a figure nobody had typed and
+// nobody recognised.
+//
+// So there is no allowance function here any more. `budget - everydaySpent` is
+// the whole of it, and it lives in budgetMetricsProvider.

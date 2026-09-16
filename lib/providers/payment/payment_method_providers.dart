@@ -7,14 +7,41 @@ import 'card_providers.dart';
 
 /// What the app ships with. Only ever used to seed a brand-new user — after
 /// that the stored list wins, including deletions.
+///
+/// Named after the instrument rather than the app: UPI covers GPay, PhonePe
+/// and Paytm alike, and "Card" said nothing about whether the money had
+/// already left your account. Anyone who prefers the app names can add them.
 const defaultPaymentMethods = <String>[
+  'UPI',
+  'Net Banking',
   'Cash',
-  'GPay',
-  'PhonePe',
-  'Paytm',
-  'Bank Transfer',
-  'Card',
+  'Debit Card',
+  'Credit Card',
 ];
+
+/// Labels that were renamed, not replaced. An existing list keeps its own
+/// entries — deletions included — but these two named the same thing under an
+/// older name, and leaving them behind would split one payment method into two
+/// buckets in the breakdown.
+const renamedPaymentMethods = <String, String>{
+  'Bank Transfer': 'Net Banking',
+  'Card': 'Credit Card',
+};
+
+/// What a stored list becomes on this version: the renames applied, in place,
+/// and nothing else touched. Order is the user's — the list is drag-sortable —
+/// and a method they deleted stays deleted.
+List<String> upgradePaymentMethods(List<String> stored) {
+  final taken = {for (final name in stored) name.toLowerCase()};
+  return [
+    for (final name in stored)
+      if (renamedPaymentMethods[name] case final renamed?
+          when !taken.contains(renamed.toLowerCase()))
+        renamed
+      else
+        name,
+  ];
+}
 
 /// The user's payment methods, in their own order.
 ///
@@ -43,8 +70,28 @@ class PaymentMethodsNotifier extends StateNotifier<List<String>> {
       _hive.savePaymentMethods(_userId, state);
       return;
     }
-    state = stored;
+    final upgraded = upgradePaymentMethods(stored);
+    state = upgraded;
+    if (!_sameList(stored, upgraded)) {
+      // Renames carry the expenses with them, exactly as renaming by hand
+      // would — otherwise the old label would vanish from the picker while
+      // every expense still carried it.
+      Future.microtask(() async {
+        await _hive.savePaymentMethods(_userId, upgraded);
+        for (var i = 0; i < stored.length; i++) {
+          if (stored[i] != upgraded[i]) {
+            await _migrate(stored[i], upgraded[i]);
+            if (defaultFor(_userId) == stored[i]) {
+              await setDefault(upgraded[i]);
+            }
+          }
+        }
+      });
+    }
   }
+
+  static bool _sameList(List<String> a, List<String> b) =>
+      a.length == b.length && !a.indexed.any((e) => e.$2 != b[e.$1]);
 
   Future<void> _persist(List<String> methods) async {
     state = methods;

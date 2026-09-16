@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../models/recurring/recurring_expense_template.dart';
-import '../../../utils/formatters/formatters.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/payment/payment_method_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
@@ -102,10 +101,6 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
   String? _selectedPaymentMethod;
   DateTime _nextDueDate = DateTime.now();
   RecurringFrequency _frequency = RecurringFrequency.monthly;
-
-  /// Offered only on a yearly bill, where the lump is the problem worth
-  /// solving. Monthly bills already arrive a month at a time.
-  int _spreadOverCycles = 1;
   bool _showValidation = false;
 
   bool get _editing => widget.template != null;
@@ -121,7 +116,6 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
       _selectedPaymentMethod = template.paymentMethod;
       _nextDueDate = template.nextDueDate;
       _frequency = template.frequency;
-      _spreadOverCycles = template.spreadOverCycles;
     }
   }
 
@@ -149,22 +143,6 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
     }
   }
 
-  /// Says what the choice does to the budget, in money rather than in theory.
-  String _spreadNote() {
-    final amount = parseAmountExpression(_amountController.text.trim()) ?? 0;
-    if (_spreadOverCycles <= 1) {
-      return 'The whole amount comes out of the budget in the cycle it is paid.';
-    }
-    if (amount <= 0) {
-      return 'The budget holds back a share each cycle instead of the whole '
-          'amount at once.';
-    }
-    final share = amount / _spreadOverCycles;
-    return 'The budget holds back '
-        "${AppFormatters.formatCurrency(share)} a cycle. The bill is still "
-        'recorded in full when it is paid.';
-  }
-
   Future<void> _save() async {
     if (!_isFormValid) {
       setState(() => _showValidation = true);
@@ -189,9 +167,6 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
           ? null
           : _notesController.text.trim(),
       frequency: _frequency,
-      spreadOverCycles: _frequency == RecurringFrequency.yearly
-          ? _spreadOverCycles
-          : 1,
       nextDueDate: _nextDueDate,
       isActive: existing?.isActive ?? true,
       createdAt: existing?.createdAt ?? now,
@@ -348,40 +323,6 @@ class _RecurringExpenseFormState extends ConsumerState<RecurringExpenseForm> {
                 );
               }).toList(),
             ),
-            if (_frequency == RecurringFrequency.yearly) ...[
-              const SizedBox(height: 16),
-              Text(
-                'Budget for it',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final months in const [1, 6, 12])
-                    ChoiceChip(
-                      label: Text(
-                        months == 1 ? 'All at once' : 'Over $months months',
-                      ),
-                      selected: _spreadOverCycles == months,
-                      onSelected: (_) {
-                        _markInteracted();
-                        setState(() => _spreadOverCycles = months);
-                      },
-                    ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _spreadNote(),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  height: 1.35,
-                ),
-              ),
-            ],
             const SizedBox(height: 16),
             ExpenseNotesField(
               controller: _notesController,

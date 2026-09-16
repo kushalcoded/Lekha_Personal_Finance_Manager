@@ -113,6 +113,11 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                                     value: AppFormatters.formatCurrency(
                                       stats.total,
                                     ),
+                                    note: stats.moved.abs() < 0.01
+                                        ? null
+                                        : '+ '
+                                              '${AppFormatters.formatCurrency(stats.moved)}'
+                                              ' moved',
                                   ),
                                 ),
                                 const SizedBox(width: 12),
@@ -437,7 +442,11 @@ class _StatBox extends StatelessWidget {
   final String label;
   final String value;
 
-  const _StatBox({required this.label, required this.value});
+  /// An extra line under the figure, for money the figure deliberately leaves
+  /// out.
+  final String? note;
+
+  const _StatBox({required this.label, required this.value, this.note});
 
   @override
   Widget build(BuildContext context) {
@@ -471,6 +480,18 @@ class _StatBox extends StatelessWidget {
               letterSpacing: -0.3,
             ),
           ),
+          if (note != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              note!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+                fontSize: 11,
+              ),
+            ),
+          ],
         ],
       ),
     );

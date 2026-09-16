@@ -64,16 +64,11 @@ class BudgetMetrics {
   /// Rent, bills, EMIs — spending, but not a choice.
   final double committedSpent;
 
-  /// Bills of this cycle still to come, from the recurring templates.
+  /// Bills of this cycle still to come, from the recurring templates. Shown
+  /// beside what has been paid; never subtracted from the budget.
   final double committedPlanned;
 
-  /// Paid plus still to pay. What the budget has to hold back for bills.
-  final double committedReserved;
-
-  /// Budget minus [committedReserved] — what is genuinely free to spend.
-  final double everydayAllowance;
-
-  /// The headline figure on Home: allowance minus everyday spending.
+  /// The headline figure on Home: the budget minus everyday spending.
   final double everydayLeft;
 
   /// Money that left but was not consumed, kept apart so it can be shown
@@ -82,12 +77,7 @@ class BudgetMetrics {
   final double transfers;
   final double income;
 
-  /// Bills alone already exceed the budget — the allowance is zero and saying
-  /// "you have X left" would be a lie.
-  final bool isOverCommitted;
-
-  /// Everyday spending has passed its allowance, even if the whole budget has
-  /// not. Distinct from [isOverBudget], which the reminders fire on.
+  /// Everyday spending has passed the budget.
   final bool isOverAllowance;
 
   const BudgetMetrics({
@@ -105,13 +95,10 @@ class BudgetMetrics {
     this.everydaySpent = 0.0,
     this.committedSpent = 0.0,
     this.committedPlanned = 0.0,
-    this.committedReserved = 0.0,
-    this.everydayAllowance = 0.0,
     this.everydayLeft = 0.0,
     this.invested = 0.0,
     this.transfers = 0.0,
     this.income = 0.0,
-    this.isOverCommitted = false,
     this.isOverAllowance = false,
   });
 }
@@ -138,34 +125,20 @@ final budgetMetricsProvider = Provider.family<BudgetMetrics, String>((
   final income = mine.ofKind(kinds, CategoryKind.income).total;
   final spent = everydaySpent + committedSpent;
 
-  final templates = ref.watch(userRecurringTemplatesProvider(userId));
   final planned = committedPlanned(
-    activeTemplates: templates,
+    activeTemplates: ref.watch(userRecurringTemplatesProvider(userId)),
     kinds: kinds,
     cycleEnd: ref.watch(cycleEndProvider),
-  );
-  // What actually left this cycle for bills that are being spread. Real
-  // spending, but already reserved a share at a time, so the allowance must
-  // not be charged the lump a second time.
-  final spreadIds = {
-    for (final t in templates)
-      if (t.isSpread) t.id,
-  };
-  final spreadPaid = spreadIds.isEmpty
-      ? 0.0
-      : mine.where((e) => spreadIds.contains(e.recurringTemplateId)).total;
-  final split = everydayAllowance(
-    budget: budget,
-    committedSpent: committedSpent,
-    committedPlanned: planned,
-    everydaySpent: everydaySpent,
-    spreadPaid: spreadPaid,
   );
 
   final hasBudget = budget > 0;
   final hasSalary = salary > 0;
-  final remaining = hasBudget ? budget - spent : 0.0;
-  final percentSpent = hasBudget ? spent / budget : 0.0;
+  // The budget covers everyday spending only, so every figure measured
+  // against it is measured on everyday spending — including the warnings the
+  // reminders fire on. Bills are money out, but they are not the thing the
+  // budget is about.
+  final remaining = hasBudget ? budget - everydaySpent : 0.0;
+  final percentSpent = hasBudget ? everydaySpent / budget : 0.0;
   // Real income supersedes the planned salary the moment there is any: a
   // number you entered beats a number you estimated in Settings.
   final earned = income > 0 ? income : salary;
@@ -183,19 +156,17 @@ final budgetMetricsProvider = Provider.family<BudgetMetrics, String>((
     everydaySpent: everydaySpent,
     committedSpent: committedSpent,
     committedPlanned: planned,
-    committedReserved: split.committedReserved,
-    everydayAllowance: split.everydayAllowance,
-    everydayLeft: split.everydayLeft,
+    everydayLeft: remaining,
     invested: invested,
     transfers: transfers,
     income: income,
-    isOverCommitted: split.isOverCommitted,
-    isOverAllowance: hasBudget && split.everydayLeft < -0.005,
+    isOverAllowance: hasBudget && remaining < -0.005,
     // A paisa of tolerance. Summing two-decimal amounts leaves float
     // residue, so landing exactly on budget could make remaining a tiny
     // negative — which flipped the bar red and printed "Overspent -₹0".
-    isOverBudget: hasBudget && spent > budget + 0.005,
-    isNearLimit: hasBudget && spent <= budget + 0.005 && percentSpent >= 0.8,
+    isOverBudget: hasBudget && everydaySpent > budget + 0.005,
+    isNearLimit:
+        hasBudget && everydaySpent <= budget + 0.005 && percentSpent >= 0.8,
   );
 });
 

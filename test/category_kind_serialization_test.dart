@@ -81,9 +81,10 @@ void main() {
     ];
 
     expect(
-      changedSettingKeys({'categories': withKinds}, {
-        'categories': withoutKinds,
-      }),
+      changedSettingKeys(
+        {'categories': withKinds},
+        {'categories': withoutKinds},
+      ),
       contains('categories'),
     );
     // And what comes back is everyday, because "Gym" is not a seeded name.

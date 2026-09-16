@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/category/category_kinds.dart';
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/categories/category_providers.dart';
 import '../../../providers/cycle/cycle_providers.dart';
@@ -228,8 +229,14 @@ final groupedExpensesProvider = Provider<List<ExpenseGroup>>((ref) {
 });
 
 final expenseStatsProvider = Provider<ExpenseStats>((ref) {
-  final expenses = ref.watch(filteredExpensesProvider);
-  final total = expenses.fold(0.0, (sum, e) => sum + e.amount);
+  final all = ref.watch(filteredExpensesProvider);
+  final kinds = ref.watch(categoryKindsProvider);
+  // The list shows everything — a SIP has to be visible — but the figure
+  // above it says "spent this cycle", which is the same claim Home makes.
+  // Two different numbers under the same words is the bug this avoids.
+  final expenses = all.spendable(kinds).toList();
+  final total = expenses.total;
+  final moved = all.total - total;
   final count = expenses.length;
 
   final now = DateTime.now();
@@ -257,6 +264,7 @@ final expenseStatsProvider = Provider<ExpenseStats>((ref) {
   }
 
   return ExpenseStats(
+    moved: moved,
     total: total,
     monthly: monthly,
     transactionCount: count,

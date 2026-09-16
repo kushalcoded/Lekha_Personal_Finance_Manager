@@ -12,6 +12,7 @@ import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
 import '../../providers/payment/card_providers.dart';
 import 'person_ledger_screen.dart';
+import '../settings/widgets/manage_payment_methods_screen.dart';
 import 'card_ledger_screen.dart';
 import 'providers/people_balance_providers.dart';
 import 'widgets/add_debt_sheet.dart';
@@ -151,10 +152,39 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         ),
         // Cards sit with the rest of what you owe rather than in Expenses: a
         // bill has a balance and a due date, which is what this tab is about.
+        // The section shows even when empty — a feature that only appears once
+        // it is already set up is a feature nobody finds.
+        const SizedBox(height: 20),
+        const FieldLabel('Cards'),
+        const SizedBox(height: 10),
+        if (cards.isEmpty)
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ManagePaymentMethodsScreen(),
+              ),
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+              ),
+              child: Center(
+                child: Text(
+                  '+ Add a credit card',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: cs.primary,
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (cards.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          const FieldLabel('Cards'),
-          const SizedBox(height: 10),
           ...cards.map(
             (card) => Padding(
               padding: const EdgeInsets.only(bottom: 10),

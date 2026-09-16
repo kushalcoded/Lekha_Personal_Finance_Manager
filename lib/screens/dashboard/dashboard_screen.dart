@@ -411,7 +411,10 @@ class _CycleHealthHero extends StatelessWidget {
     final caption = !hasBudget
         ? 'spent this cycle'
         : [
-            headlineIsDeficit ? 'over your everyday budget' : 'left to spend',
+            headlineIsDeficit
+                ? 'over your everyday budget'
+                : 'left for everyday',
+            '${AppFormatters.formatCurrency(metrics.budget)} budget',
             if (showDays && daysLeft > 1)
               '$daysLeft days to go'
             else if (showDays && daysLeft == 1)
@@ -423,11 +426,10 @@ class _CycleHealthHero extends StatelessWidget {
     return Semantics(
       button: true,
       label: hasBudget
-          ? '${headlineIsDeficit ? 'Over by' : 'Left to spend'} $money of '
-                '${AppFormatters.formatCurrency(metrics.everydayAllowance)} '
-                'everyday. Bills '
-                '${AppFormatters.formatCurrency(metrics.committedSpent)} of '
-                '${AppFormatters.formatCurrency(metrics.committedReserved)}.'
+          ? '${headlineIsDeficit ? 'Over your everyday budget by' : 'Left for everyday'} '
+                '$money of '
+                '${AppFormatters.formatCurrency(metrics.budget)}. Bills '
+                '${AppFormatters.formatCurrency(metrics.committedSpent)} paid.'
           : 'Spent this cycle $money',
       child: InkWell(
         onTap: onTap,
@@ -491,6 +493,13 @@ class _CycleHealthHero extends StatelessWidget {
 /// unavoidable, then yours, then spare. Violet marks the everyday segment
 /// because that is the part you control; the committed segment is deliberately
 /// colourless.
+/// How much of the everyday budget is gone.
+///
+/// One bar, one meaning. It used to stack bills alongside everyday spending
+/// against a combined budget, which meant the bar moved for money the user had
+/// no say over — and the everyday allowance underneath it was a figure derived
+/// by arithmetic that nobody had typed. The budget is the everyday allowance
+/// now, so the bar is simply how much of it is spent.
 class _BudgetMeter extends StatelessWidget {
   final BudgetMetrics metrics;
 
@@ -499,78 +508,41 @@ class _BudgetMeter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final budget = metrics.budget;
-    if (budget <= 0) return const SizedBox.shrink();
-
-    final committed = (metrics.committedSpent / budget).clamp(0.0, 1.0);
-    final everyday = (metrics.everydaySpent / budget).clamp(
-      0.0,
-      1.0 - committed,
-    );
-    // Where the bills were planned to land. Hidden when it would sit under the
-    // rounded end of the bar, where it reads as a rendering artefact.
-    final mark = (metrics.committedReserved / budget).clamp(0.0, 1.0);
-    final showMark = mark > 0.02 && mark < 0.98;
-    final overspent = metrics.isOverAllowance || metrics.isOverCommitted;
+    if (metrics.budget <= 0) return const SizedBox.shrink();
+    final used = (metrics.everydaySpent / metrics.budget).clamp(0.0, 1.0);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(3),
       child: SizedBox(
         height: 6,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
-            return TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 1),
-              duration: MediaQuery.maybeOf(context)?.disableAnimations ?? false
-                  ? Duration.zero
-                  : const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              builder: (context, t, _) => Stack(
-                children: [
-                  Positioned.fill(
-                    child: ColoredBox(
-                      color: Colors.white.withValues(alpha: 0.06),
-                    ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: width * committed * t,
-                    child: ColoredBox(
-                      color: Colors.white.withValues(alpha: 0.28),
-                    ),
-                  ),
-                  Positioned(
-                    left: width * committed * t,
-                    top: 0,
-                    bottom: 0,
-                    width: width * everyday * t,
-                    child: ColoredBox(color: overspent ? cs.error : cs.primary),
-                  ),
-                  if (showMark)
-                    Positioned(
-                      left: width * mark,
-                      top: 0,
-                      bottom: 0,
-                      width: 1,
-                      child: ColoredBox(
-                        color: Colors.white.withValues(alpha: 0.40),
-                      ),
-                    ),
-                ],
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: used),
+          duration: MediaQuery.maybeOf(context)?.disableAnimations ?? false
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, _) => Stack(
+            children: [
+              Positioned.fill(
+                child: ColoredBox(color: Colors.white.withValues(alpha: 0.06)),
               ),
-            );
-          },
+              FractionallySizedBox(
+                widthFactor: value,
+                child: ColoredBox(
+                  color: metrics.isOverAllowance ? cs.error : cs.primary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// The numbers behind the meter. A table so every amount ends on the same x —
-/// ragged figures are what made the old category rows look accidental.
+/// What went where this cycle. Plain amounts: the budget is already in the
+/// line above, so a fraction here would only repeat it, and the two rows that
+/// are not everyday spending are not measured against anything at all.
 class _MeterLegend extends StatelessWidget {
   final BudgetMetrics metrics;
 
@@ -578,25 +550,22 @@ class _MeterLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final calm = CalmColors.of(context);
     final money = AppFormatters.formatCurrency;
 
     final rows = <TableRow>[
-      if (metrics.hasBudget)
-        _row(
-          context,
-          'Everyday',
-          '${money(metrics.everydaySpent)} / ${money(metrics.everydayAllowance)}',
-          valueColor: metrics.isOverAllowance ? cs.error : null,
-        ),
-      if (metrics.hasBudget && metrics.committedReserved > 0)
+      if (metrics.hasBudget || metrics.everydaySpent > 0)
+        _row(context, 'Everyday', money(metrics.everydaySpent), note: 'spent'),
+      if (metrics.committedSpent > 0 || metrics.committedPlanned > 0)
         _row(
           context,
           'Bills',
-          '${money(metrics.committedSpent)} / ${money(metrics.committedReserved)}',
-          note: metrics.committedPlanned > 0 ? 'still due' : null,
+          money(metrics.committedSpent),
+          // The only comparison worth making: money that still has to leave
+          // before the cycle ends.
+          note: metrics.committedPlanned > 0
+              ? 'paid · ${money(metrics.committedPlanned)} due'
+              : 'paid',
         ),
       if (metrics.income > 0)
         _row(
@@ -611,6 +580,7 @@ class _MeterLegend extends StatelessWidget {
           'Invested',
           money(metrics.invested),
           valueColor: calm.positive,
+          note: 'not spent',
         ),
     ];
     if (rows.isEmpty) return const SizedBox.shrink();
@@ -665,11 +635,6 @@ class _MeterLegend extends StatelessWidget {
   }
 }
 
-/// Asks — around the salary day — whether to start a new cycle, because the
-/// cycle boundary is the thing every budget number is measured against and
-/// nothing else moves it. Deliberately a question with an editable date:
-/// salary lands early some months and late others, so the app must never
-/// pick the date itself.
 /// Tells the user a newer build exists, once per version.
 ///
 /// Sideloaded apps have nothing to nag them, so an update used to be found only

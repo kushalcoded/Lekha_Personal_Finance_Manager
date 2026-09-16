@@ -170,7 +170,10 @@ final analyticsScopedExpensesProvider = Provider.family<List<Expense>, String>((
   final kinds = ref.watch(categoryKindsProvider);
   final scope = ref.watch(analyticsScopeProvider);
   if (scope == AnalyticsScope.cycle) {
-    return ref.watch(analyticsExpensesProvider(userId)).spendable(kinds).toList();
+    return ref
+        .watch(analyticsExpensesProvider(userId))
+        .spendable(kinds)
+        .toList();
   }
   final expenses = ref.watch(allUserExpensesProvider(userId));
   final start = analyticsScopeStart(scope, DateTime.now());

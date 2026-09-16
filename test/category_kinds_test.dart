@@ -17,8 +17,12 @@ void main() {
     createdAt: DateTime(2026, 9, 10),
   );
 
-  ExpenseCategory category(String name, CategoryKind kind) =>
-      ExpenseCategory(name: name, iconKey: 'category', colorHex: '#FFFFFF', kind: kind);
+  ExpenseCategory category(String name, CategoryKind kind) => ExpenseCategory(
+    name: name,
+    iconKey: 'category',
+    colorHex: '#FFFFFF',
+    kind: kind,
+  );
 
   final kinds = CategoryKinds.from([
     category('Food', CategoryKind.everyday),
