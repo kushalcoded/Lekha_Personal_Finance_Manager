@@ -72,38 +72,104 @@ class ManagePaymentMethodsScreen extends ConsumerWidget {
     WidgetRef ref, {
     String? existing,
   }) async {
+    final notifier = ref.read(paymentMethodsProvider.notifier);
     final controller = TextEditingController(text: existing ?? '');
-    final name = await showDialog<String>(
+    final stored = existing == null ? null : notifier.cardConfig(existing);
+    var isCard = stored != null;
+    var statementDay = stored?['statementDay'];
+    var dueDay = stored?['dueDay'];
+
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(existing == null ? 'Add method' : 'Rename method'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(hintText: 'UPI, Amex, Wallet…'),
-          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setLocal) => AlertDialog(
+          title: Text(existing == null ? 'Add method' : 'Edit method'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    hintText: 'UPI, Amex, Wallet…',
+                  ),
+                  onSubmitted: (_) => Navigator.of(dialogContext).pop(true),
+                ),
+                const SizedBox(height: 8),
+                // Off by default, and the statement fields stay hidden until
+                // it is on: most methods are not cards, and two extra day
+                // pickers on every one of them is noise.
+                SwitchListTile(
+                  value: isCard,
+                  onChanged: (value) => setLocal(() => isCard = value),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Credit card'),
+                  subtitle: const Text('Track a bill and what is still owed'),
+                ),
+                if (isCard) ...[
+                  const SizedBox(height: 4),
+                  _DayPicker(
+                    label: 'Statement closes on',
+                    value: statementDay,
+                    onChanged: (value) => setLocal(() => statementDay = value),
+                  ),
+                  const SizedBox(height: 8),
+                  _DayPicker(
+                    label: 'Payment due on',
+                    value: dueDay,
+                    onChanged: (value) => setLocal(() => dueDay = value),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Optional. Without them the balance still works — you just '
+                    "won't see what this month's bill comes to.",
+                    style: Theme.of(dialogContext).textTheme.bodySmall
+                        ?.copyWith(
+                          color: Theme.of(
+                            dialogContext,
+                          ).colorScheme.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(existing == null ? 'Add' : 'Save'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-            child: Text(existing == null ? 'Add' : 'Save'),
-          ),
-        ],
       ),
     );
-    if (name == null || name.trim().isEmpty) return;
 
-    final notifier = ref.read(paymentMethodsProvider.notifier);
+    final name = controller.text.trim();
+    if (saved != true || name.isEmpty) return;
+
     final ok = existing == null
         ? await notifier.add(name)
         : await notifier.rename(existing, name);
-    if (ok || !context.mounted) return;
-    showNotice('That method already exists.');
+    // rename returns false when the name did not change, which is not a
+    // failure — only a genuine clash is.
+    if (existing == null && !ok) {
+      if (context.mounted) showNotice('That method already exists.');
+      return;
+    }
+    await notifier.setCard(
+      name,
+      isCard: isCard,
+      statementDay: statementDay,
+      dueDay: dueDay,
+    );
   }
 
   Future<void> _confirmDelete(
@@ -243,6 +309,40 @@ class _MethodRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A day of the month, 1-31. A dropdown rather than a field because there is
+/// nothing to validate and nothing to mistype.
+class _DayPicker extends StatelessWidget {
+  final String label;
+  final int? value;
+  final ValueChanged<int?> onChanged;
+
+  const _DayPicker({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Text(label)),
+        const SizedBox(width: 12),
+        DropdownButton<int?>(
+          value: value,
+          hint: const Text('—'),
+          items: [
+            const DropdownMenuItem<int?>(value: null, child: Text('—')),
+            for (var day = 1; day <= 31; day++)
+              DropdownMenuItem<int?>(value: day, child: Text('$day')),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }

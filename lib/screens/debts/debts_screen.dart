@@ -10,7 +10,9 @@ import '../../theme/app_theme.dart';
 import '../../utils/formatters/formatters.dart';
 import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
+import '../../providers/payment/card_providers.dart';
 import 'person_ledger_screen.dart';
+import 'card_ledger_screen.dart';
 import 'providers/people_balance_providers.dart';
 import 'widgets/add_debt_sheet.dart';
 import 'widgets/group_sheet.dart';
@@ -44,6 +46,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
     final userId = ref.watch(currentUserIdProvider) ?? '';
     final people = ref.watch(peopleBalancesProvider);
     final groups = ref.watch(sharedInboxProvider).groups;
+    final cards = ref.watch(cardsProvider);
     final owed = ref.watch(totalReceivablesProvider(userId));
     final owe = ref.watch(totalPayablesProvider(userId));
     final isWide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
@@ -146,6 +149,27 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
             ),
           ),
         ),
+        // Cards sit with the rest of what you owe rather than in Expenses: a
+        // bill has a balance and a due date, which is what this tab is about.
+        if (cards.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          const FieldLabel('Cards'),
+          const SizedBox(height: 10),
+          ...cards.map(
+            (card) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _CardRow(
+                card: card,
+                outstanding: ref.watch(cardOutstandingProvider(card.method)),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => CardLedgerScreen(card: card),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 10),
         // Outside the empty check on purpose: this is the only add-a-debt
         // entry point, and it used to live inside the `else`, so settling your
@@ -375,6 +399,116 @@ class _PersonRow extends StatelessWidget {
 
 /// A group in the people list. Its balances live on the shared page, so this
 /// only says how many people are in it and whether anything is waiting.
+/// A card's running balance. No person, no avatar — a card is a thing, so it
+/// gets the card glyph and the issuer's own name.
+class _CardRow extends StatelessWidget {
+  final CardConfig card;
+  final double outstanding;
+  final VoidCallback onTap;
+
+  const _CardRow({
+    required this.card,
+    required this.outstanding,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final calm = CalmColors.of(context);
+    final settled = outstanding.abs() < 0.01;
+    final inCredit = outstanding < -0.005;
+
+    return GlassCard(
+      onTap: onTap,
+      radius: 12,
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: cs.onSurfaceVariant.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              Icons.credit_card_outlined,
+              size: 19,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  card.method,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _due(context),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                AppFormatters.formatCurrency(outstanding.abs()),
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: settled
+                      ? cs.onSurfaceVariant
+                      : inCredit
+                      ? calm.positive
+                      : cs.error,
+                ),
+              ),
+              Text(
+                settled
+                    ? 'nothing owed'
+                    : inCredit
+                    ? 'in credit'
+                    : 'outstanding',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _due(BuildContext context) {
+    if (!card.hasCycle) return 'No statement day set';
+    final period = cardStatementPeriod(
+      statementDay: card.statementDay!,
+      dueDay: card.dueDay!,
+      now: DateTime.now(),
+    );
+    final days = period.dueDate.difference(DateTime.now()).inDays;
+    if (days < 0) return 'Was due ${AppFormatters.formatDate(period.dueDate)}';
+    if (days == 0) return 'Due today';
+    return 'Due in $days ${days == 1 ? 'day' : 'days'}';
+  }
+}
+
 class _GroupRow extends StatelessWidget {
   final SharedGroup group;
   final int waiting;

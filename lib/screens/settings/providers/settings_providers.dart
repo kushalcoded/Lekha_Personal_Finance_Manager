@@ -21,6 +21,7 @@ class SettingsState {
   final bool budgetWarningReminderEnabled;
   final bool overdueReceivableReminderEnabled;
   final bool recurringDueReminderEnabled;
+  final bool cardBillReminderEnabled;
   final bool monthlyBudgetReminderEnabled;
   final bool recurringQuickGenerateEnabled;
   final bool smsAutoDetectEnabled;
@@ -60,6 +61,7 @@ class SettingsState {
     this.budgetWarningReminderEnabled = true,
     this.overdueReceivableReminderEnabled = true,
     this.recurringDueReminderEnabled = true,
+    this.cardBillReminderEnabled = true,
     this.monthlyBudgetReminderEnabled = true,
     this.recurringQuickGenerateEnabled = true,
     this.smsAutoDetectEnabled = true,
@@ -114,6 +116,7 @@ class SettingsState {
     bool? budgetWarningReminderEnabled,
     bool? overdueReceivableReminderEnabled,
     bool? recurringDueReminderEnabled,
+    bool? cardBillReminderEnabled,
     bool? monthlyBudgetReminderEnabled,
     bool? recurringQuickGenerateEnabled,
     bool? smsAutoDetectEnabled,
@@ -144,6 +147,8 @@ class SettingsState {
           this.overdueReceivableReminderEnabled,
       recurringDueReminderEnabled:
           recurringDueReminderEnabled ?? this.recurringDueReminderEnabled,
+      cardBillReminderEnabled:
+          cardBillReminderEnabled ?? this.cardBillReminderEnabled,
       monthlyBudgetReminderEnabled:
           monthlyBudgetReminderEnabled ?? this.monthlyBudgetReminderEnabled,
       recurringQuickGenerateEnabled:
@@ -234,6 +239,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
             raw['overdueReceivableReminderEnabled'] as bool? ?? true,
         recurringDueReminderEnabled:
             raw['recurringDueReminderEnabled'] as bool? ?? true,
+        cardBillReminderEnabled:
+            raw['cardBillReminderEnabled'] as bool? ?? true,
         monthlyBudgetReminderEnabled:
             raw['monthlyBudgetReminderEnabled'] as bool? ?? true,
         recurringQuickGenerateEnabled:
@@ -278,6 +285,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       'budgetWarningReminderEnabled': next.budgetWarningReminderEnabled,
       'overdueReceivableReminderEnabled': next.overdueReceivableReminderEnabled,
       'recurringDueReminderEnabled': next.recurringDueReminderEnabled,
+      'cardBillReminderEnabled': next.cardBillReminderEnabled,
       'monthlyBudgetReminderEnabled': next.monthlyBudgetReminderEnabled,
       'recurringQuickGenerateEnabled': next.recurringQuickGenerateEnabled,
       'smsAutoDetectEnabled': next.smsAutoDetectEnabled,
@@ -342,6 +350,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await _persist(state.copyWith(recurringDueReminderEnabled: value));
   }
 
+  Future<void> setCardBillReminderEnabled(bool value) async {
+    await _persist(state.copyWith(cardBillReminderEnabled: value));
+  }
+
   Future<void> setMonthlyBudgetReminderEnabled(bool value) async {
     await _persist(state.copyWith(monthlyBudgetReminderEnabled: value));
   }
@@ -385,6 +397,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         overdueReceivableReminderEnabled:
             state.overdueReceivableReminderEnabled,
         recurringDueReminderEnabled: state.recurringDueReminderEnabled,
+        cardBillReminderEnabled: state.cardBillReminderEnabled,
         monthlyBudgetReminderEnabled: state.monthlyBudgetReminderEnabled,
         recurringQuickGenerateEnabled: state.recurringQuickGenerateEnabled,
         smsAutoDetectEnabled: state.smsAutoDetectEnabled,

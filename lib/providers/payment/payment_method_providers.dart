@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/storage/hive_service.dart';
 import '../auth/auth_provider.dart';
 import '../storage/storage_providers.dart';
+import 'card_providers.dart';
 
 /// What the app ships with. Only ever used to seed a brand-new user — after
 /// that the stored list wins, including deletions.
@@ -78,8 +79,42 @@ class PaymentMethodsNotifier extends StateNotifier<List<String>> {
     // The default is stored by name, so renaming the starred method would
     // otherwise leave it pointing at a method that no longer exists.
     if (defaultFor(_userId) == from) await setDefault(trimmed);
+    await _moveCard(from, trimmed);
     return true;
   }
+
+  /// Card settings are keyed by method name, so a rename has to carry them and
+  /// a removal has to drop them — the same name-keyed migration this class
+  /// already does for expenses and the default.
+  Future<void> _moveCard(String from, String? to) async {
+    final cards = Map<String, Map<String, int?>>.from(_hive.getCards(_userId));
+    final config = cards.remove(from);
+    if (config == null) return;
+    if (to != null) cards[to] = config;
+    await _hive.saveCards(_userId, cards);
+  }
+
+  /// Mark a method as a credit card, or clear it. Statement and due day are
+  /// optional — they only frame "this statement, due on the 5th"; the balance
+  /// is a running total either way.
+  Future<void> setCard(
+    String method, {
+    required bool isCard,
+    int? statementDay,
+    int? dueDay,
+  }) async {
+    final cards = Map<String, Map<String, int?>>.from(_hive.getCards(_userId));
+    if (isCard) {
+      cards[method] = {'statementDay': statementDay, 'dueDay': dueDay};
+    } else {
+      cards.remove(method);
+    }
+    await _hive.saveCards(_userId, cards);
+    _ref.invalidate(cardsProvider);
+  }
+
+  Map<String, int?>? cardConfig(String method) =>
+      _hive.getCards(_userId)[method];
 
   /// Remove a method from the picker. Expenses already tagged with it keep
   /// their label — the analytics panel groups by whatever is stored, so the
@@ -89,6 +124,7 @@ class PaymentMethodsNotifier extends StateNotifier<List<String>> {
     if (defaultFor(_userId) == name) {
       await setDefault(null);
     }
+    await _moveCard(name, null);
   }
 
   Future<void> reorder(int oldIndex, int newIndex) async {

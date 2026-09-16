@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/reminder/reminder_model.dart';
 import '../../../providers/budget/budget_providers.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../providers/payment/card_providers.dart';
 import '../../expenses/providers/recurring_expenses_providers.dart';
 import '../../receivables/providers/receivables_providers.dart';
 import 'settings_providers.dart';
@@ -41,6 +42,43 @@ final upcomingRemindersProvider = Provider<List<AppReminder>>((ref) {
           message: 'You have crossed your monthly budget.',
           dueAt: now,
           severity: ReminderSeverity.danger,
+        ),
+      );
+    }
+  }
+
+  if (settings.cardBillReminderEnabled) {
+    for (final card in ref.watch(cardsProvider)) {
+      if (!card.hasCycle) continue;
+      final outstanding = ref.watch(cardOutstandingProvider(card.method));
+      if (outstanding <= 0.005) continue;
+      final due = cardStatementPeriod(
+        statementDay: card.statementDay!,
+        dueDay: card.dueDay!,
+        now: now,
+      ).dueDate;
+      final days = due
+          .difference(DateTime(now.year, now.month, now.day))
+          .inDays;
+      // Three days is enough warning to move money and not so much that the
+      // nudge is background noise for a fortnight.
+      if (days > 3) continue;
+      reminders.add(
+        AppReminder(
+          id: 'card_bill_${card.method}',
+          type: ReminderType.cardBillDue,
+          title: '${card.method} bill',
+          message: days < 0
+              ? '${AppFormatters.formatCurrency(outstanding)} was due '
+                    '${AppFormatters.formatDate(due)}.'
+              : days == 0
+              ? '${AppFormatters.formatCurrency(outstanding)} due today.'
+              : '${AppFormatters.formatCurrency(outstanding)} due in $days '
+                    '${days == 1 ? 'day' : 'days'}.',
+          dueAt: due,
+          severity: days < 0
+              ? ReminderSeverity.danger
+              : ReminderSeverity.warning,
         ),
       );
     }

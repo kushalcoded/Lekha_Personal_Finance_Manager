@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../navigation/floating_glass_nav.dart' show kWideBreakpoint;
+import '../../providers/payment/card_providers.dart';
 import '../../providers/ai_providers.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/budget/category_budget_providers.dart';
@@ -384,6 +385,18 @@ class SettingsScreen extends ConsumerWidget {
                                     : null,
                               ),
                             ),
+                            if (ref.watch(cardsProvider).isNotEmpty)
+                              _SettingRow(
+                                icon: Icons.credit_card_outlined,
+                                title: 'Card bill due',
+                                trailing: Switch(
+                                  value: settings.cardBillReminderEnabled,
+                                  onChanged: remindersOn
+                                      ? settingsNotifier
+                                            .setCardBillReminderEnabled
+                                      : null,
+                                ),
+                              ),
                             _SettingRow(
                               icon: Icons.calendar_month_rounded,
                               title: 'Monthly budget',
