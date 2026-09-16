@@ -7,6 +7,7 @@ import '../../../providers/categories/category_providers.dart';
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/budget/budget_providers.dart';
 import '../../../providers/cycle/cycle_providers.dart';
+import '../../../providers/spread/spread_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
 import '../../../services/storage/hive_service.dart';
 import '../../expenses/utils/expense_helpers.dart';
@@ -184,19 +185,28 @@ final analyticsScopedExpensesProvider = Provider.family<List<Expense>, String>((
 /// The same window, every kind included. Only the section that describes the
 /// split itself wants this — everything else means "spending" when it says
 /// totals.
+///
+/// Spread payments arrive here already cut into monthly slices, and only here
+/// and in the monthly bars: Insights draws them over time, while Home and the
+/// budget still count the full payment in the month it was made.
 final analyticsScopedAllProvider = Provider.family<List<Expense>, String>((
   ref,
   userId,
 ) {
   final scope = ref.watch(analyticsScopeProvider);
-  if (scope == AnalyticsScope.cycle) {
-    return ref.watch(analyticsExpensesProvider(userId));
-  }
-  final start = analyticsScopeStart(scope, DateTime.now());
-  return ref
-      .watch(allUserExpensesProvider(userId))
-      .where((expense) => !expense.date.isBefore(start))
-      .toList();
+  final now = DateTime.now();
+  // Expanded before the window is applied, never after. Filtering first would
+  // drop a payment made before this cycle whose later slices fall inside it —
+  // which is why the cycle scope no longer reads analyticsExpensesProvider.
+  final expanded = spreadForCharts(
+    ref.watch(allUserExpensesProvider(userId)),
+    ref.watch(spreadExpensesProvider),
+    now: now,
+  );
+  final start = scope == AnalyticsScope.cycle
+      ? ref.watch(cycleStartProvider)
+      : analyticsScopeStart(scope, now);
+  return expanded.where((expense) => !expense.date.isBefore(start)).toList();
 });
 
 /// How the window's money divides by what it was for.
@@ -276,11 +286,17 @@ final analyticsMonthlyTotalsProvider =
     Provider.family<List<MonthlyTotal>, String>((ref, userId) {
       // Everyday too, so the bars compare like with like against the panels
       // above them — and so a rent rise does not flatten every other month.
-      final expenses = ref
-          .watch(allUserExpensesProvider(userId))
-          .ofKind(ref.watch(categoryKindsProvider), CategoryKind.everyday)
-          .toList();
       final now = DateTime.now();
+      // Spread first, so a year's premium is one slice in each bar rather
+      // than a single spike in the month it was paid.
+      final expenses =
+          spreadForCharts(
+                ref.watch(allUserExpensesProvider(userId)),
+                ref.watch(spreadExpensesProvider),
+                now: now,
+              )
+              .ofKind(ref.watch(categoryKindsProvider), CategoryKind.everyday)
+              .toList();
       final anchor = DateTime(now.year, now.month, 1);
       final months = List.generate(6, (index) {
         return _shiftMonth(anchor, index - 5);

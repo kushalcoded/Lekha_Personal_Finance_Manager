@@ -14,6 +14,7 @@ import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/budget/category_budget_providers.dart';
 import '../../../providers/cycle/cycle_providers.dart';
 import '../../../providers/payment/payment_method_providers.dart';
+import '../../../providers/spread/spread_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../../settings/providers/settings_providers.dart';
@@ -21,6 +22,7 @@ import '../providers/expenses_providers.dart';
 import '../utils/expense_helpers.dart';
 import '../utils/split_helpers.dart';
 import '../utils/split_persistence.dart';
+import 'spread_sheet.dart';
 import '../../../widgets/common/form_bits.dart';
 import 'expense_notes_field.dart';
 import 'split_sheet.dart';
@@ -140,6 +142,10 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
   /// an income-kind category — so it syncs, exports, edits and lists like
   /// everything else — and every spending total skips it by kind.
   bool _incoming = false;
+
+  /// How many months Insights draws this payment over. 1 is "not spread";
+  /// the record itself is always the full amount on the day it was paid.
+  int _spreadMonths = 1;
   String? _selectedPaymentMethod;
   DateTime _selectedDate = DateTime.now();
   late SplitConfig _split = widget.initialSplit ?? const SplitConfig();
@@ -484,6 +490,11 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
               );
         }
       }
+      if (_spreadMonths > 1) {
+        await ref
+            .read(spreadExpensesProvider.notifier)
+            .set(expense.id, _spreadMonths);
+      }
       widget.onSaved?.call(expense);
       if (!mounted) {
         return;
@@ -826,6 +837,20 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     exactAmounts: _split.exact,
   );
 
+  Future<void> _openSpread() async {
+    // Spread what will actually be saved: your share when the bill is split.
+    final amount = _split.isActive ? _splitResult.myShare : _total;
+    final months = await showSpreadSheet(
+      context,
+      amount: amount,
+      date: _selectedDate,
+      months: _spreadMonths,
+    );
+    if (months == null || !mounted) return;
+    _markInteracted();
+    setState(() => _spreadMonths = months);
+  }
+
   Future<void> _openSplit() async {
     if (_total <= 0) {
       showNotice('Enter the total amount first');
@@ -1108,6 +1133,17 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                                   : 'Just me',
                               muted: !_split.isActive,
                               onTap: _openSplit,
+                            ),
+                          ),
+                        // Income is not spread — it has no months to cover.
+                        if (!_incoming) const SizedBox(width: 8),
+                        if (!_incoming)
+                          Expanded(
+                            child: _MiniTile(
+                              label: 'Spread',
+                              value: spreadLabel(_spreadMonths),
+                              muted: _spreadMonths <= 1,
+                              onTap: _openSpread,
                             ),
                           ),
                       ],

@@ -837,6 +837,35 @@ class HiveService {
     await saveSettings(userId, settings);
   }
 
+  /// Which expenses Insights draws spread across months, and over how many.
+  ///
+  /// A settings key rather than a field on the expense, for the same reasons
+  /// as [getCards]: no generated adapter to regenerate, and an older build
+  /// carries an unknown key through instead of dropping it.
+  Map<String, int> getSpreadExpenses(String userId) {
+    final raw = getSettings(userId)['spreadExpenses'];
+    if (raw is! Map) return {};
+    final spread = <String, int>{};
+    raw.forEach((key, value) {
+      final months = (value as num?)?.toInt() ?? 1;
+      if (months > 1) spread[key.toString()] = months;
+    });
+    return spread;
+  }
+
+  Future<void> saveSpreadExpenses(
+    String userId,
+    Map<String, int> spread,
+  ) async {
+    if (!_initialized) throw Exception('HiveService not initialized');
+    final settings = getSettings(userId);
+    settings['spreadExpenses'] = {
+      for (final entry in spread.entries)
+        if (entry.value > 1) entry.key: entry.value,
+    };
+    await saveSettings(userId, settings);
+  }
+
   List<CycleHistorySnapshot> getCycleHistory(String userId) {
     final settings = getSettings(userId);
     final raw = settings['cycleHistory'];

@@ -271,13 +271,19 @@ DateTime advanceDueDate(RecurringFrequency frequency, DateTime from) {
     case RecurringFrequency.weekly:
       return from.add(const Duration(days: 7));
     case RecurringFrequency.monthly:
-      return _shiftByMonths(from, 1);
+      return shiftByMonths(from, 1);
     case RecurringFrequency.yearly:
-      return _shiftByMonths(from, 12);
+      return shiftByMonths(from, 12);
   }
 }
 
-DateTime _shiftByMonths(DateTime source, int months) {
+/// [source] moved by whole months, clamping the day into shorter months so a
+/// 31st lands on the last day rather than spilling into the next month.
+///
+/// Public so a spread payment shifts each slice from its original date: a
+/// month at a time from the previous slice would compound the clamp, and Jan 31
+/// would become Feb 28 and then Mar 28.
+DateTime shiftByMonths(DateTime source, int months) {
   final baseMonthIndex = source.year * 12 + (source.month - 1) + months;
   final targetYear = baseMonthIndex ~/ 12;
   final targetMonth = (baseMonthIndex % 12) + 1;

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/category_styles.dart';
 import '../../../models/expense/expense_model.dart';
+import '../../../providers/spread/spread_providers.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../utils/expense_helpers.dart';
 import 'refund_sheet.dart';
@@ -66,7 +68,7 @@ Future<void> showExpenseDetailsSheet({
   );
 }
 
-class ExpenseDetailsContent extends StatelessWidget {
+class ExpenseDetailsContent extends ConsumerWidget {
   final Expense expense;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -84,10 +86,11 @@ class ExpenseDetailsContent extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final style = CategoryStyles.of(expense.category);
+    final spreadMonths = ref.watch(spreadExpensesProvider)[expense.id] ?? 1;
     final paymentMethod = formatPaymentMethod(expense);
     final notes = formatNotes(expense.description);
 
@@ -176,6 +179,13 @@ class ExpenseDetailsContent extends StatelessWidget {
           ),
           _DetailRow(label: 'Notes', value: notes),
           _DetailRow(label: 'Payment method', value: paymentMethod),
+          // Only when it applies: it explains why Insights and Home can show
+          // different amounts for the month this was paid.
+          if (spreadMonths > 1)
+            _DetailRow(
+              label: 'Spread over',
+              value: '$spreadMonths months (in Insights)',
+            ),
           _DetailRow(
             label: 'Created',
             value: AppFormatters.formatDateTime(expense.createdAt),

@@ -6,6 +6,7 @@ import '../../core/navigation/navigation_provider.dart';
 import '../../core/constants/category_styles.dart';
 import '../../providers/ai_providers.dart';
 import '../../providers/budget/budget_providers.dart';
+import '../../providers/spread/spread_providers.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/ai_text.dart';
@@ -44,6 +45,9 @@ class AnalyticsScreen extends ConsumerWidget {
     final summary = ref.watch(analyticsSummaryProvider(userId));
     final categoryStats = ref.watch(analyticsCategoryStatsProvider(userId));
     final kindSplit = ref.watch(analyticsKindStatsProvider(userId));
+    final hasSpreadInWindow = ref
+        .watch(analyticsScopedAllProvider(userId))
+        .any(isSpreadSlice);
     final monthlyTotals = ref.watch(analyticsMonthlyTotalsProvider(userId));
     final trendPoints = ref.watch(analyticsTrendProvider(userId));
     final paymentStats = ref.watch(analyticsPaymentMethodStatsProvider(userId));
@@ -70,9 +74,16 @@ class AnalyticsScreen extends ConsumerWidget {
         // Investments are not spending, but they are money that left, so the
         // figure is worth saying once — beside the total, not inside it. Only
         // on the cycle scope, because that is the window it is measured over.
-        subLabel: scope == AnalyticsScope.cycle && budgetMetrics.invested > 0
-            ? '${scope.label} · ${AppFormatters.formatCurrency(budgetMetrics.invested)} invested'
-            : scope.label,
+        //
+        // A spread payment is counted here a month at a time while Home counts
+        // it whole, so the two can differ for the same month. Say so, or it
+        // reads as a bug.
+        subLabel: [
+          scope.label,
+          if (scope == AnalyticsScope.cycle && budgetMetrics.invested > 0)
+            '${AppFormatters.formatCurrency(budgetMetrics.invested)} invested',
+          if (hasSpreadInWindow) 'spread by month',
+        ].join(' · '),
       ),
       AnalyticsSummaryCard(
         label: 'Average Daily',

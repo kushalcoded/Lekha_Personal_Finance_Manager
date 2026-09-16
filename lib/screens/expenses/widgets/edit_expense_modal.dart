@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/payment/payment_method_providers.dart';
+import '../../../providers/spread/spread_providers.dart';
 import '../../../providers/share/share_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
 import '../../../utils/formatters/formatters.dart';
@@ -21,6 +22,7 @@ import 'payment_method_selector.dart';
 import 'expense_notes_field.dart';
 import 'save_expense_button.dart';
 import '../../../widgets/common/top_notice.dart';
+import 'spread_sheet.dart';
 
 Future<void> showEditExpenseModal(
   BuildContext context, {
@@ -217,6 +219,91 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
     return typed.isEmpty ? 'Split $amount' : '$typed · Split $amount';
   }
 
+  /// Spread lives beside Split because both change how one payment is read
+  /// without changing what was paid.
+  Widget _spreadSection() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final months =
+        _spreadMonths ??
+        ref.watch(spreadExpensesProvider)[widget.expense.id] ??
+        1;
+    final active = months > 1;
+    return InkWell(
+      onTap: () => _openSpread(months),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: active
+              ? cs.primary.withValues(alpha: 0.10)
+              : cs.surfaceContainerHighest.withValues(alpha: 0.35),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: active
+                ? cs.primary.withValues(alpha: 0.28)
+                : cs.outline.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_view_month_rounded,
+              size: 18,
+              color: cs.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    active
+                        ? 'Spread over $months months'
+                        : 'Spread across months',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    active
+                        ? 'Insights draws it a month at a time'
+                        : 'For a payment that covers several months',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              active ? Icons.edit_rounded : Icons.chevron_right_rounded,
+              size: 18,
+              color: cs.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Chosen but not saved yet; null means "whatever is stored".
+  int? _spreadMonths;
+
+  Future<void> _openSpread(int current) async {
+    final amount = parseAmountExpression(_amountController.text.trim());
+    final months = await showSpreadSheet(
+      context,
+      amount: amount ?? widget.expense.amount,
+      date: _selectedDate,
+      months: current,
+    );
+    if (months == null || !mounted) return;
+    setState(() => _spreadMonths = months);
+  }
+
   Widget _splitSection() {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
@@ -365,6 +452,11 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
       await ref
           .read(expensesProvider.notifier)
           .updateExpense(widget.expense.id, updated);
+      if (_spreadMonths case final months?) {
+        await ref
+            .read(spreadExpensesProvider.notifier)
+            .set(widget.expense.id, months);
+      }
       if (_splitDirty) {
         if (links != null && !links.isEmpty) await deleteSplitLinks(ref, links);
         if (split != null) {
@@ -568,6 +660,8 @@ class _EditExpenseFormState extends ConsumerState<EditExpenseForm> {
                   ),
                   const SizedBox(height: 16),
                   _splitSection(),
+                  const SizedBox(height: 10),
+                  _spreadSection(),
                   const SizedBox(height: 16),
                   ExpenseNotesField(
                     controller: _notesController,
