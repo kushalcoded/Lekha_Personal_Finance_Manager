@@ -19,6 +19,7 @@ import '../../providers/auth/auth_provider.dart';
 import '../../providers/budget/budget_providers.dart';
 import '../../providers/clock_provider.dart';
 import '../../models/category/category_kinds.dart';
+import '../../models/category/expense_category.dart';
 import '../../providers/categories/category_providers.dart';
 import '../../providers/cycle/cycle_providers.dart';
 import '../../providers/debt/debt_providers.dart';
@@ -64,14 +65,16 @@ class DashboardScreen extends ConsumerWidget {
     final budgetMetrics = ref.watch(budgetMetricsProvider(userId));
     final settings = ref.watch(settingsProvider);
 
-    // Spending only — a SIP is not a category you overspent in, and a card
-    // bill payment belongs to the purchases it settles, not to itself.
+    // Everyday only. Rent is the biggest expense most months, so with bills in
+    // here the list read "Rent, Bills, Food" forever and said nothing about
+    // where the money you actually chose to spend went. The hero above already
+    // gives bills a line of their own.
     final categoryTotals = <String, double>{};
     for (final e
         in ref
             .watch(cycleExpensesProvider)
             .where((e) => e.userId == userId)
-            .spendable(ref.watch(categoryKindsProvider))) {
+            .ofKind(ref.watch(categoryKindsProvider), CategoryKind.everyday)) {
       categoryTotals[e.category] = (categoryTotals[e.category] ?? 0) + e.amount;
     }
     // A fully refunded category is not a bar; the cycle total still counts it.
@@ -514,6 +517,10 @@ class _BudgetMeter extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(3),
       child: SizedBox(
+        // Full width explicitly: the parent Column aligns to start, so the
+        // constraints here are loose and the Stack below would shrink-wrap to
+        // the filled portion — a track that is only as long as the bar.
+        width: double.infinity,
         height: 6,
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: 0, end: used),
@@ -528,6 +535,9 @@ class _BudgetMeter extends StatelessWidget {
               ),
               FractionallySizedBox(
                 widthFactor: value,
+                // Same reason as the Row above: a childless ColoredBox given
+                // loose height paints nothing.
+                heightFactor: 1,
                 child: ColoredBox(
                   color: metrics.isOverAllowance ? cs.error : cs.primary,
                 ),

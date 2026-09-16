@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../../models/category/category_kinds.dart';
+import '../../../models/category/expense_category.dart';
 import '../../../providers/categories/category_providers.dart';
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/budget/budget_providers.dart';
@@ -159,28 +160,65 @@ final allUserExpensesProvider = Provider.family<List<Expense>, String>((
 /// invisible until tomorrow — the dashboard counted it, Insights didn't, and
 /// the two totals disagreed by exactly that amount.
 ///
-/// Spending only. Investments, card-bill payments and income moved money but
-/// were not spent, and this is the single upstream of the category, summary,
-/// trend and payment-method panels — they must filter identically or the pie
-/// percentages stop matching the total printed above them.
+/// Everyday spending only — the part of the money the user actually decides
+/// about week to week.
+///
+/// Rent is the largest expense most months, so including bills made it the top
+/// category, the biggest slice and the tallest bar every single time, and the
+/// screen told you the same thing forever. Bills have their own section now,
+/// where the whole division is the point.
+///
+/// This is the single upstream of the category, summary, trend and
+/// payment-method panels: they must filter identically, or the pie percentages
+/// stop matching the total printed above them.
 final analyticsScopedExpensesProvider = Provider.family<List<Expense>, String>((
   ref,
   userId,
 ) {
-  final kinds = ref.watch(categoryKindsProvider);
+  return ref
+      .watch(analyticsScopedAllProvider(userId))
+      .ofKind(ref.watch(categoryKindsProvider), CategoryKind.everyday)
+      .toList();
+});
+
+/// The same window, every kind included. Only the section that describes the
+/// split itself wants this — everything else means "spending" when it says
+/// totals.
+final analyticsScopedAllProvider = Provider.family<List<Expense>, String>((
+  ref,
+  userId,
+) {
   final scope = ref.watch(analyticsScopeProvider);
   if (scope == AnalyticsScope.cycle) {
-    return ref
-        .watch(analyticsExpensesProvider(userId))
-        .spendable(kinds)
-        .toList();
+    return ref.watch(analyticsExpensesProvider(userId));
   }
-  final expenses = ref.watch(allUserExpensesProvider(userId));
   final start = analyticsScopeStart(scope, DateTime.now());
-  return expenses
+  return ref
+      .watch(allUserExpensesProvider(userId))
       .where((expense) => !expense.date.isBefore(start))
-      .spendable(kinds)
       .toList();
+});
+
+/// How the window's money divides by what it was for.
+///
+/// The question behind it is "how much of this did I actually choose?" — a
+/// cycle that is four-fifths rent reads very differently from one that is
+/// four-fifths eating out, and the category pie cannot show that because it
+/// ranks categories rather than grouping them.
+final analyticsKindStatsProvider = Provider.family<KindSplit, String>((
+  ref,
+  userId,
+) {
+  final kinds = ref.watch(categoryKindsProvider);
+  final expenses = ref.watch(analyticsScopedAllProvider(userId));
+  double of(CategoryKind kind) => expenses.ofKind(kinds, kind).total;
+  return KindSplit(
+    everyday: of(CategoryKind.everyday),
+    committed: of(CategoryKind.committed),
+    invested: of(CategoryKind.investment),
+    moved: of(CategoryKind.transfer),
+    income: of(CategoryKind.income),
+  );
 });
 
 final analyticsCategoryStatsProvider =
@@ -236,9 +274,11 @@ final analyticsSummaryProvider = Provider.family<AnalyticsSummary, String>((
 /// list, which meant five of its six bars could only ever be zero.
 final analyticsMonthlyTotalsProvider =
     Provider.family<List<MonthlyTotal>, String>((ref, userId) {
+      // Everyday too, so the bars compare like with like against the panels
+      // above them — and so a rent rise does not flatten every other month.
       final expenses = ref
           .watch(allUserExpensesProvider(userId))
-          .spendable(ref.watch(categoryKindsProvider))
+          .ofKind(ref.watch(categoryKindsProvider), CategoryKind.everyday)
           .toList();
       final now = DateTime.now();
       final anchor = DateTime(now.year, now.month, 1);
@@ -336,11 +376,11 @@ final analyticsBudgetInsightProvider = Provider.family<BudgetInsight, String>((
   ref,
   userId,
 ) {
-  // Spending only: these figures are compared against the budget, and the
-  // budget no longer counts investments or transfers.
+  // Everyday only: these figures are compared against the budget, and the
+  // budget is the everyday allowance.
   final expenses = ref
       .watch(analyticsExpensesProvider(userId))
-      .spendable(ref.watch(categoryKindsProvider))
+      .ofKind(ref.watch(categoryKindsProvider), CategoryKind.everyday)
       .toList();
   final budgetMetrics = ref.watch(budgetMetricsProvider(userId));
   final budgetIntelligence = ref.watch(budgetIntelligenceProvider(userId));

@@ -1,3 +1,31 @@
+/// A window's money grouped by what it was for, rather than by category.
+class KindSplit {
+  final double everyday;
+  final double committed;
+  final double invested;
+  final double moved;
+  final double income;
+
+  const KindSplit({
+    required this.everyday,
+    required this.committed,
+    required this.invested,
+    required this.moved,
+    required this.income,
+  });
+
+  /// Money consumed. The denominator for the two shares that are compared.
+  double get spent => everyday + committed;
+
+  /// The share of spending that was not a week-to-week choice. This is the
+  /// number the whole section exists to show.
+  double get committedShare => spent <= 0 ? 0 : committed / spent;
+
+  double get everydayShare => spent <= 0 ? 0 : everyday / spent;
+
+  bool get isEmpty => spent <= 0 && invested <= 0 && moved <= 0 && income <= 0;
+}
+
 class CategoryStat {
   final String category;
   final double amount;

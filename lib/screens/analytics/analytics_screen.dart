@@ -20,6 +20,7 @@ import 'widgets/analytics_section.dart';
 import 'widgets/analytics_summary_card.dart';
 import 'widgets/category_legend.dart';
 import 'widgets/chart_card.dart';
+import 'widgets/kind_split_panel.dart';
 import 'widgets/debt_overview_panel.dart';
 import 'widgets/net_balance_trend_chart.dart';
 
@@ -40,6 +41,7 @@ class AnalyticsScreen extends ConsumerWidget {
     final hasData = expenses.isNotEmpty;
     final summary = ref.watch(analyticsSummaryProvider(userId));
     final categoryStats = ref.watch(analyticsCategoryStatsProvider(userId));
+    final kindSplit = ref.watch(analyticsKindStatsProvider(userId));
     final monthlyTotals = ref.watch(analyticsMonthlyTotalsProvider(userId));
     final trendPoints = ref.watch(analyticsTrendProvider(userId));
     final paymentStats = ref.watch(analyticsPaymentMethodStatsProvider(userId));
@@ -61,7 +63,7 @@ class AnalyticsScreen extends ConsumerWidget {
         : null;
     final summaryCards = [
       AnalyticsSummaryCard(
-        label: 'Total Spend',
+        label: 'Everyday spend',
         value: AppFormatters.formatCurrency(summary.totalSpent),
         // Investments are not spending, but they are money that left, so the
         // figure is worth saying once — beside the total, not inside it. Only
@@ -182,6 +184,20 @@ class AnalyticsScreen extends ConsumerWidget {
                       message: 'Add a few transactions to unlock insights.',
                     ),
                   ] else ...[
+                    AnalyticsSection(
+                      title: 'Where the money went',
+                      subtitle: 'Bills against what you chose to spend',
+                      child: ChartCard(
+                        title: 'Everyday vs bills',
+                        subtitle: scope.label,
+                        isEmpty: kindSplit.isEmpty,
+                        emptyState: const AnalyticsEmptyState(
+                          title: 'Nothing yet',
+                          message: 'Add an expense and the split appears here.',
+                        ),
+                        child: KindSplitPanel(split: kindSplit),
+                      ),
+                    ),
                     twoUp(
                       AnalyticsSection(
                         stretch: isWide,
@@ -191,17 +207,17 @@ class AnalyticsScreen extends ConsumerWidget {
                         subtitle: 'Last 6 months · every cycle',
                         child: ChartCard(
                           title: 'Monthly Spending',
-                          subtitle: 'Totals by month',
+                          subtitle: 'Everyday totals by month',
                           child: MonthlySpendingBarChart(data: monthlyTotals),
                         ),
                       ),
                       AnalyticsSection(
                         stretch: isWide,
                         title: 'Category Breakdown',
-                        subtitle: 'Share of spend by category',
+                        subtitle: 'Where your everyday money goes',
                         child: ChartCard(
                           title: 'Category Mix',
-                          subtitle: 'Top categories in focus',
+                          subtitle: 'Everyday spending only',
                           child: categoryStats.isEmpty
                               ? const AnalyticsEmptyState(
                                   title: 'No category data',
