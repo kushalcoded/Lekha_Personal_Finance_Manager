@@ -146,6 +146,7 @@ Full design: `~/.claude/plans/swift-bubbling-conway.md`.
 
 | What | Why it needs you |
 |---|---|
+| Mark Electricity as a bill, add it as recurring | The committed/everyday split only means something once your own bills are marked |
 | Drive a group split with a real member | Only a second person can confirm the group page shows it, once |
 | See the restore screen on a real reinstall | Needs a wiped device |
 
@@ -227,6 +228,71 @@ Done on the live project (2026-09-15): the `merchant` column was added and
 **Still unverified live:** the group split flow with a real member, and the
 restore screen on a real reinstall. Screenshot import was used once ("10
 already here"); the new breakdown message has not been seen yet.
+
+### 12. Money that isn't spending, and three loose ends (2026-09-16)
+
+Unreleased — on `main`, not in any build the user runs yet.
+
+**The one idea behind five of these.** Every expense counted the same way:
+filter by date, fold `amount`, exclude nothing. Rent competed with food, a SIP
+read as a blowout, a card bill would have counted twice, refunds were
+impossible and income was a single number in Settings. Every category now
+carries a **kind** — everyday · a bill · investment · moving money · money in —
+and `spendable(kinds)` is how every total asks. It lives on the category
+because categories ride the settings map, so it syncs, merges and backs up with
+no new plumbing, and it survives a rename.
+
+- [x] **Home leads with "left to spend"** (`9784efc`), over a bullet meter:
+      bills, then everyday, then what's left, with a hairline where the bills
+      were expected to end. Bills and everyday are budgeted apart, so a heavy
+      electricity month no longer reads as overspending.
+- [x] **Bills & SIPs due on Home.** Nothing generated a recurring expense on its
+      own and the only button was behind an app-bar icon on another screen. Tap
+      **Paid** for the usual amount, tap the **amount** for a different one —
+      the whole answer to an electricity bill that is never the same twice.
+- [x] **Investments out of spending**, shown as their own line.
+- [x] **Refunds** — a Refund button on any expense, stored as a negative amount,
+      so every total, chart, export and sync nets it off unchanged.
+- [x] **Income entries** via a Spent/Received switch; `actualSavings` stops
+      being an estimate.
+- [x] **Spread a yearly bill** over 6 or 12 cycles, holding back a share each
+      time rather than wrecking the one it lands in.
+- [x] **Credit cards** (`fbe65d1`) — a Cards section in Debts, a ledger shaped
+      like the person ledger, partial payments that carry over. The balance is
+      spending minus transfers on that method, all time; no new box.
+- [x] **Swipe between tabs** (`ee66c9b`). The Insights scope swipe was removed
+      so one horizontal gesture means one thing.
+- [x] **Delete a group** (`16409f0`) — the bills and debts stay in your books;
+      only the shared page goes.
+- [x] **Reopening the app resumes it** (`0ca6a90`). `android:taskAffinity=""`,
+      there since the first commit, made the launcher icon start a new activity
+      rather than resume the running one.
+
+**Caught in review or by the tests, worth remembering**
+
+- `max(committedSpent, committedPlanned)` silently stops reserving the second
+  bill the moment the first one generates. It is addition, with a regression
+  test.
+- Reshaping `paymentMethods` to hold card settings would **corrupt data** on an
+  older build — `getPaymentMethods` maps every entry through `toString()`. Card
+  config lives in its own `cards` settings key.
+- The design goldens caught a crash: the pager's `PageController` was a `late
+  final` reading `ref`, and on desktop it was first touched in `dispose()`.
+- Renaming a capped category silently dropped its cap — `categoryBudgets` is
+  keyed by name and the migration never moved it. Fixed in passing.
+
+**Known, accepted:** `categories` is one atomic settings key, so editing
+categories on a build without kinds writes a kind-less list and the merge takes
+it. A name table restores the seeded ones; a kind set on a custom category is
+lost. There is a test that says so.
+
+**Needs the user, once:** mark Electricity (and any other own-bill category) as
+*A bill* in Settings → Categories, and add it as a recurring bill so it appears
+under "Due now". Everything else surfaces on its own — Received only once an
+income category exists, Cards only once a payment method is marked as one.
+
+**Still unverified live:** everything in this section. Nothing has run on a real
+device yet.
 
 ## Android
 

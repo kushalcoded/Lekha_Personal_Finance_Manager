@@ -13,6 +13,7 @@ feature log; `MEMORY.md` (gitignored) is the long-form project memory; the
 |---|---|
 | Web (lekhamoney.app) | Live on `main`, deploys on every push via GitHub Pages (`gh run list`) |
 | Latest GitHub release | **v1.3.1** (`1.3.1+15`, released 2026-09-16, same signing key) |
+| Unreleased on `main` | Money kinds, cards, refunds, income, swipe nav, group delete, the Android resume fix — see PROGRESS §12. Not on any device or on the web yet |
 | Supabase | `detected_transactions.merchant` column added; `gemini-proxy` and `ingest-sms` redeployed with image + merchant support (2026-09-15). `share` unchanged |
 | Tests | 295 logic tests pass, analyzer clean. Design goldens (26) drift daily — see Known issues |
 | Devices | User's Android phone (Galaxy S20 FE, `SM_G781B`) still does SMS detection. The user is **moving to iPhone** and will use the web app in Safari there |
@@ -24,12 +25,14 @@ same cloud version; Home shows the single summary card.
 
 ## Open threads
 
-1. **Screenshot import** was used once and reported "10 already here". The
+1. **Nothing in PROGRESS §12 has run on a real device.** It is committed but
+   not pushed, so lekhamoney.app is still on 1.3.1.
+2. **Screenshot import** was used once and reported "10 already here". The
    message now says where each skipped payment is; the user has not re-tried.
    If it names expenses they never added, the same-day-same-amount matching in
    `lib/providers/sms/screenshot_import.dart` is too loose.
-2. **Group split flow** has not been driven with a real member.
-3. **Restore screen** has never been seen on a real reinstall.
+3. **Group split flow** has not been driven with a real member.
+4. **Restore screen** has never been seen on a real reinstall.
 
 ## Ideas not yet started
 
@@ -115,10 +118,29 @@ matches exactly once. `dart format lib test` after.
 - "Record a payment" publishes settlement rows to affected groups; accepting a
   guest settlement settles between payer and receiver (`settlementWith`).
 
+**Money kinds** (`lib/models/category/category_kinds.dart`, 2026-09-16)
+- Every `ExpenseCategory` carries a `CategoryKind`: everyday · committed ·
+  investment · transfer · income. `countsAsSpent` = everyday + committed, and
+  `Iterable<Expense>.spendable(kinds)` is how every total asks.
+- Budget: `committedReserved = committedSpent + committedPlanned` (added, never
+  max-ed), `everydayAllowance = budget − that`, and `everydayLeft` is the Home
+  hero. A yearly bill can set `spreadOverCycles` to reserve a share per cycle.
+- Refunds are negative-amount expenses; income is an expense in an income-kind
+  category (Spent/Received switch in the add sheet); a card balance is
+  spending-minus-transfers on that method, all time.
+- Cards live in Debts (`card_ledger_screen.dart`); their statement days are a
+  separate `cards` settings key — never reshape `paymentMethods`.
+- Filter once in `analyticsScopedExpensesProvider`; never filter
+  `cycleExpensesProvider` or the expense-list stats.
+
 **Detected payments** — SMS (Android receiver, iPhone via `ingest-sms`) and
 payment screenshots (Gemini vision through `gemini-proxy`) feed one Detected
 list. Screenshot rows are `shot_…` ids and never `provisional`.
 `PendingTransaction.merchant` shows on cards only and is cleared on add/dismiss.
+
+**Navigation**: the phone layout pages between tabs (`PageView` in
+`app_shell.dart`); desktop keeps a switch and keys 1-4. The Insights scope
+swipe was removed so one horizontal gesture means one thing.
 
 **UI**: all messages go through `showNotice` (`lib/widgets/common/top_notice.dart`,
 top of screen). Sync buttons use `syncWithFeedback`. Home has one summary card:
