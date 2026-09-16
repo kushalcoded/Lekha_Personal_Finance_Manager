@@ -20,13 +20,33 @@ class ExportDataset {
   final List<RecurringExpenseTemplate> recurringTemplates;
   final ExportBudgetSnapshot budget;
 
+  /// What each category means, lower-cased, so the export can tell money spent
+  /// from money that merely moved. Empty for an export built before kinds
+  /// existed, in which case everything reads as everyday — the old behaviour.
+  final Map<String, String> categoryKinds;
+
   const ExportDataset({
     required this.expenses,
     required this.receivables,
     required this.payables,
     required this.recurringTemplates,
     required this.budget,
+    this.categoryKinds = const {},
   });
+
+  String kindOf(String category) =>
+      categoryKinds[category.trim().toLowerCase()] ?? 'everyday';
+
+  /// The rows the summary block describes. The expense rows themselves stay
+  /// complete — an export that silently omitted your SIPs would be a broken
+  /// export, not a tidy one.
+  List<Expense> get spending => expenses
+      .where(
+        (e) =>
+            kindOf(e.category) == 'everyday' ||
+            kindOf(e.category) == 'committed',
+      )
+      .toList();
 }
 
 class ExportBudgetSnapshot {
@@ -79,7 +99,7 @@ class ExportService {
     required String fileNameBase,
   }) {
     final encoder = CsvEncoder();
-    final summary = buildAnalyticsSummary(dataset.expenses);
+    final summary = buildAnalyticsSummary(dataset.spending);
 
     final lines = <String>[];
     lines.add('EXPENSES');
@@ -278,7 +298,7 @@ class ExportService {
     _addPayableSettlementsSheet(excel, dataset.payables);
     _addRecurringSheet(excel, dataset.recurringTemplates);
     if (includeAnalyticsSummary) {
-      final summary = buildAnalyticsSummary(dataset.expenses);
+      final summary = buildAnalyticsSummary(dataset.spending);
       _addAnalyticsSheet(excel, summary);
     }
 
@@ -307,7 +327,7 @@ class ExportService {
     required String fileNameBase,
   }) async {
     final doc = pw.Document(title: title);
-    final summary = buildAnalyticsSummary(dataset.expenses);
+    final summary = buildAnalyticsSummary(dataset.spending);
 
     final palette = _pdfPalette(darkTheme: darkTheme);
 

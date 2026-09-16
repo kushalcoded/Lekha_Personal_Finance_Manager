@@ -125,14 +125,6 @@ final recentExpensesProvider = Provider.family<List<Expense>, String>((
     ..sort((a, b) => b.date.compareTo(a.date));
 });
 
-final totalExpensesProvider = Provider.family<double, String>((ref, userId) {
-  final expenses = ref.watch(expensesProvider).expenses;
-  return expenses.fold(
-    0.0,
-    (sum, e) => sum + (e.userId == userId ? e.amount : 0),
-  );
-});
-
 // Receivables
 class ReceivablesState {
   final List<Receivable> receivables;

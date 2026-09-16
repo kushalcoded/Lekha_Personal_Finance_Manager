@@ -6,7 +6,9 @@ import 'package:speech_to_text/speech_to_text.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/category_styles.dart';
+import '../../../models/category/expense_category.dart';
 import '../../../models/expense/expense_model.dart';
+import '../../../providers/categories/category_providers.dart';
 import '../../../providers/ai_providers.dart';
 import '../../../providers/auth/auth_provider.dart';
 import '../../../providers/budget/category_budget_providers.dart';
@@ -133,6 +135,11 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
   final SpeechToText _speech = SpeechToText();
 
   String? _selectedCategory;
+
+  /// Money in rather than money out. An income entry is an ordinary expense in
+  /// an income-kind category — so it syncs, exports, edits and lists like
+  /// everything else — and every spending total skips it by kind.
+  bool _incoming = false;
   String? _selectedPaymentMethod;
   DateTime _selectedDate = DateTime.now();
   late SplitConfig _split = widget.initialSplit ?? const SplitConfig();
@@ -640,6 +647,20 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
     );
   }
 
+  /// Does any income category exist yet? Until one does, the Spent/Received
+  /// switch would be a control with nothing behind it, so it stays hidden.
+  bool _hasIncomeCategory(WidgetRef ref) =>
+      ref.watch(categoriesProvider).any((c) => c.kind == CategoryKind.income);
+
+  /// Income categories belong on the Received side and nowhere else — picking
+  /// "Salary" as a spend category is always a mistake.
+  List<String> _forDirection(WidgetRef ref, List<String> names) {
+    final kinds = ref.watch(categoryKindsProvider);
+    return names
+        .where((name) => (kinds.of(name) == CategoryKind.income) == _incoming)
+        .toList();
+  }
+
   /// Mockup amount entry: naked over a hairline underline — muted ₹, the
   /// figure in Space Grotesk, calculator total ('450+89') live at the right.
   Widget _categoryPills(List<String> names) {
@@ -950,6 +971,30 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                       _nlQuickAdd(cs),
                       const SizedBox(height: 18),
                     ],
+                    if (_hasIncomeCategory(ref) || _incoming) ...[
+                      Row(
+                        children: [
+                          ChoicePill(
+                            label: 'Spent',
+                            selected: !_incoming,
+                            onTap: () => setState(() {
+                              _incoming = false;
+                              _selectedCategory = null;
+                            }),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoicePill(
+                            label: 'Received',
+                            selected: _incoming,
+                            onTap: () => setState(() {
+                              _incoming = true;
+                              _selectedCategory = null;
+                            }),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                    ],
                     // Mockup order: amount → category → paid via → date·split →
                     // notes → save.
                     const FieldLabel('Amount'),
@@ -964,9 +1009,9 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    _categoryPills(ordered.frequent),
-                    if (ordered.frequent.isNotEmpty &&
-                        ordered.rest.isNotEmpty) ...[
+                    _categoryPills(_forDirection(ref, ordered.frequent)),
+                    if (_forDirection(ref, ordered.frequent).isNotEmpty &&
+                        _forDirection(ref, ordered.rest).isNotEmpty) ...[
                       // Separates "what you actually use" from the A–Z remainder, so
                       // the pills above read as deliberately placed rather than
                       // arbitrarily first.
@@ -978,7 +1023,25 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                       ),
                       const SizedBox(height: 12),
                     ],
-                    _categoryPills(ordered.rest),
+                    _categoryPills(_forDirection(ref, ordered.rest)),
+                    if (_incoming && !_hasIncomeCategory(ref)) ...[
+                      const SizedBox(height: 4),
+                      _NoIncomeCategory(
+                        onCreate: () async {
+                          await ref
+                              .read(categoriesProvider.notifier)
+                              .addCategory(
+                                name: 'Salary',
+                                iconKey: 'savings',
+                                colorHex: '#7BC98F',
+                                kind: CategoryKind.income,
+                              );
+                          if (mounted) {
+                            setState(() => _selectedCategory = 'Salary');
+                          }
+                        },
+                      ),
+                    ],
                     if (_showValidation && _selectedCategory == null) ...[
                       const SizedBox(height: 6),
                       Text(
@@ -998,7 +1061,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                       _WarnBanner(text: inlineWarning),
                     ],
                     const SizedBox(height: 18),
-                    const FieldLabel('Paid via'),
+                    FieldLabel(_incoming ? 'Received in' : 'Paid via'),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
@@ -1034,18 +1097,19 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                             onTap: _pickDate,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _MiniTile(
-                            label: 'Split',
-                            value: _split.isActive
-                                ? '${_split.people.length + 1} people · '
-                                      'your ${AppFormatters.formatCurrency(_splitResult.myShare)}'
-                                : 'Just me',
-                            muted: !_split.isActive,
-                            onTap: _openSplit,
+                        if (!_incoming) const SizedBox(width: 8),
+                        if (!_incoming)
+                          Expanded(
+                            child: _MiniTile(
+                              label: 'Split',
+                              value: _split.isActive
+                                  ? '${_split.people.length + 1} people · '
+                                        'your ${AppFormatters.formatCurrency(_splitResult.myShare)}'
+                                  : 'Just me',
+                              muted: !_split.isActive,
+                              onTap: _openSplit,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                     if (_outOfCycle(ref)) ...[
@@ -1097,7 +1161,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: GradientButton(
-                    label: 'Add expense',
+                    label: _incoming ? 'Record income' : 'Add expense',
                     enabled: _isFormValid,
                     onPressed: _handleSave,
                   ),
@@ -1105,7 +1169,7 @@ class _AddExpenseFormState extends ConsumerState<AddExpenseForm> {
               ],
             )
           : GradientButton(
-              label: 'Add expense',
+              label: _incoming ? 'Record income' : 'Add expense',
               enabled: _isFormValid,
               onPressed: _handleSave,
             ),
@@ -1195,6 +1259,36 @@ class _WarnBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Received is picked but there is nowhere to put the money yet. Offered
+/// rather than created silently: a category the user never asked for would
+/// reappear every time they deleted it.
+class _NoIncomeCategory extends StatelessWidget {
+  final Future<void> Function() onCreate;
+
+  const _NoIncomeCategory({required this.onCreate});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'No income categories yet.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        TextButton(
+          onPressed: onCreate,
+          style: TextButton.styleFrom(padding: EdgeInsets.zero),
+          child: const Text('Add a Salary category'),
+        ),
+      ],
     );
   }
 }

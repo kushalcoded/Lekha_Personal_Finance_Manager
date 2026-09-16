@@ -22,6 +22,21 @@ class RecurringExpenseTemplate {
   final DateTime createdAt;
   final DateTime? updatedAt;
 
+  /// Spread this bill's cost across this many cycles when budgeting.
+  ///
+  /// An annual insurance premium lands in one cycle and wrecks it, even though
+  /// you knew about it all year. With 12 here, the budget holds back a twelfth
+  /// each cycle and the real payment, when it comes, draws only that twelfth
+  /// from the allowance. The expense itself is still recorded in full — this
+  /// changes planning, never the record. 1 means no spreading.
+  final int spreadOverCycles;
+
+  /// What to set aside per cycle. Equal to [amount] unless spread.
+  double get cycleShare =>
+      spreadOverCycles > 1 ? amount / spreadOverCycles : amount;
+
+  bool get isSpread => spreadOverCycles > 1;
+
   const RecurringExpenseTemplate({
     required this.id,
     required this.userId,
@@ -36,6 +51,7 @@ class RecurringExpenseTemplate {
     this.lastGeneratedExpenseId,
     required this.createdAt,
     this.updatedAt,
+    this.spreadOverCycles = 1,
   });
 
   RecurringExpenseTemplate copyWith({
@@ -52,6 +68,7 @@ class RecurringExpenseTemplate {
     String? lastGeneratedExpenseId,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? spreadOverCycles,
   }) {
     return RecurringExpenseTemplate(
       id: id ?? this.id,
@@ -68,6 +85,7 @@ class RecurringExpenseTemplate {
           lastGeneratedExpenseId ?? this.lastGeneratedExpenseId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      spreadOverCycles: spreadOverCycles ?? this.spreadOverCycles,
     );
   }
 
@@ -86,6 +104,7 @@ class RecurringExpenseTemplate {
       'lastGeneratedExpenseId': lastGeneratedExpenseId,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+      'spreadOverCycles': spreadOverCycles,
     };
   }
 
@@ -111,6 +130,7 @@ class RecurringExpenseTemplate {
       updatedAt: json['updatedAt'] == null
           ? null
           : DateTime.parse(json['updatedAt'] as String),
+      spreadOverCycles: (json['spreadOverCycles'] as num?)?.toInt() ?? 1,
     );
   }
 }

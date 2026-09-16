@@ -4,6 +4,7 @@ import '../../../core/constants/category_styles.dart';
 import '../../../models/expense/expense_model.dart';
 import '../../../utils/formatters/formatters.dart';
 import '../utils/expense_helpers.dart';
+import 'refund_sheet.dart';
 
 Future<void> showExpenseDetailsSheet({
   required BuildContext context,
@@ -195,6 +196,18 @@ class ExpenseDetailsContent extends StatelessWidget {
                 style: TextButton.styleFrom(foregroundColor: colorScheme.error),
                 child: const Text('Delete'),
               ),
+              // Only on money that went out — refunding a refund is not a
+              // thing, and income comes back through its own entry.
+              if (expense.amount > 0) ...[
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () {
+                    if (!inline) Navigator.of(context).pop();
+                    showRefundSheet(context, expense);
+                  },
+                  child: const Text('Refund'),
+                ),
+              ],
               const Spacer(),
               ElevatedButton(
                 onPressed: () {

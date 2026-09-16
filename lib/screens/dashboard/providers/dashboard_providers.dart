@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/auth/auth_provider.dart';
+import '../../../models/category/category_kinds.dart';
+import '../../../providers/categories/category_providers.dart';
 import '../../../providers/cycle/cycle_providers.dart';
 import '../../../providers/storage/storage_providers.dart';
 import '../../settings/providers/settings_providers.dart';
@@ -55,30 +57,29 @@ final dashboardProvider = Provider<DashboardState>((ref) {
   final now = DateTime.now();
   final thirtyDaysAgo = now.subtract(const Duration(days: 30));
 
-  final currentCycleExpenses = expenses.where(
-    (e) =>
-        e.userId == userId &&
-        !e.date.isBefore(cycleStart) &&
-        !e.date.isAfter(now),
-  );
+  final kinds = ref.watch(categoryKindsProvider);
+  final currentCycleExpenses = expenses
+      .where(
+        (e) =>
+            e.userId == userId &&
+            !e.date.isBefore(cycleStart) &&
+            !e.date.isAfter(now),
+      )
+      .spendable(kinds);
 
-  final cycleTotal = currentCycleExpenses.fold<double>(
-    0.0,
-    (sum, e) => sum + e.amount,
-  );
+  final cycleTotal = currentCycleExpenses.total;
 
   final unpaidReceivables = receivables
       .where((r) => r.userId == userId && !r.isPaid)
       .fold<double>(0.0, (sum, r) => sum + r.amount);
 
-  final lastThirtyDaysExpenses = expenses.where(
-    (e) => e.userId == userId && e.date.isAfter(thirtyDaysAgo),
-  );
+  final lastThirtyDaysExpenses = expenses
+      .where((e) => e.userId == userId && e.date.isAfter(thirtyDaysAgo))
+      .spendable(kinds);
 
   final dailyAvg = lastThirtyDaysExpenses.isEmpty
       ? 0.0
-      : (lastThirtyDaysExpenses.fold<double>(0.0, (sum, e) => sum + e.amount) /
-            30);
+      : lastThirtyDaysExpenses.total / 30;
 
   return DashboardState(
     totalExpensesThisMonth: cycleTotal,
@@ -102,23 +103,9 @@ final recentExpensesProvider = Provider.family<List<Expense>, String>((
     ..sort((a, b) => b.date.compareTo(a.date));
 });
 
-/// Reactive monthly spend (watches expenses)
-final monthlySpendProvider = Provider.family<double, String>((ref, userId) {
-  final expenses = ref.watch(expensesProvider).expenses;
-  final now = DateTime.now();
-  final cycleStart = ref.watch(settingsProvider).currentCycleStartDate;
-
-  final currentCycleExpenses = expenses.where(
-    (e) =>
-        e.userId == userId &&
-        !e.date.isBefore(cycleStart) &&
-        !e.date.isAfter(now),
-  );
-
-  return currentCycleExpenses.fold<double>(0.0, (sum, e) => sum + e.amount);
-});
-
-/// Reactive transaction count (watches expenses)
+/// How many spends the figure beside it is made of. Counted the same way the
+/// amount is, or the AI is told "₹40k across 38 transactions" when three of
+/// the 38 contributed nothing.
 final transactionCountProvider = Provider.family<int, String>((ref, userId) {
   final expenses = ref.watch(expensesProvider).expenses;
   final now = DateTime.now();
@@ -131,25 +118,8 @@ final transactionCountProvider = Provider.family<int, String>((ref, userId) {
             !e.date.isBefore(cycleStart) &&
             !e.date.isAfter(now),
       )
+      .spendable(ref.watch(categoryKindsProvider))
       .length;
-});
-
-/// Reactive daily average (watches expenses)
-final dailyAverageProvider = Provider.family<double, String>((ref, userId) {
-  final expenses = ref.watch(expensesProvider).expenses;
-  final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-
-  final lastThirtyDaysExpenses = expenses.where(
-    (e) => e.userId == userId && e.date.isAfter(thirtyDaysAgo),
-  );
-
-  if (lastThirtyDaysExpenses.isEmpty) return 0.0;
-
-  final total = lastThirtyDaysExpenses.fold<double>(
-    0.0,
-    (sum, e) => sum + e.amount,
-  );
-  return total / 30;
 });
 
 /// Reactive receivables total (watches receivables)

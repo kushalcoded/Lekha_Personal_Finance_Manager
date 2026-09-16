@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../../../models/category/category_kinds.dart';
+import '../../../providers/categories/category_providers.dart';
 import '../../../models/expense/expense_model.dart';
 import '../../../providers/budget/budget_providers.dart';
 import '../../../providers/cycle/cycle_providers.dart';
@@ -156,17 +158,26 @@ final allUserExpensesProvider = Provider.family<List<Expense>, String>((
 /// lie: it used to clamp to the start of today, so anything added today was
 /// invisible until tomorrow — the dashboard counted it, Insights didn't, and
 /// the two totals disagreed by exactly that amount.
+///
+/// Spending only. Investments, card-bill payments and income moved money but
+/// were not spent, and this is the single upstream of the category, summary,
+/// trend and payment-method panels — they must filter identically or the pie
+/// percentages stop matching the total printed above them.
 final analyticsScopedExpensesProvider = Provider.family<List<Expense>, String>((
   ref,
   userId,
 ) {
+  final kinds = ref.watch(categoryKindsProvider);
   final scope = ref.watch(analyticsScopeProvider);
   if (scope == AnalyticsScope.cycle) {
-    return ref.watch(analyticsExpensesProvider(userId));
+    return ref.watch(analyticsExpensesProvider(userId)).spendable(kinds).toList();
   }
   final expenses = ref.watch(allUserExpensesProvider(userId));
   final start = analyticsScopeStart(scope, DateTime.now());
-  return expenses.where((expense) => !expense.date.isBefore(start)).toList();
+  return expenses
+      .where((expense) => !expense.date.isBefore(start))
+      .spendable(kinds)
+      .toList();
 });
 
 final analyticsCategoryStatsProvider =
@@ -177,6 +188,10 @@ final analyticsCategoryStatsProvider =
         totals[expense.category] =
             (totals[expense.category] ?? 0) + expense.amount;
       }
+      // A refund is a negative expense, so a category can net out to zero or
+      // below. Those are not slices of anything — drop them rather than draw a
+      // negative arc. The cycle total above still counts them.
+      totals.removeWhere((_, value) => value <= 0);
       final totalSpent = totals.values.fold(0.0, (sum, value) => sum + value);
       final stats =
           totals.entries
@@ -218,7 +233,10 @@ final analyticsSummaryProvider = Provider.family<AnalyticsSummary, String>((
 /// list, which meant five of its six bars could only ever be zero.
 final analyticsMonthlyTotalsProvider =
     Provider.family<List<MonthlyTotal>, String>((ref, userId) {
-      final expenses = ref.watch(allUserExpensesProvider(userId));
+      final expenses = ref
+          .watch(allUserExpensesProvider(userId))
+          .spendable(ref.watch(categoryKindsProvider))
+          .toList();
       final now = DateTime.now();
       final anchor = DateTime(now.year, now.month, 1);
       final months = List.generate(6, (index) {
@@ -315,7 +333,12 @@ final analyticsBudgetInsightProvider = Provider.family<BudgetInsight, String>((
   ref,
   userId,
 ) {
-  final expenses = ref.watch(analyticsExpensesProvider(userId));
+  // Spending only: these figures are compared against the budget, and the
+  // budget no longer counts investments or transfers.
+  final expenses = ref
+      .watch(analyticsExpensesProvider(userId))
+      .spendable(ref.watch(categoryKindsProvider))
+      .toList();
   final budgetMetrics = ref.watch(budgetMetricsProvider(userId));
   final budgetIntelligence = ref.watch(budgetIntelligenceProvider(userId));
   final now = DateTime.now();
@@ -378,15 +401,6 @@ final budgetVsActualProvider =
 
 DateTime _startOfDay(DateTime date) {
   return DateTime(date.year, date.month, date.day);
-}
-
-/// The scope a swipe lands on. Stops at the ends rather than wrapping: coming
-/// back round to "this cycle" after 12M would feel like a glitch, not a move.
-AnalyticsScope adjacentScope(AnalyticsScope from, {required bool forward}) {
-  final order = AnalyticsScope.values;
-  final next = order.indexOf(from) + (forward ? 1 : -1);
-  if (next < 0 || next >= order.length) return from;
-  return order[next];
 }
 
 /// First day included by a rolling scope. Cycle scope has no formula — its

@@ -18,6 +18,8 @@ import '../../providers/sms/sms_providers.dart';
 import '../../providers/auth/auth_provider.dart';
 import '../../providers/budget/budget_providers.dart';
 import '../../providers/clock_provider.dart';
+import '../../models/category/category_kinds.dart';
+import '../../providers/categories/category_providers.dart';
 import '../../providers/cycle/cycle_providers.dart';
 import '../../providers/debt/debt_providers.dart';
 import '../receivables/providers/receivables_providers.dart';
@@ -37,6 +39,7 @@ import '../settings/providers/reminder_providers.dart';
 import '../settings/providers/settings_providers.dart';
 import '../settings/settings_screen.dart';
 import 'providers/dashboard_providers.dart';
+import 'widgets/bills_due_card.dart';
 import 'widgets/budget_settings_modal.dart';
 import 'widgets/setup_checklist_card.dart';
 import '../../widgets/common/top_notice.dart';
@@ -52,7 +55,6 @@ class DashboardScreen extends ConsumerWidget {
     final dashboardState = ref.watch(dashboardProvider);
     final recentExpenses = ref.watch(recentExpensesProvider(userId));
     final aiSummary = ref.watch(dashboardAiSummaryProvider(userId));
-    final monthlySpend = ref.watch(monthlySpendProvider(userId));
     final receivablesTotal = ref.watch(receivablesTotalProvider(userId));
     final payablesTotal = ref.watch(totalPayablesProvider(userId));
     final overdueReceivableCount = ref
@@ -62,13 +64,20 @@ class DashboardScreen extends ConsumerWidget {
     final budgetMetrics = ref.watch(budgetMetricsProvider(userId));
     final settings = ref.watch(settingsProvider);
 
+    // Spending only — a SIP is not a category you overspent in, and a card
+    // bill payment belongs to the purchases it settles, not to itself.
     final categoryTotals = <String, double>{};
-    for (final e in ref.watch(cycleExpensesProvider)) {
-      if (e.userId != userId) continue;
+    for (final e
+        in ref
+            .watch(cycleExpensesProvider)
+            .where((e) => e.userId == userId)
+            .spendable(ref.watch(categoryKindsProvider))) {
       categoryTotals[e.category] = (categoryTotals[e.category] ?? 0) + e.amount;
     }
-    final topCategories = categoryTotals.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    // A fully refunded category is not a bar; the cycle total still counts it.
+    final topCategories =
+        categoryTotals.entries.where((e) => e.value > 0).toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
 
     final colorScheme = Theme.of(context).colorScheme;
     final calm = CalmColors.of(context);
@@ -90,7 +99,10 @@ class DashboardScreen extends ConsumerWidget {
     );
     final hero = _CycleHealthHero(
       metrics: budgetMetrics,
-      monthlySpend: monthlySpend,
+      daysLeft: ref
+          .watch(cycleEndProvider)
+          .difference(ref.watch(nowProvider)())
+          .inDays,
       onTap: () => showBudgetSettingsModal(context),
     );
     final statTiles = Row(
@@ -165,7 +177,8 @@ class DashboardScreen extends ConsumerWidget {
                               child: Column(
                                 children: [
                                   hero,
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 16),
+                                  const BillsDueCard(),
                                   recent,
                                 ],
                               ),
@@ -191,6 +204,10 @@ class DashboardScreen extends ConsumerWidget {
                       else ...[
                         hero,
                         const SizedBox(height: 16),
+                        // Directly under the money: these are the things that
+                        // move it, and the reason the bills figure above is
+                        // still a reservation rather than a record.
+                        const BillsDueCard(),
                         _AiInsightCard(aiSummary: aiSummary, bottomGap: 12),
                         statTiles,
                         const _DetectedSmsCard(),
@@ -350,14 +367,25 @@ class _Header extends StatelessWidget {
 /// Mockup hero: the spent figure sits naked on the ground — Space Grotesk
 /// with the paise dimmed — over a 'spent this cycle · budget X' caption and
 /// a thin progress bar (red once over). Tap → budget settings.
+/// The cycle in one glance: what is still yours to spend, what the bills have
+/// taken, and — kept deliberately outside both — what went into investments or
+/// merely moved between your own accounts.
+///
+/// The headline used to be "spent this cycle", which answered a question
+/// nobody opens the app with. Rent made it look alarming in the first week and
+/// harmless in the last. "Left to spend" is the number being asked for, and
+/// the meter underneath shows where the rest of the budget went.
 class _CycleHealthHero extends StatelessWidget {
   final BudgetMetrics metrics;
-  final double monthlySpend;
+
+  /// Days until the cycle is expected to roll. Negative once it is overdue,
+  /// which is a real state — the app never rolls a cycle on its own.
+  final int daysLeft;
   final VoidCallback onTap;
 
   const _CycleHealthHero({
     required this.metrics,
-    required this.monthlySpend,
+    required this.daysLeft,
     required this.onTap,
   });
 
@@ -366,70 +394,273 @@ class _CycleHealthHero extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final hasBudget = metrics.hasBudget;
-    final over = hasBudget && metrics.remaining < 0;
-    final money = AppFormatters.formatCurrency(
-      hasBudget ? metrics.spent : monthlySpend,
-    );
+
+    // Without a budget there is no "left", so the old headline is still the
+    // only honest one.
+    final headlineValue = hasBudget ? metrics.everydayLeft : metrics.spent;
+    final headlineIsDeficit = hasBudget && metrics.everydayLeft < 0;
+    final money = AppFormatters.formatCurrency(headlineValue.abs());
     final dot = money.lastIndexOf('.');
     final main = dot == -1 ? money : money.substring(0, dot);
     final paise = dot == -1 ? null : money.substring(dot);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text.rich(
-              TextSpan(
-                text: main,
+    // A cycle nobody has rolled in months would otherwise print "234 days to
+    // go", which is not a countdown anyone believes. Past 45 days the number
+    // says nothing useful, so it says nothing.
+    final showDays = daysLeft >= 0 && daysLeft <= 45;
+    final caption = !hasBudget
+        ? 'spent this cycle'
+        : [
+            headlineIsDeficit ? 'over your everyday budget' : 'left to spend',
+            if (showDays && daysLeft > 1)
+              '$daysLeft days to go'
+            else if (showDays && daysLeft == 1)
+              '1 day to go'
+            else if (showDays && daysLeft == 0)
+              'last day',
+          ].join(' · ');
+
+    return Semantics(
+      button: true,
+      label: hasBudget
+          ? '${headlineIsDeficit ? 'Over by' : 'Left to spend'} $money of '
+                '${AppFormatters.formatCurrency(metrics.everydayAllowance)} '
+                'everyday. Bills '
+                '${AppFormatters.formatCurrency(metrics.committedSpent)} of '
+                '${AppFormatters.formatCurrency(metrics.committedReserved)}.'
+          : 'Spent this cycle $money',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text.rich(
+                TextSpan(
+                  text: headlineIsDeficit ? '-$main' : main,
+                  children: [
+                    if (paise != null)
+                      TextSpan(
+                        text: paise,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurfaceVariant,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                  ],
+                ),
+                style: theme.textTheme.displaySmall?.copyWith(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                  color: headlineIsDeficit ? cs.error : null,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                caption,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              if (hasBudget) ...[
+                const SizedBox(height: 12),
+                _BudgetMeter(metrics: metrics),
+                const SizedBox(height: 12),
+                _MeterLegend(metrics: metrics),
+              ] else if (metrics.invested > 0 || metrics.income > 0) ...[
+                const SizedBox(height: 12),
+                _MeterLegend(metrics: metrics),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A bullet meter: bills, then everyday, then what is left — with a hairline
+/// where the bills were *expected* to end.
+///
+/// Bills sit first because the bar then reads the way the money does:
+/// unavoidable, then yours, then spare. Violet marks the everyday segment
+/// because that is the part you control; the committed segment is deliberately
+/// colourless.
+class _BudgetMeter extends StatelessWidget {
+  final BudgetMetrics metrics;
+
+  const _BudgetMeter({required this.metrics});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final budget = metrics.budget;
+    if (budget <= 0) return const SizedBox.shrink();
+
+    final committed = (metrics.committedSpent / budget).clamp(0.0, 1.0);
+    final everyday = (metrics.everydaySpent / budget).clamp(
+      0.0,
+      1.0 - committed,
+    );
+    // Where the bills were planned to land. Hidden when it would sit under the
+    // rounded end of the bar, where it reads as a rendering artefact.
+    final mark = (metrics.committedReserved / budget).clamp(0.0, 1.0);
+    final showMark = mark > 0.02 && mark < 0.98;
+    final overspent = metrics.isOverAllowance || metrics.isOverCommitted;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(3),
+      child: SizedBox(
+        height: 6,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            return TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: MediaQuery.maybeOf(context)?.disableAnimations ?? false
+                  ? Duration.zero
+                  : const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              builder: (context, t, _) => Stack(
                 children: [
-                  if (paise != null)
-                    TextSpan(
-                      text: paise,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: cs.onSurfaceVariant,
-                        letterSpacing: 0,
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: Colors.white.withValues(alpha: 0.06),
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: width * committed * t,
+                    child: ColoredBox(
+                      color: Colors.white.withValues(alpha: 0.28),
+                    ),
+                  ),
+                  Positioned(
+                    left: width * committed * t,
+                    top: 0,
+                    bottom: 0,
+                    width: width * everyday * t,
+                    child: ColoredBox(color: overspent ? cs.error : cs.primary),
+                  ),
+                  if (showMark)
+                    Positioned(
+                      left: width * mark,
+                      top: 0,
+                      bottom: 0,
+                      width: 1,
+                      child: ColoredBox(
+                        color: Colors.white.withValues(alpha: 0.40),
                       ),
                     ),
                 ],
               ),
-              style: theme.textTheme.displaySmall?.copyWith(
-                fontSize: 30,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              hasBudget
-                  ? 'spent this cycle · budget ${AppFormatters.formatCurrency(metrics.budget)}'
-                  : 'spent this cycle',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-            if (hasBudget) ...[
-              const SizedBox(height: 10),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(3),
-                child: LinearProgressIndicator(
-                  value: metrics.percentSpent.clamp(0.0, 1.0),
-                  minHeight: 4,
-                  backgroundColor: Colors.white.withValues(alpha: 0.06),
-                  valueColor: AlwaysStoppedAnimation(
-                    over ? cs.error : cs.primary,
-                  ),
-                ),
-              ),
-            ],
-          ],
+            );
+          },
         ),
       ),
+    );
+  }
+}
+
+/// The numbers behind the meter. A table so every amount ends on the same x —
+/// ragged figures are what made the old category rows look accidental.
+class _MeterLegend extends StatelessWidget {
+  final BudgetMetrics metrics;
+
+  const _MeterLegend({required this.metrics});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final calm = CalmColors.of(context);
+    final money = AppFormatters.formatCurrency;
+
+    final rows = <TableRow>[
+      if (metrics.hasBudget)
+        _row(
+          context,
+          'Everyday',
+          '${money(metrics.everydaySpent)} / ${money(metrics.everydayAllowance)}',
+          valueColor: metrics.isOverAllowance ? cs.error : null,
+        ),
+      if (metrics.hasBudget && metrics.committedReserved > 0)
+        _row(
+          context,
+          'Bills',
+          '${money(metrics.committedSpent)} / ${money(metrics.committedReserved)}',
+          note: metrics.committedPlanned > 0 ? 'still due' : null,
+        ),
+      if (metrics.income > 0)
+        _row(
+          context,
+          'Came in',
+          money(metrics.income),
+          valueColor: calm.positive,
+        ),
+      if (metrics.invested > 0)
+        _row(
+          context,
+          'Invested',
+          money(metrics.invested),
+          valueColor: calm.positive,
+        ),
+    ];
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    return Table(
+      columnWidths: const {
+        0: FixedColumnWidth(84),
+        1: FlexColumnWidth(),
+        2: IntrinsicColumnWidth(),
+      },
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: rows,
+    );
+  }
+
+  TableRow _row(
+    BuildContext context,
+    String label,
+    String value, {
+    Color? valueColor,
+    String? note,
+  }) {
+    final theme = Theme.of(context);
+    return TableRow(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: FieldLabel(label),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 6),
+          child: Text(
+            note ?? '',
+            textAlign: TextAlign.right,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 11,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          textAlign: TextAlign.right,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: valueColor,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -530,6 +761,8 @@ DashboardInsight _insightFromReminder(AppReminder reminder) => DashboardInsight(
     ReminderType.upcomingRecurringExpense => InsightTarget.expenses,
     ReminderType.budgetWarning => InsightTarget.insights,
     ReminderType.monthlyBudgetPrompt => InsightTarget.insights,
+    // A card bill is money owed, and Debts is where cards live.
+    ReminderType.cardBillDue => InsightTarget.debts,
   },
 );
 

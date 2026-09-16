@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../models/category/category_kinds.dart';
+import '../../../providers/categories/category_providers.dart';
 import '../../../models/expense/expense_model.dart';
 import '../../../models/receivable/receivable_model.dart';
 import '../../../providers/storage/storage_providers.dart';
@@ -147,8 +149,9 @@ class ExportNotifier extends StateNotifier<ExportState> {
       final payables = hive.getAllPayables(userId);
       final recurring = hive.getRecurringTemplates(userId);
       final budget = hive.getMonthlyBudget(userId, DateTime.now());
+      final kinds = _ref.read(categoryKindsProvider);
       final currentMonthSpent = _sumCurrentMonth(
-        expensesSource,
+        expensesSource.spendable(kinds).toList(),
         userId: userId,
       );
 
@@ -162,6 +165,10 @@ class ExportNotifier extends StateNotifier<ExportState> {
         payables: payables,
         recurringTemplates: recurring,
         budget: ExportBudgetSnapshot(budget: budget, spent: currentMonthSpent),
+        categoryKinds: {
+          for (final c in _ref.read(categoriesProvider))
+            c.name.trim().toLowerCase(): c.kind.name,
+        },
       );
 
       final generated = switch (request.format) {

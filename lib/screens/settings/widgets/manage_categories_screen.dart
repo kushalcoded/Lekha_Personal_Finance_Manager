@@ -4,6 +4,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 
 import '../../../core/constants/category_styles.dart';
 import '../../../models/category/expense_category.dart';
+import '../../../widgets/common/form_bits.dart';
 import '../../../providers/ai_providers.dart';
 import '../../../providers/categories/category_providers.dart';
 import '../../../widgets/common/glass.dart';
@@ -80,6 +81,7 @@ class ManageCategoriesScreen extends ConsumerWidget {
         name: result.name,
         iconKey: result.iconKey,
         colorHex: result.colorHex,
+        kind: result.kind,
       );
       return;
     }
@@ -100,6 +102,9 @@ class ManageCategoriesScreen extends ConsumerWidget {
       iconKey: result.iconKey,
       colorHex: result.colorHex,
     );
+    if (result.kind != existing.kind) {
+      await notifier.updateKind(result.name, result.kind);
+    }
   }
 
   Future<void> _confirmDelete(
@@ -302,12 +307,22 @@ class _CategoryRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontSize: 11.5,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          subtitle,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                        // Only the kinds that change the maths announce
+                        // themselves; everyday is the norm and says nothing.
+                        if (category.kind.tag case final tag?) ...[
+                          const SizedBox(width: 8),
+                          FieldLabel(tag),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -332,6 +347,29 @@ class _CategoryRow extends StatelessWidget {
 }
 
 /// Add / edit dialog for a single category (name + icon + color).
+String _kindLabel(CategoryKind kind) => switch (kind) {
+  CategoryKind.everyday => 'Everyday',
+  CategoryKind.committed => 'A bill',
+  CategoryKind.investment => 'Investment',
+  CategoryKind.transfer => 'Moving money',
+  CategoryKind.income => 'Money in',
+};
+
+/// One line each, saying what the choice does to the numbers — the whole point
+/// of the setting is invisible otherwise.
+String _kindHelp(CategoryKind kind) => switch (kind) {
+  CategoryKind.everyday => 'Counts against your everyday allowance.',
+  CategoryKind.committed =>
+    "A bill you can't skip. Budgeted apart from everyday spending, so a big "
+        'month of bills does not read as overspending.',
+  CategoryKind.investment =>
+    'Money you still own. Shown on its own and kept out of spending.',
+  CategoryKind.transfer =>
+    'Moving your own money — a card bill, a wallet top-up, cash from an ATM. '
+        'Counted nowhere, because what it pays for is counted already.',
+  CategoryKind.income => 'Money coming in. Never counted as spending.',
+};
+
 class _CategoryEditorDialog extends ConsumerStatefulWidget {
   final ExpenseCategory? existing;
 
@@ -346,6 +384,7 @@ class _CategoryEditorDialogState extends ConsumerState<_CategoryEditorDialog> {
   late final TextEditingController _nameController;
   late String _iconKey;
   late String _colorHex;
+  late CategoryKind _kind;
   bool _suggesting = false;
 
   bool get _isProtected => widget.existing?.name == kProtectedCategoryName;
@@ -356,6 +395,7 @@ class _CategoryEditorDialogState extends ConsumerState<_CategoryEditorDialog> {
     _nameController = TextEditingController(text: widget.existing?.name ?? '');
     _iconKey = widget.existing?.iconKey ?? 'category';
     _colorHex = widget.existing?.colorHex ?? CategoryStyles.fallbackHexFor('');
+    _kind = widget.existing?.kind ?? CategoryKind.everyday;
   }
 
   @override
@@ -397,9 +437,14 @@ class _CategoryEditorDialogState extends ConsumerState<_CategoryEditorDialog> {
   void _save() {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
-    Navigator.of(
-      context,
-    ).pop(ExpenseCategory(name: name, iconKey: _iconKey, colorHex: _colorHex));
+    Navigator.of(context).pop(
+      ExpenseCategory(
+        name: name,
+        iconKey: _iconKey,
+        colorHex: _colorHex,
+        kind: _kind,
+      ),
+    );
   }
 
   @override
@@ -457,6 +502,29 @@ class _CategoryEditorDialogState extends ConsumerState<_CategoryEditorDialog> {
                 ),
               ),
             const SizedBox(height: 8),
+            Text('Counts as', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final kind in CategoryKind.values)
+                  ChoicePill(
+                    label: _kindLabel(kind),
+                    selected: _kind == kind,
+                    onTap: () => setState(() => _kind = kind),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _kindHelp(_kind),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 12),
             Text('Icon', style: Theme.of(context).textTheme.labelLarge),
             const SizedBox(height: 6),
             Wrap(

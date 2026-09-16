@@ -133,7 +133,6 @@ final dashboardAiSummaryProvider =
       if (!service.isConfigured) {
         return null;
       }
-      final monthlySpend = ref.watch(monthlySpendProvider(userId));
       final budgetMetrics = ref.watch(budgetMetricsProvider(userId));
       final receivables = ref.watch(receivablesTotalProvider(userId));
       final payables = ref.watch(totalPayablesProvider(userId));
@@ -141,7 +140,7 @@ final dashboardAiSummaryProvider =
       final overdue = ref.watch(overdueDebtCountProvider(userId));
       final alerts = ref.watch(upcomingRemindersProvider);
       final raw = await service.summarizeDashboard(
-        cycleSpend: monthlySpend,
+        cycleSpend: budgetMetrics.spent,
         budget: budgetMetrics.budget,
         salary: budgetMetrics.salary,
         receivables: receivables,

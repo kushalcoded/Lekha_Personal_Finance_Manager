@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 
 /// Shows [desktopChild] in a centered dialog on wide screens (>=900px) and
 /// [mobileChild] in a bottom sheet otherwise.
-Future<void> showResponsiveSheet(
+///
+/// Generic so a sheet can hand a value back — an amount, a picked option —
+/// the same way showDialog does. Callers that ignore the result keep working.
+Future<T?> showResponsiveSheet<T>(
   BuildContext context, {
   required Widget mobileChild,
   required Widget desktopChild,
@@ -12,7 +15,7 @@ Future<void> showResponsiveSheet(
   final isDesktop = MediaQuery.of(context).size.width >= 900;
 
   if (isDesktop) {
-    return showDialog<void>(
+    return showDialog<T>(
       context: context,
       builder: (context) => Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -26,7 +29,7 @@ Future<void> showResponsiveSheet(
     );
   }
 
-  return showModalBottomSheet<void>(
+  return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
     backgroundColor: colorScheme.surface,

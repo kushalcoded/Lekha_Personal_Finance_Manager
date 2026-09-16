@@ -59,6 +59,8 @@ class ReminderCard extends StatelessWidget {
         return Icons.repeat_rounded;
       case ReminderType.monthlyBudgetPrompt:
         return Icons.flag_rounded;
+      case ReminderType.cardBillDue:
+        return Icons.credit_card_outlined;
     }
   }
 

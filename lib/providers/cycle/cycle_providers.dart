@@ -21,3 +21,17 @@ final cycleStartProvider = Provider<DateTime>((ref) {
   final start = ref.watch(settingsProvider).currentCycleStartDate;
   return DateTime(start.year, start.month, start.day);
 });
+
+/// Where the current cycle is expected to end — exclusive.
+///
+/// Nothing stores a cycle end: a cycle ends when the user says their salary
+/// landed. So this is the date it is *due* to roll, or a month out when no
+/// salary day is set. Used for planning ahead ("what still has to be paid this
+/// cycle"), never for filtering expenses — [cycleExpensesProvider] deliberately
+/// has no upper bound.
+final cycleEndProvider = Provider<DateTime>((ref) {
+  final settings = ref.watch(settingsProvider);
+  final start = ref.watch(cycleStartProvider);
+  return settings.expectedCycleRollDate ??
+      DateTime(start.year, start.month + 1, start.day);
+});

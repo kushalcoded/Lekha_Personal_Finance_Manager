@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:hive_flutter/hive_flutter.dart';
 
+import '../../models/category/category_kinds.dart';
 import '../../models/category/expense_category.dart';
 import '../../models/expense/expense_hive_model.dart';
 import '../../models/expense/expense_model.dart';
@@ -799,6 +800,43 @@ class HiveService {
     await saveSettings(userId, settings);
   }
 
+  /// Which payment methods are credit cards, and when their statement closes.
+  ///
+  /// A separate settings key rather than a richer [getPaymentMethods] list: an
+  /// older build reads that list with .toString() and would turn a map into a
+  /// payment method literally named "{name: HDFC, ...}", then write the
+  /// wreckage back. An unknown key it simply carries through untouched.
+  Map<String, Map<String, int?>> getCards(String userId) {
+    final raw = getSettings(userId)['cards'];
+    if (raw is! Map) return {};
+    final cards = <String, Map<String, int?>>{};
+    raw.forEach((key, value) {
+      if (value is! Map) return;
+      cards[key.toString()] = {
+        'statementDay': (value['statementDay'] as num?)?.toInt(),
+        'dueDay': (value['dueDay'] as num?)?.toInt(),
+      };
+    });
+    return cards;
+  }
+
+  Future<void> saveCards(
+    String userId,
+    Map<String, Map<String, int?>> cards,
+  ) async {
+    if (!_initialized) throw Exception('HiveService not initialized');
+    final settings = getSettings(userId);
+    settings['cards'] = {
+      for (final entry in cards.entries)
+        entry.key: {
+          if (entry.value['statementDay'] != null)
+            'statementDay': entry.value['statementDay'],
+          if (entry.value['dueDay'] != null) 'dueDay': entry.value['dueDay'],
+        },
+    };
+    await saveSettings(userId, settings);
+  }
+
   List<CycleHistorySnapshot> getCycleHistory(String userId) {
     final settings = getSettings(userId);
     final raw = settings['cycleHistory'];
@@ -834,11 +872,17 @@ class HiveService {
     final normalizedNewStart = _startOfDay(newCycleStartDate);
     final cycleExpenses = getAllExpenses(userId)
       ..sort((a, b) => b.date.compareTo(a.date));
+    // Transfers only. A card-bill payment in an archived total is a double
+    // count under any reading, so it goes. Investments stay: this snapshot is
+    // cash-flow shaped (salaryMinusExpenses), and dropping them now would make
+    // every archived cycle incomparable with the ones already stored.
+    final kinds = CategoryKinds.from(getCustomCategories(userId));
     final filteredExpenses = cycleExpenses
         .where(
           (expense) =>
               !expense.date.isBefore(normalizedStart) &&
-              expense.date.isBefore(normalizedNewStart),
+              expense.date.isBefore(normalizedNewStart) &&
+              kinds.of(expense.category) != CategoryKind.transfer,
         )
         .toList();
 

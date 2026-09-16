@@ -10,6 +10,9 @@ import '../../providers/sms/sms_providers.dart';
 import '../../providers/storage/storage_providers.dart';
 import '../../providers/sync/sync_providers.dart';
 import '../../utils/formatters/formatters.dart';
+import '../../models/category/expense_category.dart';
+import '../../providers/categories/category_providers.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/common/form_bits.dart';
 import '../../widgets/common/glass.dart';
 import 'providers/expenses_providers.dart';
@@ -474,7 +477,7 @@ class _StatBox extends StatelessWidget {
   }
 }
 
-class _ExpenseRow extends StatefulWidget {
+class _ExpenseRow extends ConsumerStatefulWidget {
   final Expense expense;
   final VoidCallback onTap;
 
@@ -493,10 +496,10 @@ class _ExpenseRow extends StatefulWidget {
   });
 
   @override
-  State<_ExpenseRow> createState() => _ExpenseRowState();
+  ConsumerState<_ExpenseRow> createState() => _ExpenseRowState();
 }
 
-class _ExpenseRowState extends State<_ExpenseRow> {
+class _ExpenseRowState extends ConsumerState<_ExpenseRow> {
   bool _hover = false;
 
   @override
@@ -505,6 +508,14 @@ class _ExpenseRowState extends State<_ExpenseRow> {
     final cs = theme.colorScheme;
     final expense = widget.expense;
     final style = CategoryStyles.of(expense.category);
+    final kind = ref.watch(categoryKindsProvider).of(expense.category);
+    // Says why a row is not in the spending total. Bills carry no tag — they
+    // are spending like anything else. A refund is a negative expense, which
+    // reads as a mistake without the word.
+    final isRefund = expense.amount < 0;
+    final tag = isRefund
+        ? 'REFUND'
+        : (kind == CategoryKind.committed ? null : kind.tag);
     final method = expensePaymentMethod(expense);
     final subtitle = method == null
         ? expense.category
@@ -547,14 +558,24 @@ class _ExpenseRowState extends State<_ExpenseRow> {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                      fontSize: 11.5,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ),
+                      if (tag != null) ...[
+                        const SizedBox(width: 8),
+                        FieldLabel(tag),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -583,9 +604,12 @@ class _ExpenseRowState extends State<_ExpenseRow> {
             ],
             const SizedBox(width: 8),
             Text(
-              AppFormatters.formatCurrency(expense.amount),
+              isRefund
+                  ? '+${AppFormatters.formatCurrency(expense.amount.abs())}'
+                  : AppFormatters.formatCurrency(expense.amount),
               style: theme.textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w700,
+                color: isRefund ? CalmColors.of(context).positive : null,
               ),
             ),
           ],

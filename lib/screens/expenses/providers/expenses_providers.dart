@@ -345,9 +345,3 @@ final expensesByCategoryProvider = Provider<Map<String, double>>((ref) {
 
   return categoryTotals;
 });
-
-/// Provider for total expenses amount
-final totalExpensesAmountProvider = Provider<double>((ref) {
-  final expenses = ref.watch(filteredExpensesProvider);
-  return expenses.fold(0.0, (sum, e) => sum + e.amount);
-});

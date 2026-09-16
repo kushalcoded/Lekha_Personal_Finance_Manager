@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/constants/category_styles.dart';
+import '../../models/category/category_kinds.dart';
 import '../../models/category/expense_category.dart';
 import '../../services/storage/hive_service.dart';
 import '../auth/auth_provider.dart';
+import '../budget/category_budget_providers.dart';
 import '../storage/storage_providers.dart';
 
 /// Single source of truth for the user's expense categories.
@@ -15,6 +17,12 @@ final categoriesProvider =
     StateNotifierProvider<CategoriesNotifier, List<ExpenseCategory>>((ref) {
       return CategoriesNotifier(ref);
     });
+
+/// What each category name means, for the totals that have to tell money
+/// consumed apart from money that merely moved.
+final categoryKindsProvider = Provider<CategoryKinds>((ref) {
+  return CategoryKinds.from(ref.watch(categoriesProvider));
+});
 
 /// Category names your records still use that are no longer in the list.
 ///
@@ -104,13 +112,30 @@ class CategoriesNotifier extends StateNotifier<List<ExpenseCategory>> {
     required String name,
     required String iconKey,
     required String colorHex,
+    CategoryKind kind = CategoryKind.everyday,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty || exists(trimmed)) return;
     await _persist([
       ...state,
-      ExpenseCategory(name: trimmed, iconKey: iconKey, colorHex: colorHex),
+      ExpenseCategory(
+        name: trimmed,
+        iconKey: iconKey,
+        colorHex: colorHex,
+        kind: kind,
+      ),
     ]);
+  }
+
+  /// Change what a category's money means. Nothing is rewritten: every total
+  /// resolves the kind by name at read time, so the change applies to past
+  /// expenses too — which is what someone marking "Rent" as a bill expects.
+  Future<void> updateKind(String name, CategoryKind kind) async {
+    final next = [
+      for (final c in state)
+        if (c.name == name) c.copyWith(kind: kind) else c,
+    ];
+    await _persist(next);
   }
 
   Future<void> updateStyle(
@@ -140,6 +165,20 @@ class CategoriesNotifier extends StateNotifier<List<ExpenseCategory>> {
     ];
     await _persist(next);
     await _migrateCategory(from: oldName, to: trimmed);
+    await _moveBudget(oldName, trimmed);
+  }
+
+  /// Category budgets are keyed by name, so a rename has to carry the cap
+  /// across or it silently disappears. A delete drops it instead of handing
+  /// the cap to Miscellaneous, which nobody asked for.
+  Future<void> _moveBudget(String from, String? to) async {
+    final userId = _userId;
+    final budgets = Map<String, double>.from(_hive.getCategoryBudgets(userId));
+    final limit = budgets.remove(from);
+    if (limit == null) return;
+    if (to != null) budgets[to] = limit;
+    await _hive.saveCategoryBudgets(userId, budgets);
+    _ref.read(categoryBudgetsProvider.notifier).refresh();
   }
 
   /// Number of records that would be reassigned if [name] is deleted.
@@ -165,6 +204,7 @@ class CategoriesNotifier extends StateNotifier<List<ExpenseCategory>> {
     final next = state.where((c) => c.name != name).toList();
     await _persist(next);
     await _migrateCategory(from: name, to: kProtectedCategoryName);
+    await _moveBudget(name, null);
   }
 
   /// Re-point every stored expense, payable, and recurring template from the

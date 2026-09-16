@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 enum ReminderType {
+  /// A credit-card bill with a due date coming up and a balance on it.
+  cardBillDue,
   budgetWarning,
   overdueReceivable,
   upcomingRecurringExpense,

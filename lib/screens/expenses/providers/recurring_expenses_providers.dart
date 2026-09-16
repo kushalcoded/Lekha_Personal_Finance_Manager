@@ -149,12 +149,19 @@ class RecurringExpenseActions {
 
   RecurringExpenseActions(this._ref);
 
-  Future<bool> generateExpenseFromTemplate(
-    RecurringExpenseTemplate template,
-  ) async {
+  /// Record this occurrence of [template] as a real expense.
+  ///
+  /// [amount] overrides the template's figure for this one occurrence only —
+  /// an electricity bill is a different number every month, and editing the
+  /// template each time would lose what the usual amount is. Returns the new
+  /// expense id, or null when this occurrence was already recorded.
+  Future<String?> generateExpenseFromTemplate(
+    RecurringExpenseTemplate template, {
+    double? amount,
+  }) async {
     final now = DateTime.now();
     if (_alreadyGenerated(template, now)) {
-      return false;
+      return null;
     }
     final expense = Expense(
       // Derived from the template and the due date, so two devices generating
@@ -163,7 +170,7 @@ class RecurringExpenseActions {
           'rec_${template.id}_'
           '${template.nextDueDate.toIso8601String().substring(0, 10)}',
       userId: template.userId,
-      amount: template.amount,
+      amount: amount ?? template.amount,
       category: template.category,
       description: _combinePaymentAndNotes(
         template.paymentMethod,
@@ -188,15 +195,26 @@ class RecurringExpenseActions {
             updatedAt: now,
           ),
         );
-    return true;
+    return expense.id;
+  }
+
+  /// Undo a [generateExpenseFromTemplate]: drop the expense and put the
+  /// template back where it was, so the bill is due again.
+  Future<void> undoGenerated(
+    RecurringExpenseTemplate before,
+    String expenseId,
+  ) async {
+    await _ref.read(expensesProvider.notifier).deleteExpense(expenseId);
+    await _ref
+        .read(recurringTemplatesProvider.notifier)
+        .updateTemplate(before.id, before);
   }
 
   Future<int> generateDueExpenses(String userId) async {
     final dueTemplates = _ref.read(dueRecurringTemplatesProvider(userId));
     var generated = 0;
     for (final template in dueTemplates) {
-      final didGenerate = await generateExpenseFromTemplate(template);
-      if (didGenerate) {
+      if (await generateExpenseFromTemplate(template) != null) {
         generated += 1;
       }
     }
@@ -237,13 +255,16 @@ DateTime _nextDueDate(
 ) {
   var next = currentDueDate;
   do {
-    next = _advanceDueDate(frequency, next);
+    next = advanceDueDate(frequency, next);
   } while (!next.isAfter(now));
 
   return next;
 }
 
-DateTime _advanceDueDate(RecurringFrequency frequency, DateTime from) {
+/// One step of a template's schedule. Public because planning ahead — what a
+/// committed bill still owes this cycle — walks the same steps the generator
+/// does, and the two must never disagree about month-end clamping.
+DateTime advanceDueDate(RecurringFrequency frequency, DateTime from) {
   switch (frequency) {
     case RecurringFrequency.daily:
       return from.add(const Duration(days: 1));

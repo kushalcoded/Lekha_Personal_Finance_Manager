@@ -74,37 +74,3 @@ class AnalyticsSummary {
     required this.topCategory,
   });
 }
-
-class RecurringObligationSummary {
-  final double monthlyTotal;
-  final double annualTotal;
-  final double averageDaily;
-  final int templateCount;
-  final double upcomingTotal;
-  final int upcomingCount;
-
-  const RecurringObligationSummary({
-    required this.monthlyTotal,
-    required this.annualTotal,
-    required this.averageDaily,
-    required this.templateCount,
-    required this.upcomingTotal,
-    required this.upcomingCount,
-  });
-}
-
-class BurnRateForecast {
-  final double actualDaily;
-  final double recurringDaily;
-  final double projectedMonthEnd;
-  final double budget;
-  final double remainingBudget;
-
-  const BurnRateForecast({
-    required this.actualDaily,
-    required this.recurringDaily,
-    required this.projectedMonthEnd,
-    required this.budget,
-    required this.remainingBudget,
-  });
-}
