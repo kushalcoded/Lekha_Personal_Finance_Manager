@@ -140,7 +140,10 @@ final dashboardAiSummaryProvider =
       final overdue = ref.watch(overdueDebtCountProvider(userId));
       final alerts = ref.watch(upcomingRemindersProvider);
       final raw = await service.summarizeDashboard(
-        cycleSpend: budgetMetrics.spent,
+        // The budget is the everyday allowance, so the spend compared against
+        // it has to be everyday spending too — otherwise the summary works out
+        // a different "left in budget" than the figure on screen above it.
+        cycleSpend: budgetMetrics.everydaySpent,
         budget: budgetMetrics.budget,
         salary: budgetMetrics.salary,
         receivables: receivables,

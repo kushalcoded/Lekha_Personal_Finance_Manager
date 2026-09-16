@@ -231,7 +231,10 @@ final budgetIntelligenceProvider = Provider.family<BudgetIntelligence, String>((
       )
       .spendable(ref.watch(categoryKindsProvider))
       .toList();
-  final monthlyBurnRate = metrics.spent / daysElapsed;
+  // Everyday spending, because that is what the budget covers. Projecting the
+  // rent forward as if it repeated daily put the month-end forecast wildly
+  // over every time.
+  final monthlyBurnRate = metrics.everydaySpent / daysElapsed;
   final projected = monthlyBurnRate * daysInMonth;
   final weeklyAverage = monthlyBurnRate * 7;
   final categoryTotals = <String, double>{};
