@@ -12,6 +12,7 @@ feature log; `MEMORY.md` (gitignored) is the long-form project memory; the
 | | State |
 |---|---|
 | Web (lekhamoney.app) | Live on `main`, deploys on every push via GitHub Pages (`gh run list`) |
+| On `main`, unreleased | **v1.4.1** (`1.4.1+17`) — spread a payment across months in Insights. Not pushed, not released |
 | Latest GitHub release | **v1.4.0** (`1.4.0+16`, released 2026-09-16 at `87de1bf`, same signing key) — money kinds, the everyday budget, cards, refunds, income, swipe nav, group delete, the Android resume fix, the stuck-notice fix. See PROGRESS §12 and §12a. Web live on the same commit; installed on the phone |
 | Supabase | `detected_transactions.merchant` column added; `gemini-proxy` and `ingest-sms` redeployed with image + merchant support (2026-09-15). `share` unchanged |
 | Tests | 295 logic tests pass, analyzer clean. Design goldens (26) drift daily — see Known issues |
@@ -159,6 +160,10 @@ matches exactly once. `dart format lib test` after.
   `isOverBudget`, the burn rate, the figure given to the AI) must use everyday
   spending, or the screen shows two answers to one question.
 - `committedPlanned` only says what is still due this cycle, on the Bills row.
+- **Spread payments (1.4.1) are charts-only.** `spreadForCharts` cuts a spread
+  expense into monthly slices for `analyticsScopedAllProvider` and the monthly
+  bars, and nowhere else. It must run *before* the window is applied, and must
+  drop slices dated after now, because Insights windows have no upper bound.
 - Insights panels and Home's category bars are **everyday-only**: with bills in,
   the answer was "Rent" every month. Bills live in the "Where the money went"
   section, which is the one place the whole division is shown.

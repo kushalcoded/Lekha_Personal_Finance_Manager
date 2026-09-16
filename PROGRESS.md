@@ -316,6 +316,31 @@ smallest size it is offered; inside a `Row` (centre alignment) or a
 split bar shipped invisible, and eyeballing the goldens missed it twice —
 scanning the pixels found it.
 
+### 12b. Spread a payment across months — v1.4.1 (2026-09-16)
+
+Unreleased, on `main`.
+
+- [x] **Any expense can be spread over any number of months** (`d2e550c`), from
+      a SPREAD tile on the add sheet or a row on the edit sheet. Insights draws
+      it one slice a month from the day it was paid, so an annual premium stops
+      showing up as a single spike.
+- [x] **Charts only, by the user's choice.** Home, the budget, Budget Health and
+      the expense list still count the full payment in its month. When a
+      spread payment is inside the window, Insights says "spread by month" under
+      its spend figure, so the two disagreeing never reads as a bug.
+
+This is the second attempt: 1.4.0's "spread a yearly bill" changed the budget
+and was deleted when bills left the budget.
+
+**Traps, all pinned by `test/spread_for_charts_test.dart`:**
+- Insights windows have no upper bound, so slices dated after today must be
+  dropped, or all twelve land in this cycle at once.
+- Each slice is shifted from the *original* date. Stepping from the previous
+  slice compounds the clamp: Jan 31 → Feb 28 → Mar 28. Caught while writing it,
+  before any test ran.
+- Slicing has to happen before the window is applied, which is why the cycle
+  scope now reads every expense rather than the cycle's own list.
+
 **Caught in review or by the tests, worth remembering**
 
 - `max(committedSpent, committedPlanned)` silently stops reserving the second
