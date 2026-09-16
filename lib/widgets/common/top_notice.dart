@@ -115,13 +115,19 @@ class _NoticeState extends State<_Notice> with SingleTickerProviderStateMixin {
   }
 
   Future<void> dismiss() async {
-    if (!mounted) return;
-    if (MediaQuery.of(context).disableAnimations) {
+    if (!mounted || MediaQuery.of(context).disableAnimations) {
       widget.onGone();
       return;
     }
-    await _controller.reverse();
-    if (mounted) widget.onGone();
+    // Going away must never depend on an animation finishing. Tickers stop
+    // while the app is in the background, so a notice whose three seconds ran
+    // out on the way out never completed its reverse — it came back still on
+    // screen, permanently, sitting over the header and swallowing taps.
+    await Future.any([
+      _controller.reverse(),
+      Future<void>.delayed(const Duration(milliseconds: 400)),
+    ]);
+    widget.onGone();
   }
 
   @override
