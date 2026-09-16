@@ -13,7 +13,7 @@ feature log; `MEMORY.md` (gitignored) is the long-form project memory; the
 |---|---|
 | Web (lekhamoney.app) | Live on `main`, deploys on every push via GitHub Pages (`gh run list`) |
 | Latest GitHub release | **v1.3.1** (`1.3.1+15`, released 2026-09-16, same signing key) |
-| Unreleased on `main` | Money kinds, cards, refunds, income, swipe nav, group delete, the Android resume fix — see PROGRESS §12. Not on any device or on the web yet |
+| Unreleased on `main` | **v1.4.0** (`1.4.0+16`) — money kinds, the everyday budget, cards, refunds, income, swipe nav, group delete, the Android resume fix. See PROGRESS §12. Installed on the phone; **not pushed**, so the web is still on 1.3.1 |
 | Supabase | `detected_transactions.merchant` column added; `gemini-proxy` and `ingest-sms` redeployed with image + merchant support (2026-09-15). `share` unchanged |
 | Tests | 295 logic tests pass, analyzer clean. Design goldens (26) drift daily — see Known issues |
 | Devices | User's Android phone (Galaxy S20 FE, `SM_G781B`) still does SMS detection. The user is **moving to iPhone** and will use the web app in Safari there |
@@ -56,13 +56,19 @@ npx --yes deno check supabase/functions/<fn>/index.ts
 Check a test run by its last line, not a pipe's exit code — `… | tail -1` hides
 failures.
 
-The real app on the `Pixel_7` AVD (onboarding → login, screenshots in
-`build/integration_screenshots/`). **Emulator only**: the run uninstalls the
-app afterwards, and a debug build replaces the release-signed one by
-uninstalling it first. Either way, on the phone that wipes local data.
+The real app on the `Pixel_7` AVD, from a fresh install through onboarding to
+login; fails on any framework error (overflows included) and leaves
+screenshots in `build/integration_screenshots/`. It clears the app's data
+first, so it is pinned to `emulator-5554` — never point it at the phone.
 ```
-flutter drive --driver=test_driver/integration_test.dart --target=integration_test/app_test.dart -d emulator-5554
+bash test_driver/run_android.sh           # boot the AVD first
 ```
+It uses `flutter_driver`, not `integration_test`: the latter needs Gradle
+downloads that Norton's SSL scanning blocks on this PC. For the same reason
+debug builds read the engine from `~/flutter_mirror` (fetched with curl,
+MD5-checked against Google's storage); the script sets
+`FLUTTER_STORAGE_BASE_URL` to it. A Flutter upgrade changes the engine hash and
+needs those jars fetched again.
 
 **Releases** (only after an explicit go): bump `version:` in `pubspec.yaml`,
 build, verify with `apksigner verify --print-certs` (digest must be

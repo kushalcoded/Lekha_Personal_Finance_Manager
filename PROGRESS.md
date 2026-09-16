@@ -231,7 +231,8 @@ already here"); the new breakdown message has not been seen yet.
 
 ### 12. Money that isn't spending, and three loose ends (2026-09-16)
 
-Unreleased — on `main`, not in any build the user runs yet.
+**v1.4.0 (`1.4.0+16`)** — versioned, on `main`, installed on the phone, not
+released and not pushed.
 
 **The one idea behind five of these.** Every expense counted the same way:
 filter by date, fold `amount`, exclude nothing. Rent competed with food, a SIP
