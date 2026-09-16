@@ -61,7 +61,9 @@ login; fails on any framework error (overflows included) and leaves
 screenshots in `build/integration_screenshots/`. It clears the app's data
 first, so it is pinned to `emulator-5554` — never point it at the phone.
 ```
-bash test_driver/run_android.sh           # boot the AVD first
+bash test_driver/run_android.sh                # boot the AVD first; ~3 min
+bash test_driver/run_android.sh <backup.json>  # + every tab and the add sheet
+                                               #   on that data; ~5 min
 ```
 It uses `flutter_driver`, not `integration_test`: the latter needs Gradle
 downloads that Norton's SSL scanning blocks on this PC. For the same reason
@@ -69,6 +71,18 @@ debug builds read the engine from `~/flutter_mirror` (fetched with curl,
 MD5-checked against Google's storage); the script sets
 `FLUTTER_STORAGE_BASE_URL` to it. A Flutter upgrade changes the engine hash and
 needs those jars fetched again.
+
+The phone's real data on the emulator, cut off from the cloud: export a backup
+on the phone (Settings → Export / share backup), then
+```
+bash test_driver/clone_to_emulator.sh <lekha_backup_….json>
+```
+`test_driver/clone.dart` restores it and treats the backup's user id as signed
+in with **no Supabase session**, so every write is refused by RLS (logcat shows
+`[sync] failed: … row-level security`, which is expected). `run_android.sh`
+clears the app and leaves a driver build installed (its keyboard input is
+emulated), so run this again before using the emulator by hand. No test account
+is needed.
 
 **Releases** (only after an explicit go): bump `version:` in `pubspec.yaml`,
 build, verify with `apksigner verify --print-certs` (digest must be
@@ -136,9 +150,15 @@ matches exactly once. `dart format lib test` after.
 - Every `ExpenseCategory` carries a `CategoryKind`: everyday · committed ·
   investment · transfer · income. `countsAsSpent` = everyday + committed, and
   `Iterable<Expense>.spendable(kinds)` is how every total asks.
-- Budget: `committedReserved = committedSpent + committedPlanned` (added, never
-  max-ed), `everydayAllowance = budget − that`, and `everydayLeft` is the Home
-  hero. A yearly bill can set `spreadOverCycles` to reserve a share per cycle.
+- **The budget the user sets is the everyday allowance.** Bills are shown but
+  never subtracted from it — `everydayLeft = budget − everydaySpent` is the Home
+  hero. Everything measured against the budget (`remaining`, `percentSpent`,
+  `isOverBudget`, the burn rate, the figure given to the AI) must use everyday
+  spending, or the screen shows two answers to one question.
+- `committedPlanned` only says what is still due this cycle, on the Bills row.
+- Insights panels and Home's category bars are **everyday-only**: with bills in,
+  the answer was "Rent" every month. Bills live in the "Where the money went"
+  section, which is the one place the whole division is shown.
 - Refunds are negative-amount expenses; income is an expense in an income-kind
   category (Spent/Received switch in the add sheet); a card balance is
   spending-minus-transfers on that method, all time.
@@ -153,8 +173,11 @@ list. Screenshot rows are `shot_…` ids and never `provisional`.
 `PendingTransaction.merchant` shows on cards only and is cleared on add/dismiss.
 
 **Navigation**: the phone layout pages between tabs (`PageView` in
-`app_shell.dart`); desktop keeps a switch and keys 1-4. The Insights scope
-swipe was removed so one horizontal gesture means one thing.
+`app_shell.dart`); desktop keeps a switch and keys 1-4. On Insights the pager
+takes `NeverScrollableScrollPhysics` and the screen owns the gesture: a swipe
+steps through Cycle → 30 days → 12M and only carries on to the next tab at the
+edge. Two drag recognisers competing for one gesture is a coin toss, so only
+ever let one of them have it.
 
 **UI**: all messages go through `showNotice` (`lib/widgets/common/top_notice.dart`,
 top of screen). Sync buttons use `syncWithFeedback`. Home has one summary card:

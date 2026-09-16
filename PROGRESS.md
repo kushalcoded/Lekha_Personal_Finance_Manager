@@ -256,8 +256,7 @@ no new plumbing, and it survives a rename.
       so every total, chart, export and sync nets it off unchanged.
 - [x] **Income entries** via a Spent/Received switch; `actualSavings` stops
       being an estimate.
-- [x] **Spread a yearly bill** over 6 or 12 cycles, holding back a share each
-      time rather than wrecking the one it lands in.
+- [x] ~~Spread a yearly bill~~ — **removed the same day**, see below.
 - [x] **Credit cards** (`fbe65d1`) — a Cards section in Debts, a ledger shaped
       like the person ledger, partial payments that carry over. The balance is
       spending minus transfers on that method, all time; no new box.
@@ -268,6 +267,48 @@ no new plumbing, and it survives a rename.
 - [x] **Reopening the app resumes it** (`0ca6a90`). `android:taskAffinity=""`,
       there since the first commit, made the launcher icon start a new activity
       rather than resume the running one.
+
+### 12a. What using it on the phone changed (2026-09-16)
+
+Everything above was built against a derived budget: the user set one figure
+for everything, and the everyday allowance was `budget − bills`. Fifteen
+minutes on a real phone killed it.
+
+- [x] **The budget you set IS the everyday allowance** (`dd74866`). The derived
+      allowance was a number nobody had typed and nobody recognised, the bills
+      row read "₹20,338.90 / ₹20,338.90" — X out of X, which looks like a limit
+      reached — and the ₹30,000 the user had actually set appeared nowhere on
+      the screen. Bills are now shown beside the budget and never taken out of
+      it. **Spreading a yearly bill went with it**: it existed to stop an annual
+      premium eating one cycle's budget, and bills are no longer in the budget.
+- [x] **Everything measured against the budget moved to everyday spending**
+      (`f95fd14`) — including the AI card, which was still doing the old sum and
+      printed "₹4,190.81 left" directly beneath a hero saying "₹24,529.71 left".
+      Two answers to one question, on one screen. The burn-rate projection was
+      extrapolating the rent as though it recurred daily.
+- [x] **Insights is about everyday spending** (`3c61838`). Top category: Rent.
+      Biggest slice: Rent. Tallest bar: Rent. Ranking categories against each
+      other could only ever say that. The panels are everyday-only and labelled
+      so; bills get **Where the money went**, a share-of-spending bar where the
+      division is the point. Home's category bars follow the same rule.
+- [x] **Swipe on Insights steps the scopes first** (`1514f19`), then carries on
+      to the next tab at the edge. The pager stands down on that screen — two
+      horizontal drag recognisers competing for one gesture is a coin toss.
+- [x] **A notice could stick to the screen forever** (`1bdc71c`). Backgrounding
+      the app within three seconds of an action left its message up across every
+      tab, swallowing taps over the header. `dismiss()` awaited the slide-away
+      animation, and tickers stop in the background. Present since 1.3.0.
+- [x] **Payment methods name the instrument, not the app**: UPI, Net Banking, Cash,
+      Debit Card, Credit Card. Stored lists stay the user's, but `Bank Transfer`
+      and `Card` are renamed in place, carrying their expenses.
+- [x] **Cards show in Debts even when none is set up** — the user went looking
+      for the section and it wasn't there.
+
+**Two bars were drawing nothing at all.** A `ColoredBox` with no child takes the
+smallest size it is offered; inside a `Row` (centre alignment) or a
+`FractionallySizedBox` that is zero height. The Home meter's fill and the whole
+split bar shipped invisible, and eyeballing the goldens missed it twice —
+scanning the pixels found it.
 
 **Caught in review or by the tests, worth remembering**
 
@@ -292,8 +333,12 @@ lost. There is a test that says so.
 under "Due now". Everything else surfaces on its own — Received only once an
 income category exists, Cards only once a payment method is marked as one.
 
-**Still unverified live:** everything in this section. Nothing has run on a real
-device yet.
+**Verified on the phone:** the hero and its rows against real data, the
+everyday/bills split, the AI card agreeing with the hero, swipe between tabs,
+a fresh install booting.
+
+**Still unverified:** cards end to end, refunds, income entry, group delete,
+the screenshot-import breakdown, the restore screen.
 
 ## Android
 
