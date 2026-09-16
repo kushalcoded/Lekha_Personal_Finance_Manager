@@ -328,9 +328,68 @@ class _GroupDetail extends ConsumerWidget {
           const FieldLabel('Links'),
           const SizedBox(height: 10),
           ...group.members.map((m) => _MemberRow(member: m, group: group)),
+          // Kept at the very bottom, away from everything you do routinely,
+          // and worded as a plain sentence rather than an icon.
+          const SizedBox(height: 24),
+          Divider(color: Colors.white.withValues(alpha: 0.07), height: 1),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => _confirmDelete(context, ref, group),
+              style: TextButton.styleFrom(foregroundColor: cs.error),
+              child: const Text('Delete this group'),
+            ),
+          ),
         ],
       ),
     );
+  }
+}
+
+/// Deleting a group takes its page down for everyone, so the dialog says what
+/// survives before it says what goes — the worry is always "do I lose the
+/// bills?", and the answer is no.
+Future<void> _confirmDelete(
+  BuildContext context,
+  WidgetRef ref,
+  SharedGroup group,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Delete "${group.title}"?'),
+      content: const Text(
+        'The bills stay in your expenses and the debts stay on each '
+        "person's page.\n\nThe group's page stops working for everyone, and "
+        "the links you sent them won't open again. This can't be undone.",
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Keep it'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(ctx).colorScheme.error,
+          ),
+          child: const Text('Delete group'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  final ok = await ref.read(sharedInboxProvider.notifier).deleteGroup(group);
+  if (!context.mounted) return;
+  if (ok) {
+    Navigator.of(context).pop();
+    showNotice('"${group.title}" deleted');
+  } else {
+    // The page lives online, so there is nothing sensible to queue: a group
+    // half-deleted on this device only would still be live for everyone else.
+    showNotice('Could not delete that — the group page needs a connection');
   }
 }
 

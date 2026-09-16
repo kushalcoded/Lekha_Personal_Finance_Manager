@@ -512,6 +512,58 @@ class SharedLedgerNotifier extends StateNotifier<SharedInbox> {
     }
   }
 
+  /// Take a group's page down.
+  ///
+  /// The owner's own books are untouched: the bills stay in Expenses and the
+  /// debts stay on each person's page. Only the shared page and its links stop
+  /// existing. The space cascades to its entries and participants, but they
+  /// are deleted explicitly so a half-finished delete leaves an empty page
+  /// rather than a live one showing stale totals.
+  ///
+  /// `shared_people` rows are deliberately left alone — they are shared across
+  /// spaces, and keeping them means a member's PIN still works if they are
+  /// ever given a page again.
+  Future<bool> deleteGroup(SharedGroup group) async {
+    final userId = _userId;
+    if (userId == null) return false;
+    final client = SupabaseService.client;
+    try {
+      await client
+          .from('shared_entries')
+          .delete()
+          .eq('owner_id', userId)
+          .eq('space_id', group.id);
+      await client
+          .from('shared_participants')
+          .delete()
+          .eq('owner_id', userId)
+          .eq('space_id', group.id);
+      await client
+          .from('shared_spaces')
+          .delete()
+          .eq('owner_id', userId)
+          .eq('id', group.id);
+      await _dropQueuedFor(group.id);
+      await refresh();
+      return true;
+    } catch (e) {
+      debugPrint('delete group failed: $e');
+      return false;
+    }
+  }
+
+  /// A queued publish aimed at a space that no longer exists can never
+  /// succeed, and [_flushPublishQueue] stops at the first failure — leaving
+  /// one behind would block every later publish forever.
+  Future<void> _dropQueuedFor(String spaceId) async {
+    if (!Hive.isBoxOpen(kLocalPrefsBox)) return;
+    final queue = _publishQueue()
+      ..removeWhere(
+        (_, row) => row is Map && row['space_id'].toString() == spaceId,
+      );
+    await Hive.box(kLocalPrefsBox).put(_publishQueueKey, queue);
+  }
+
   Future<void> _addParticipant(
     String userId,
     String spaceId,
