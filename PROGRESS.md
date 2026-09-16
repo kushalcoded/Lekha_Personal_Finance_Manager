@@ -231,8 +231,9 @@ already here"); the new breakdown message has not been seen yet.
 
 ### 12. Money that isn't spending, and three loose ends (2026-09-16)
 
-**v1.4.0 (`1.4.0+16`)** — versioned, on `main`, installed on the phone, not
-released and not pushed.
+**Released as v1.4.0 (`1.4.0+16`) on 2026-09-16**, at `87de1bf`. Web deployed on
+the same commit. The APK was built from a clean worktree of that commit, because
+another session had uncommitted app code in the main checkout.
 
 **The one idea behind five of these.** Every expense counted the same way:
 filter by date, fold `amount`, exclude nothing. Rent competed with food, a SIP

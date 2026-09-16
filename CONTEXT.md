@@ -12,8 +12,7 @@ feature log; `MEMORY.md` (gitignored) is the long-form project memory; the
 | | State |
 |---|---|
 | Web (lekhamoney.app) | Live on `main`, deploys on every push via GitHub Pages (`gh run list`) |
-| Latest GitHub release | **v1.3.1** (`1.3.1+15`, released 2026-09-16, same signing key) |
-| Unreleased on `main` | **v1.4.0** (`1.4.0+16`) — money kinds, the everyday budget, cards, refunds, income, swipe nav, group delete, the Android resume fix. See PROGRESS §12. Installed on the phone; **not pushed**, so the web is still on 1.3.1 |
+| Latest GitHub release | **v1.4.0** (`1.4.0+16`, released 2026-09-16 at `87de1bf`, same signing key) — money kinds, the everyday budget, cards, refunds, income, swipe nav, group delete, the Android resume fix, the stuck-notice fix. See PROGRESS §12 and §12a. Web live on the same commit; installed on the phone |
 | Supabase | `detected_transactions.merchant` column added; `gemini-proxy` and `ingest-sms` redeployed with image + merchant support (2026-09-15). `share` unchanged |
 | Tests | 295 logic tests pass, analyzer clean. Design goldens (26) drift daily — see Known issues |
 | Devices | User's Android phone (Galaxy S20 FE, `SM_G781B`) still does SMS detection. The user is **moving to iPhone** and will use the web app in Safari there |
@@ -25,14 +24,18 @@ same cloud version; Home shows the single summary card.
 
 ## Open threads
 
-1. **Nothing in PROGRESS §12 has run on a real device.** It is committed but
-   not pushed, so lekhamoney.app is still on 1.3.1.
-2. **Screenshot import** was used once and reported "10 already here". The
+1. **Users must re-set their budget.** v1.4.0 changed it to mean everyday
+   spending only; an old all-in figure overstates what is left. The release
+   notes lead with this. The user already set theirs to ₹15,000.
+2. **Not yet exercised on a device:** cards end to end, refunds, income entry,
+   group delete. The stuck-notice fix is proven by a failing-then-passing test,
+   not yet by adding a detected payment on the phone.
+3. **Screenshot import** was used once and reported "10 already here". The
    message now says where each skipped payment is; the user has not re-tried.
    If it names expenses they never added, the same-day-same-amount matching in
    `lib/providers/sms/screenshot_import.dart` is too loose.
-3. **Group split flow** has not been driven with a real member.
-4. **Restore screen** has never been seen on a real reinstall.
+4. **Group split flow** has not been driven with a real member.
+5. **Restore screen** has never been seen on a real reinstall.
 
 ## Ideas not yet started
 
