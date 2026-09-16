@@ -294,10 +294,15 @@ minutes on a real phone killed it.
 - [x] **Swipe on Insights steps the scopes first** (`1514f19`), then carries on
       to the next tab at the edge. The pager stands down on that screen — two
       horizontal drag recognisers competing for one gesture is a coin toss.
-- [x] **A notice could stick to the screen forever** (`1bdc71c`). Backgrounding
-      the app within three seconds of an action left its message up across every
-      tab, swallowing taps over the header. `dismiss()` awaited the slide-away
-      animation, and tickers stop in the background. Present since 1.3.0.
+- [x] **A notice stuck to the screen forever** — "✓ Added — synced to all
+      devices", across every tab, after adding a detected payment. **The first
+      fix (`1bdc71c`) blamed tickers pausing in the background and was wrong**;
+      the bug survived it on the phone. The real cause (`359f4be`): saving
+      posts two notices in one synchronous run, and replacing the first only
+      removed it if it was *mounted* — which an overlay entry is not until a frame
+      builds it. So it was skipped, built a frame later, and orphaned. Now tracks
+      overlay membership instead. The old replace test waited 100 ms between
+      notices, which is exactly why it never caught this. Present since 1.3.0.
 - [x] **Payment methods name the instrument, not the app**: UPI, Net Banking, Cash,
       Debit Card, Credit Card. Stored lists stay the user's, but `Bank Transfer`
       and `Card` are renamed in place, carrying their expenses.
