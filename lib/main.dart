@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:home_widget/home_widget.dart';
 
 import 'navigation/navigation.dart';
@@ -378,8 +379,35 @@ class _SplashGate extends StatefulWidget {
   State<_SplashGate> createState() => _SplashGateState();
 }
 
+/// When the app was last in the foreground. Android — Samsung especially —
+/// kills a backgrounded app to reclaim memory, and the next tap on the icon is
+/// a cold start that runs the opening animation again. That animation is for
+/// genuinely opening the app, not for coming straight back to it.
+const _foregroundStampKey = 'lastForegroundAt';
+
+void _stampForeground() {
+  try {
+    Hive.box(
+      kLocalPrefsBox,
+    ).put(_foregroundStampKey, DateTime.now().toIso8601String());
+  } catch (_) {
+    // A preference only — worst case the animation plays one extra time.
+  }
+}
+
+bool _returnedRecently() {
+  try {
+    final raw = Hive.box(kLocalPrefsBox).get(_foregroundStampKey)?.toString();
+    final at = raw == null ? null : DateTime.tryParse(raw);
+    return at != null &&
+        DateTime.now().difference(at) < const Duration(minutes: 5);
+  } catch (_) {
+    return false;
+  }
+}
+
 class _SplashGateState extends State<_SplashGate> {
-  bool _done = false;
+  late bool _done = _returnedRecently();
 
   @override
   Widget build(BuildContext context) {
@@ -463,6 +491,9 @@ class _LocalDataBootstrapState extends ConsumerState<_LocalDataBootstrap>
         ref.read(syncProvider.notifier).syncNow();
       }
     } else {
+      // Remember we were here, so a kill-and-relaunch minutes later skips the
+      // opening animation and lands on the tab the user left.
+      _stampForeground();
       // Last chance to leave an accurate nudge behind: the notification text
       // is a snapshot, and this is the moment the data is freshest.
       _rescheduleReminder();
