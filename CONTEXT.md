@@ -12,8 +12,8 @@ feature log; `MEMORY.md` (gitignored) is the long-form project memory; the
 | | State |
 |---|---|
 | Web (lekhamoney.app) | Live on `main`, deploys on every push via GitHub Pages (`gh run list`) |
-| On `main`, unreleased | **v1.4.1** (`1.4.1+17`) — spread a payment across months in Insights. Not pushed, not released |
-| Latest GitHub release | **v1.4.0** (`1.4.0+16`, released 2026-09-16 at `87de1bf`, same signing key) — money kinds, the everyday budget, cards, refunds, income, swipe nav, group delete, the Android resume fix, the stuck-notice fix. See PROGRESS §12 and §12a. Web live on the same commit; installed on the phone |
+| Latest GitHub release | **v1.4.1** (`1.4.1+17`, released 2026-09-16 at `d2e550c`, same signing key) — spread a payment across months in Insights. Web deployed; installed on the phone |
+| Previous release | **v1.4.0** (`1.4.0+16`, at `87de1bf`) — money kinds, the everyday budget, cards, refunds, income, swipe nav, group delete, the Android resume fix, the stuck-notice fix. See PROGRESS §12 and §12a. Web live on the same commit; installed on the phone |
 | Supabase | `detected_transactions.merchant` column added; `gemini-proxy` and `ingest-sms` redeployed with image + merchant support (2026-09-15). `share` unchanged |
 | Tests | 295 logic tests pass, analyzer clean. Design goldens (26) drift daily — see Known issues |
 | Devices | User's Android phone (Galaxy S20 FE, `SM_G781B`) still does SMS detection. The user is **moving to iPhone** and will use the web app in Safari there |

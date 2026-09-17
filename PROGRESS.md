@@ -318,7 +318,9 @@ scanning the pixels found it.
 
 ### 12b. Spread a payment across months — v1.4.1 (2026-09-16)
 
-Unreleased, on `main`.
+**Released as v1.4.1 (`1.4.1+17`) on 2026-09-16**, at `d2e550c`, built from a
+clean worktree of that commit. Web deployed. Installed on the phone; spreading
+itself has not yet been used on a device.
 
 - [x] **Any expense can be spread over any number of months** (`d2e550c`), from
       a SPREAD tile on the add sheet or a row on the edit sheet. Insights draws
